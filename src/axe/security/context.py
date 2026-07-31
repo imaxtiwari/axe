@@ -14,7 +14,7 @@ from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from fastapi import Depends, Header, Request
+from fastapi import Header, Request
 
 from axe.config import Settings, get_settings
 
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 # Module-level contextvar cache for request identity. Stored outside the
 # dataclass to avoid ClassVar/frozen dataclass conflicts.
-_ctx_var: contextvars.ContextVar["RequestContext | None"] = contextvars.ContextVar(
+_ctx_var: contextvars.ContextVar[RequestContext | None] = contextvars.ContextVar(
     "axe_request_context", default=None
 )
 
@@ -44,7 +44,7 @@ class RequestContext:
     is_bypass: bool = False
 
     @classmethod
-    def current(cls) -> "RequestContext":
+    def current(cls) -> RequestContext:
         """Return the active request context.
 
         Raises ``RuntimeError`` when called outside a request and no test context
@@ -59,12 +59,12 @@ class RequestContext:
         return ctx
 
     @classmethod
-    def current_or_none(cls) -> "RequestContext | None":
+    def current_or_none(cls) -> RequestContext | None:
         """Return the active context, or ``None`` outside a request."""
         return _ctx_var.get()
 
     @classmethod
-    def set_current(cls, ctx: "RequestContext") -> Any:
+    def set_current(cls, ctx: RequestContext) -> Any:
         """Set the active context for the current asyncio task.
 
         Returns the contextvars token so callers can restore the previous value.
@@ -82,7 +82,7 @@ class RequestContext:
         request: Request | None,
         *,
         settings: Settings | None = None,
-    ) -> "RequestContext":
+    ) -> RequestContext:
         """Build a context from HTTP headers or request state.
 
         Header names are intentionally simple for reverse-proxy/front-door
@@ -129,10 +129,12 @@ class RequestContext:
             is_bypass=is_bypass,
         )
 
-    def ensure_identity(self) -> "RequestIdentity":
+    def ensure_identity(self) -> RequestIdentity:
         """Return a non-optional identity view, raising if identity is missing."""
         if not self.pm_id:
-            raise RuntimeError("RequestContext has no pm_id; identity is required for this operation")
+            raise RuntimeError(
+                "RequestContext has no pm_id; identity is required for this operation"
+            )
         return RequestIdentity(pm_id=self.pm_id, fund_id=self.fund_id, role=self.role)
 
 

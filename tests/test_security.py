@@ -23,7 +23,6 @@ from axe.db.models import (
     TickerRegistry,
 )
 from axe.security.audit import AuditService, audit_action
-from axe.security.context import RequestContext
 from axe.security.encryption import (
     EncryptedJSON,
     EncryptionError,
