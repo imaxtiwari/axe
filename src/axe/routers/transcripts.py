@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from axe.db.models import RetryQueue
 from axe.db.session import get_async_session
+from axe.security.context import RequestContext, get_request_context
 
 router = APIRouter(prefix="/api/v1/transcripts", tags=["transcripts"])
 
@@ -41,8 +42,15 @@ class TranscriptArrival(BaseModel):
 async def receive_transcript(
     payload: TranscriptArrival,
     session: AsyncSession = Depends(get_async_session),
+    ctx: RequestContext = Depends(get_request_context),
 ) -> dict[str, Any]:
     """Receive a transcript/signal and enqueue drift detection (or run sync)."""
+    if ctx.pm_id is not None and ctx.pm_id != payload.pm_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Transcript pm_id does not match authenticated identity",
+        )
+
     payload_dict = payload.model_dump(exclude={"sync"})
 
     if payload.sync:

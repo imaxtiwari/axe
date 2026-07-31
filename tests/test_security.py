@@ -1,10 +1,16 @@
 """Security, encryption, audit, and isolation tests for AXE v2.1."""
 
+from __future__ import annotations
+
 import uuid
+from typing import TYPE_CHECKING
 
 import pytest
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+
+if TYPE_CHECKING:
+    from fastapi.testclient import TestClient
 
 from axe.db.models import (
     AuditLog,
@@ -17,6 +23,7 @@ from axe.db.models import (
     TickerRegistry,
 )
 from axe.security.audit import AuditService, audit_action
+from axe.security.context import RequestContext
 from axe.security.encryption import (
     EncryptedJSON,
     EncryptionError,
@@ -436,3 +443,53 @@ async def test_audit_action_works_for_sync_result(db_session: AsyncSession):
     log = result.scalar_one_or_none()
     assert log is not None
     assert log.action_type == "signal_ingest"
+
+
+@pytest.fixture
+def app_client():
+    """FastAPI TestClient fixture with request-context middleware installed."""
+    from fastapi.testclient import TestClient
+
+    from axe.main import create_app
+
+    app = create_app()
+    return TestClient(app)
+
+
+def test_request_context_middleware_injects_identity(app_client: TestClient):
+    """Middleware installs RequestContext and echoes the request id."""
+    response = app_client.get(
+        "/healthz",
+        headers={
+            "X-PM-ID": "pm_007",
+            "X-Fund-ID": "fund_007",
+            "X-Request-ID": "trace_42",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["X-Request-ID"] == "trace_42"
+
+
+def test_onboarding_router_blocks_cross_pm(app_client: TestClient):
+    """Onboarding endpoints reject a request targeting a different PM."""
+    response = app_client.post(
+        "/onboarding/start",
+        json={"pm_id": "pm_target"},
+        headers={"X-PM-ID": "pm_attacker"},
+    )
+    assert response.status_code == 403
+
+
+def test_transcripts_router_blocks_cross_pm(app_client: TestClient):
+    """Transcript ingestion rejects a payload for a different PM."""
+    response = app_client.post(
+        "/api/v1/transcripts",
+        json={
+            "pm_id": "pm_target",
+            "ticker": "AAPL",
+            "source_type": "polygon",
+            "signal_text": "beat EPS",
+        },
+        headers={"X-PM-ID": "pm_attacker"},
+    )
+    assert response.status_code == 403

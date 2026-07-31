@@ -16,6 +16,7 @@ from axe.observability import (
 )
 from axe.routers.onboarding import router as onboarding_router
 from axe.routers.transcripts import router as transcripts_router
+from axe.security.context import install_middleware
 
 
 @asynccontextmanager
@@ -40,6 +41,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         version="0.1.0",
         lifespan=lifespan,
     )
+    install_middleware(app)
     instrument_fastapi(app)
 
     @app.get("/healthz", tags=["health"])
