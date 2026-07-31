@@ -110,9 +110,7 @@ class DealRepository(_BaseRepo):
     """Read helpers for deal rooms."""
 
     async def get_by_id(self, deal_id: str) -> DealRoom | None:
-        result = await self.session.execute(
-            select(DealRoom).where(DealRoom.id == deal_id)
-        )
+        result = await self.session.execute(select(DealRoom).where(DealRoom.id == deal_id))
         return result.scalar_one_or_none()
 
 
@@ -146,9 +144,13 @@ class UnitOfWork:
         self.audit = AuditRepository(self.session)
         self.deals = DealRepository(self.session)
 
-    async def __aenter__(self) -> "UnitOfWork":
+    async def __aenter__(self) -> UnitOfWork:
         if self._owns_session:
             self.session = AsyncSessionLocal()
+            self.theses = ThesisRepository(self.session)
+            self.pm_users = PMUserRepository(self.session)
+            self.audit = AuditRepository(self.session)
+            self.deals = DealRepository(self.session)
         if self.session is None:  # pragma: no cover - type guard
             raise RuntimeError("UnitOfWork has no active session")
         return self
@@ -157,10 +159,14 @@ class UnitOfWork:
         if self.session is None:
             return
         try:
-            if exc_type is not None:
-                await self.session.rollback()
-            elif not self._committed:
-                await self.session.rollback()
+            if self._owns_session:
+                if exc_type is not None or not self._committed:
+                    await self.session.rollback()
+            else:
+                # Nested UoW sharing a fixture-managed session must not touch
+                # transaction boundaries or close the session. Only reset our
+                # committed marker so callers can observe the decision.
+                self._committed = False
         finally:
             if self._owns_session:
                 await self.session.close()

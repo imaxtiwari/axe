@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from axe.agents.embedding import EmbeddingModel, cosine_similarity, get_default_embedding_model
 from axe.agents.llm import LLMProvider, get_default_provider
-from axe.db.uow import UnitOfWork
 from axe.db.models import (
     BrokenAssumption,
     SignalLog,
@@ -20,6 +19,7 @@ from axe.db.models import (
     ThesisVersion,
     utc_now,
 )
+from axe.db.uow import UnitOfWork
 from axe.services.thesis import ThesisRepo
 
 Stance = Literal["CONFIRMS", "CONTRADICTS", "NEUTRAL", "UNCERTAIN"]
