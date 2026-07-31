@@ -1,0 +1,39 @@
+app = "axe-api"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  APP_ENV = "production"
+  LOG_LEVEL = "INFO"
+  DATABASE_URL = "sqlite+aiosqlite:///data/axe.db"
+  CHROMA_PERSIST_DIR = "/data/chroma"
+  BACKUP_OUTPUT_DIR = "/data/backups"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/healthz"
+
+[[vm]]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
+
+[[mounts]]
+  source = "axe_data"
+  destination = "/data"
+
+[deploy]
+  strategy = "rolling"

@@ -1,0 +1,56 @@
+version: "3.9"
+
+services:
+  axe:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: axe-dev
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=development
+      - DATABASE_URL=sqlite+aiosqlite:///./data/axe.db
+      - CHROMA_PERSIST_DIR=./data/chroma
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./src:/app/src:ro
+    command: uvicorn axe.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/src
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: axe-worker
+    environment:
+      - APP_ENV=development
+      - DATABASE_URL=sqlite+aiosqlite:///./data/axe.db
+      - CHROMA_PERSIST_DIR=./data/chroma
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./src:/app/src:ro
+    command: python -m axe.ingestion.cli
+    depends_on:
+      - axe
+
+  # Optional: local ChromaDB server for development
+  chroma:
+    image: chromadb/chroma:0.5.0
+    container_name: axe-chroma
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./data/chroma:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - PERSIST_DIRECTORY=/chroma/chroma
