@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import httpx
 
@@ -29,7 +30,9 @@ class AlertDelivery:
         self.slack_post_hook = slack_post_hook
         self.resend_api_key = resend_api_key or settings.resend_api_key
         settings_from = getattr(settings, "axe_from_email", None)
-        self.from_email = from_email or settings_from or settings.axe_email_domain or "alerts@axe.fund"
+        self.from_email = (
+            from_email or settings_from or settings.axe_email_domain or "alerts@axe.fund"
+        )
         self.resend_post_hook = resend_post_hook
 
     async def send_slack_dm(
@@ -139,13 +142,13 @@ async def dispatch_earnings_alert(
     The ``deadline_utc`` defaults to 30 minutes from now. If dispatch completes
     after the deadline, a ``sla_violation`` flag is set.
     """
-    deadline = deadline_utc or (datetime.now(timezone.utc) + timedelta(minutes=30))
+    deadline = deadline_utc or (datetime.now(UTC) + timedelta(minutes=30))
     delivery = delivery or AlertDelivery()
 
     result = await delivery.dispatch(alert_payload, slack_user_id, email)
-    result["dispatched_at_utc"] = datetime.now(timezone.utc).isoformat()
+    result["dispatched_at_utc"] = datetime.now(UTC).isoformat()
     result["deadline_utc"] = deadline.isoformat()
-    result["sla_violation"] = datetime.now(timezone.utc) > deadline
+    result["sla_violation"] = datetime.now(UTC) > deadline
     return result
 
 

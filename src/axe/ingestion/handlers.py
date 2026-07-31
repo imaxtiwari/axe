@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
@@ -21,7 +21,7 @@ def _parse_iso(ts: Any | None) -> datetime:
         try:
             parsed = datetime.fromisoformat(str(ts))
             if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=timezone.utc)
+                parsed = parsed.replace(tzinfo=UTC)
             return parsed
         except ValueError:
             pass
@@ -113,13 +113,12 @@ async def send_alert_handler(
     slack_user_id = payload.get("slack_user_id")
     email = payload.get("email")
 
-    if not slack_user_id or not email:
-        if pm_id:
-            user = await session.execute(select(PMUser).where(PMUser.id == pm_id))
-            row = user.scalar_one_or_none()
-            if row:
-                slack_user_id = slack_user_id or row.slack_user_id
-                email = email or row.email
+    if (not slack_user_id or not email) and pm_id:
+        user = await session.execute(select(PMUser).where(PMUser.id == pm_id))
+        row = user.scalar_one_or_none()
+        if row:
+            slack_user_id = slack_user_id or row.slack_user_id
+            email = email or row.email
 
     deadline_utc = payload.get("deadline_utc")
     deadline = _parse_iso(deadline_utc)

@@ -7,6 +7,7 @@ from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from axe.db.base import Base
 
 
@@ -56,8 +57,9 @@ class IsolationService:
     ) -> Any | None:
         """Fetch a single row scoped by pm_id."""
         stmt = IsolationService.scope(select(model), model, pm_id)
-        if hasattr(model, "id"):
-            stmt = stmt.where(model.id == object_id)
+        id_col = getattr(model, "id", None)
+        if id_col is not None:
+            stmt = stmt.where(id_col == object_id)
         else:
             raise IsolationError(f"Model {model.__name__} has no id column for get()")
         result = await session.execute(stmt)

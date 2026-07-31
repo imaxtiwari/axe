@@ -28,9 +28,7 @@ class TranscriptArrival(BaseModel):
     raw_content: str | None = Field(default=None, description="Raw transcript content")
     content_hash: str | None = Field(default=None, description="Optional content hash")
     signal_id: str | None = Field(default=None, description="External signal id")
-    arrived_at: datetime | None = Field(
-        default=None, description="Transcript arrival time (UTC)"
-    )
+    arrived_at: datetime | None = Field(default=None, description="Transcript arrival time (UTC)")
     slack_user_id: str | None = Field(default=None)
     email: str | None = Field(default=None)
     sync: bool = Field(

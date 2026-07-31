@@ -105,9 +105,7 @@ async def test_deck_builder_uses_template(
     assert "transcript_042" in footer
     assert "markdown" in output.content
 
-    result = await db_session.execute(
-        select(DeckOutput).where(DeckOutput.id == output.id)
-    )
+    result = await db_session.execute(select(DeckOutput).where(DeckOutput.id == output.id))
     stored = result.scalar_one()
     assert stored.content["title"] == "NVDA Long Thesis"
 
@@ -141,9 +139,7 @@ async def test_lp_update_sections_present(
     assert "Fund admin report" in footer
     assert "Portfolio dashboard" in footer
 
-    result = await db_session.execute(
-        select(LPUpdate).where(LPUpdate.id == update.id)
-    )
+    result = await db_session.execute(select(LPUpdate).where(LPUpdate.id == update.id))
     stored = result.scalar_one()
     assert stored.status == "draft"
 

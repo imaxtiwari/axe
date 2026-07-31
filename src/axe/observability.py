@@ -30,12 +30,19 @@ except ImportError:  # pragma: no cover
     TracerProvider = None  # type: ignore[assignment,misc]
 
 try:
-    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # type: ignore[import-untyped]
+    from opentelemetry.instrumentation.fastapi import (
+        FastAPIInstrumentor,  # type: ignore[import-untyped]
+    )
 except ImportError:  # pragma: no cover
     FastAPIInstrumentor = None  # type: ignore[assignment,misc]
 
 try:
-    from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest  # type: ignore[import-untyped]
+    from prometheus_client import (  # type: ignore[import-untyped]
+        CONTENT_TYPE_LATEST,
+        Counter,
+        Histogram,
+        generate_latest,
+    )
 except ImportError:  # pragma: no cover
     CONTENT_TYPE_LATEST = "text/plain; version=0.0.4; charset=utf-8"
     Counter = None  # type: ignore[assignment,misc]
@@ -54,7 +61,7 @@ class _NoOpCounter:
     def inc(self, amount: float = 1) -> None:
         self._store[self._name] += int(amount)
 
-    def labels(self, **_kwargs: Any) -> "_NoOpCounter":
+    def labels(self, **_kwargs: Any) -> _NoOpCounter:
         return self
 
 
@@ -69,7 +76,7 @@ class _NoOpHistogram:
     def observe(self, amount: float) -> None:
         self._store[self._name].append(amount)
 
-    def labels(self, **_kwargs: Any) -> "_NoOpHistogram":
+    def labels(self, **_kwargs: Any) -> _NoOpHistogram:
         return self
 
 
@@ -80,7 +87,9 @@ class _NoOpMetrics:
         self._counters: dict[str, int] = {}
         self._histograms: dict[str, list[float]] = {}
 
-    def counter(self, name: str, description: str = "", labels: tuple[str, ...] = ()) -> _NoOpCounter:
+    def counter(
+        self, name: str, description: str = "", labels: tuple[str, ...] = ()
+    ) -> _NoOpCounter:
         return _NoOpCounter(self._counters, name)
 
     def histogram(
@@ -111,9 +120,7 @@ def configure_logging(level: str = "INFO") -> None:
             )
         )
     else:
-        handler.setFormatter(
-            logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
-        )
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
 
     root = logging.getLogger()
     root.handlers[:] = [handler]
@@ -124,12 +131,15 @@ def init_sentry(dsn: str | None = None, app_env: str = "development") -> None:
     """Initialise Sentry when a DSN is configured."""
     if not dsn or sentry_sdk is None:
         return
-    sentry_sdk.init(
-        dsn=dsn,
-        environment=app_env,
-        integrations=[FastApiIntegration()],
-        traces_sample_rate=0.2 if app_env == "production" else 1.0,
-    )
+    integration = FastApiIntegration() if FastApiIntegration is not None else None
+    kwargs: dict[str, Any] = {
+        "dsn": dsn,
+        "environment": app_env,
+        "traces_sample_rate": 0.2 if app_env == "production" else 1.0,
+    }
+    if integration is not None:
+        kwargs["integrations"] = [integration]
+    sentry_sdk.init(**kwargs)
 
 
 def init_tracing(service_name: str) -> Any:

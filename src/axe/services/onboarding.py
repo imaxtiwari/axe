@@ -36,14 +36,12 @@ COLD_START_FIELDS: Sequence[str] = [field for field, _ in COLD_START_PROMPTS]
 
 THESIS_CAPTURE_PROMPT = (
     "Great. Add up to 3 tickers with a one-sentence thesis for each. "
-    "Reply with e.g. \"AAPL: services growth thesis\". You can also say \"skip\"."
+    'Reply with e.g. "AAPL: services growth thesis". You can also say "skip".'
 )
 
 COMPLETION_MESSAGE = "You're all set. AXE is now personalising your workspace."
 
-SKIP_THESIS_MESSAGE = (
-    "No problem — you can add tickers anytime. Onboarding complete."
-)
+SKIP_THESIS_MESSAGE = "No problem — you can add tickers anytime. Onboarding complete."
 
 
 def _derive_profile(answers: dict[str, str | None]) -> dict[str, Any]:
@@ -128,9 +126,7 @@ class OnboardingService:
 
     async def _load_user(self) -> PMUser:
         if self._user is None:
-            result = await self.session.execute(
-                select(PMUser).where(PMUser.id == self.pm_id)
-            )
+            result = await self.session.execute(select(PMUser).where(PMUser.id == self.pm_id))
             user = result.scalar_one_or_none()
             if user is None:
                 raise ValueError("PM user not found")
@@ -194,9 +190,7 @@ class OnboardingService:
 
         user = await self._load_user()
         if user.onboarding_state != "cold_start":
-            raise ValueError(
-                f"Cannot submit cold-start answer in state '{user.onboarding_state}'"
-            )
+            raise ValueError(f"Cannot submit cold-start answer in state '{user.onboarding_state}'")
 
         field = COLD_START_FIELDS[question_number - 1]
         cold = await self._get_or_create_cold_start()
@@ -219,15 +213,11 @@ class OnboardingService:
             "prompt": await self._next_question_prompt(),
         }
 
-    async def submit_thesis_capture(
-        self, tickers: Sequence[str]
-    ) -> dict[str, Any]:
+    async def submit_thesis_capture(self, tickers: Sequence[str]) -> dict[str, Any]:
         """Store initial ticker interests and complete onboarding."""
         user = await self._load_user()
         if user.onboarding_state != "thesis_capture":
-            raise ValueError(
-                f"Cannot capture theses in state '{user.onboarding_state}'"
-            )
+            raise ValueError(f"Cannot capture theses in state '{user.onboarding_state}'")
 
         for ticker in tickers:
             normalized = ticker.strip().upper()
@@ -254,9 +244,7 @@ class OnboardingService:
         """Allow a PM to skip thesis capture and finish onboarding."""
         user = await self._load_user()
         if user.onboarding_state != "thesis_capture":
-            raise ValueError(
-                f"Cannot skip thesis capture in state '{user.onboarding_state}'"
-            )
+            raise ValueError(f"Cannot skip thesis capture in state '{user.onboarding_state}'")
 
         await self._complete_onboarding(user)
         return {

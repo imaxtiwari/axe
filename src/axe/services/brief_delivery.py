@@ -39,7 +39,9 @@ def format_brief(brief: MorningBriefOutput) -> str:
         lines.append("*Catalysts This Week*")
         for catalyst in brief.catalyst_week:
             ticker = f" [{catalyst.ticker}]" if catalyst.ticker else ""
-            lines.append(f"• {catalyst.date}{ticker} — {catalyst.event_type}: {catalyst.description}")
+            lines.append(
+                f"• {catalyst.date}{ticker} — {catalyst.event_type}: {catalyst.description}"
+            )
         lines.append("")
 
     lines.append("Reply here to update thesis, ask follow-up, or dismiss a signal.")

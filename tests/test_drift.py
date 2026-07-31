@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import AsyncGenerator
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
-import pytest_asyncio
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -20,7 +18,7 @@ from axe.agents.drift_detect import (
 )
 from axe.agents.embedding import ThresholdMockEmbedding, cosine_similarity
 from axe.agents.llm import MockProvider
-from axe.db.models import FundEntity, PMUser, SignalLog, ThesisTest, ThesisVersion
+from axe.db.models import FundEntity, PMUser, ThesisTest
 from axe.services.alert import AlertDelivery, dispatch_earnings_alert
 from axe.services.thesis import ThesisRepo
 from tests.drift_eval_dataset import DRIFT_DATASET, evaluate_stance
@@ -156,14 +154,14 @@ async def test_drift_eval_dataset(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_drift_classify_assumptions_with_ids(db_session_factory: async_sessionmaker[AsyncSession]) -> None:
+async def test_drift_classify_assumptions_with_ids(
+    db_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
     """classify_assumptions matches assumption ids to stances."""
     session = db_session_factory()
     try:
         provider = MockProvider(
-            responses=[
-                {"parsed": {"stance": "CONFIRMS", "reasoning": "ok", "confidence": 0.8}}
-            ]
+            responses=[{"parsed": {"stance": "CONFIRMS", "reasoning": "ok", "confidence": 0.8}}]
         )
         agent = DriftDetectionAgent(
             provider=provider,
@@ -204,7 +202,9 @@ async def test_thesis_test_ensure_and_evaluate(db_session: AsyncSession) -> None
         ]
     )
     agent = ThesisTestAgent(provider=provider)
-    outcomes = await agent.evaluate_signal_against_thesis(db_session, thesis, "iPhone revenue dropped 4%.")
+    outcomes = await agent.evaluate_signal_against_thesis(
+        db_session, thesis, "iPhone revenue dropped 4%."
+    )
 
     result = await db_session.execute(
         select(ThesisTest).where(ThesisTest.thesis_version_id == thesis.id)
@@ -228,7 +228,13 @@ async def test_no_alert_for_broken_assumption(db_session: AsyncSession) -> None:
 
     provider = MockProvider(
         responses=[
-            {"parsed": {"stance": "CONTRADICTS", "reasoning": "Revenue dropped.", "confidence": 0.9}}
+            {
+                "parsed": {
+                    "stance": "CONTRADICTS",
+                    "reasoning": "Revenue dropped.",
+                    "confidence": 0.9,
+                }
+            }
         ]
     )
     embed = ThresholdMockEmbedding(similarity=0.85)
@@ -271,7 +277,13 @@ async def test_earnings_alert_within_sla(db_session: AsyncSession) -> None:
 
     provider = MockProvider(
         responses=[
-            {"parsed": {"stance": "CONTRADICTS", "reasoning": "Data-center revenue flat.", "confidence": 0.9}}
+            {
+                "parsed": {
+                    "stance": "CONTRADICTS",
+                    "reasoning": "Data-center revenue flat.",
+                    "confidence": 0.9,
+                }
+            }
         ]
     )
     embed = ThresholdMockEmbedding(similarity=0.85)
@@ -280,7 +292,7 @@ async def test_earnings_alert_within_sla(db_session: AsyncSession) -> None:
         drift_agent=DriftDetectionAgent(provider=provider, embedding_model=embed),
     )
 
-    arrived_at = datetime.now(timezone.utc)
+    arrived_at = datetime.now(UTC)
     alerts = await service.process_signal(
         pm_id=user.id,
         ticker="NVDA",

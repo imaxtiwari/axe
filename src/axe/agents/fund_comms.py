@@ -83,19 +83,23 @@ class DeckBuilderAgent:
             else:
                 title_hint = str(item) or f"Slide {slide_number}"
                 bullets = ["Key point to be filled by PM"]
-            sections.append({
-                "slide_number": slide_number,
-                "title": title_hint,
-                "bullets": bullets if isinstance(bullets, list) else [bullets],
-            })
+            sections.append(
+                {
+                    "slide_number": slide_number,
+                    "title": title_hint,
+                    "bullets": bullets if isinstance(bullets, list) else [bullets],
+                }
+            )
             slide_number += 1
 
         if not sections:
-            sections.append({
-                "slide_number": 1,
-                "title": "Executive Summary",
-                "bullets": ["Key point to be filled by PM"],
-            })
+            sections.append(
+                {
+                    "slide_number": 1,
+                    "title": "Executive Summary",
+                    "bullets": ["Key point to be filled by PM"],
+                }
+            )
 
         version_date = utc_now().strftime("%Y-%m-%d")
         footer = f"Version {version_date} | Sources: {', '.join(source_ids) if source_ids else 'Internal'} | Draft — internal only."
@@ -179,10 +183,7 @@ class LPUpdateAgent:
         data = activity or await self.gather_vehicle_activity(vehicle_id)
         version_date = utc_now().strftime("%Y-%m-%d")
         sources = data.get("sources") or ["Internal records"]
-        footer = (
-            f"Version {version_date} | Sources: {', '.join(sources)} | "
-            "Draft — internal only."
-        )
+        footer = f"Version {version_date} | Sources: {', '.join(sources)} | Draft — internal only."
 
         sections = [
             self._section(

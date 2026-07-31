@@ -1,7 +1,7 @@
 """Comprehensive database schema tests for AXE v2.1."""
 
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pytest
 from sqlalchemy import text
@@ -18,7 +18,6 @@ from axe.db.models import (
     LPUpdate,
     MorningBrief,
     PMMemory,
-    PMMemoryColdStart,
     PMMemoryCorrection,
     PMOAuthToken,
     PMQuietHours,
@@ -33,6 +32,7 @@ from axe.db.models import (
     ThesisVersion,
     TickerRegistry,
 )
+
 
 async def _fund_entity(session: AsyncSession) -> FundEntity:
     fund = FundEntity(
@@ -310,7 +310,7 @@ async def test_thesis_test_result_cascade(db_session: AsyncSession):
     )
     db_session.add(result)
     await db_session.flush()
-    assert result.evaluated_at <= datetime.now(timezone.utc)
+    assert result.evaluated_at <= datetime.now(UTC)
 
 
 @pytest.mark.asyncio
@@ -431,7 +431,7 @@ async def test_memory_correction_storage(db_session: AsyncSession):
         field="decision_style",
         old_value="growth",
         new_value="contrarian",
-        corrected_at=datetime.now(timezone.utc),
+        corrected_at=datetime.now(UTC),
     )
     db_session.add(corr)
     await db_session.flush()

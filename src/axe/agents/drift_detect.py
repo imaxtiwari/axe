@@ -365,7 +365,9 @@ class EarningsAlertService:
                 raw_content=raw_content or signal_text,
                 extracted_signal={"stance": pair.stance, "reasoning": pair.reasoning},
                 citation={"url": source_url},
-                relevance_score=await self.drift_agent._relevance(signal_text, self._assumption_text(assumptions, assumption_id)),
+                relevance_score=await self.drift_agent._relevance(
+                    signal_text, self._assumption_text(assumptions, assumption_id)
+                ),
                 thesis_assumption_id=assumption_id,
                 stance=pair.stance,
                 extraction_confidence=pair.confidence,
@@ -375,7 +377,9 @@ class EarningsAlertService:
             self.session.add(signal)
             await self.session.flush()
 
-            alert = self._build_alert_payload(ticker, latest, assumption_id, pair, source_url, signal.id)
+            alert = self._build_alert_payload(
+                ticker, latest, assumption_id, pair, source_url, signal.id
+            )
             alerts.append(alert)
             signal.alerted = True
 
@@ -398,8 +402,7 @@ class EarningsAlertService:
     ) -> set[str | None]:
         """Return assumption IDs already marked as broken for this ticker."""
         result = await self.session.execute(
-            select(SignalLog)
-            .where(
+            select(SignalLog).where(
                 SignalLog.pm_id == pm_id,
                 SignalLog.ticker == ticker,
                 SignalLog.stance == "CONTRADICTS",
@@ -414,9 +417,7 @@ class EarningsAlertService:
                 BrokenAssumption.ticker == ticker,
             )
         )
-        broken_ids.update(
-            row.assumption_id or None for row in broken_rows.scalars().all()
-        )
+        broken_ids.update(row.assumption_id or None for row in broken_rows.scalars().all())
         return broken_ids
 
     @staticmethod

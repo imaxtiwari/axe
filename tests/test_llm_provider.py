@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import BaseModel
 
-from axe.agents.llm import AzureFoundryProvider, LLMProvider, MockProvider
+from axe.agents.llm import AzureFoundryProvider, MockProvider
 
 
 class _DummySchema(BaseModel):
@@ -43,7 +43,9 @@ async def test_mock_provider_schema_passed() -> None:
 
 
 def test_azure_provider_reads_credentials() -> None:
-    provider = AzureFoundryProvider(endpoint="https://x.openai.azure.com", api_key="my-key", model="gpt-4o")
+    provider = AzureFoundryProvider(
+        endpoint="https://x.openai.azure.com", api_key="my-key", model="gpt-4o"
+    )
     assert provider.api_key == "my-key"
     assert provider.endpoint == "https://x.openai.azure.com"
     assert provider.model == "gpt-4o"

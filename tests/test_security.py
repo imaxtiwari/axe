@@ -1,6 +1,5 @@
 """Security, encryption, audit, and isolation tests for AXE v2.1."""
 
-import os
 import uuid
 
 import pytest
@@ -19,8 +18,8 @@ from axe.db.models import (
 )
 from axe.security.audit import AuditService, audit_action
 from axe.security.encryption import (
-    EncryptionError,
     EncryptedJSON,
+    EncryptionError,
     decrypt_ciphertext,
     encrypt_plaintext,
     generate_fernet_key,
@@ -151,9 +150,7 @@ async def test_audit_service_logs_create(db_session: AsyncSession):
     )
     await db_session.commit()
 
-    result = await db_session.execute(
-        select(AuditLog).where(AuditLog.object_id == thesis_id)
-    )
+    result = await db_session.execute(select(AuditLog).where(AuditLog.object_id == thesis_id))
     log = result.scalar_one_or_none()
     assert log is not None
     assert log.action_type == "thesis_create"
@@ -179,7 +176,7 @@ class _FakeRepo:
     ) -> ThesisVersion:
         thesis = await session.get(ThesisVersion, thesis_id)
         if thesis is None:
-            fund = await _fund_entity(session)
+            await _fund_entity(session)
             thesis = ThesisVersion(
                 id=thesis_id,
                 pm_id=pm_id,
@@ -211,9 +208,7 @@ async def test_audit_action_decorator(db_session: AsyncSession):
         session=db_session,
     )
 
-    result = await db_session.execute(
-        select(AuditLog).where(AuditLog.object_id == thesis_id)
-    )
+    result = await db_session.execute(select(AuditLog).where(AuditLog.object_id == thesis_id))
     log = result.scalar_one_or_none()
     assert log is not None
     assert log.pm_id == user.id
@@ -235,9 +230,7 @@ async def test_audit_action_decorator_skips_without_pm_id(db_session: AsyncSessi
     sid = str(uuid.uuid4())
     await repo.ingest_signal(sid)
 
-    result = await db_session.execute(
-        select(AuditLog).where(AuditLog.object_id == sid)
-    )
+    result = await db_session.execute(select(AuditLog).where(AuditLog.object_id == sid))
     assert result.scalar_one_or_none() is None
 
 
@@ -439,9 +432,7 @@ async def test_audit_action_works_for_sync_result(db_session: AsyncSession):
         session=db_session,
     )
 
-    result = await db_session.execute(
-        select(AuditLog).where(AuditLog.object_id == sid)
-    )
+    result = await db_session.execute(select(AuditLog).where(AuditLog.object_id == sid))
     log = result.scalar_one_or_none()
     assert log is not None
     assert log.action_type == "signal_ingest"

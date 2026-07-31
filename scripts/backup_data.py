@@ -18,11 +18,27 @@ from typing import Any
 from urllib.parse import urlparse
 
 with suppress(ImportError):
-    from cryptography.fernet import Fernet  # type: ignore[import-untyped]
+    from cryptography.fernet import Fernet as _Fernet  # type: ignore[import-untyped]
+
+    Fernet = _Fernet
 
 with suppress(ImportError):
-    import boto3  # type: ignore[import-untyped]
-    from botocore.config import Config as BotoConfig  # type: ignore[import-untyped]
+    from botocore.config import Config as _BotoConfig  # type: ignore[import-untyped]
+
+    BotoConfig = _BotoConfig
+
+
+def _fernet(key: str) -> Any:
+    if "Fernet" not in globals():
+        raise RuntimeError("cryptography is required for encryption")
+    return Fernet(key.encode())
+
+
+def _boto_config(**kwargs: Any) -> Any:
+    if "BotoConfig" not in globals():
+        raise RuntimeError("botocore is required for S3/R2 upload")
+    return BotoConfig(**kwargs)
+
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +59,7 @@ def _parse_sqlite_path(database_url: str) -> Path | None:
 
 def _encrypt(data: bytes, key: str) -> bytes:
     """Encrypt ``data`` with a Fernet key."""
-    return Fernet(key.encode()).encrypt(data)
+    return _fernet(key).encrypt(data)
 
 
 def _upload(
@@ -66,7 +82,7 @@ def _upload(
         endpoint_url=endpoint_url,
         aws_access_key_id=access_key,
         aws_secret_access_key=secret_key,
-        config=BotoConfig(
+        config=_boto_config(
             retries={"max_attempts": 3, "mode": "standard"},
             connect_timeout=10,
             read_timeout=30,
@@ -92,7 +108,7 @@ def create_backup(
 
     Returns a result dictionary describing the archive path and upload status.
     """
-    timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    timestamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%SZ")
     archive_name = f"axe-backup-{timestamp}.tar.gz"
     local_archive = output_dir / archive_name
     output_dir.mkdir(parents=True, exist_ok=True)

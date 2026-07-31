@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timedelta, timezone
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from datetime import UTC, date, datetime, timedelta
+from typing import Any
 
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -12,7 +13,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from axe.agents.embedding import EmbeddingModel, cosine_similarity, get_default_embedding_model
 from axe.agents.llm import LLMProvider, get_default_provider
-from axe.db.models import CatalystEvent, MorningBrief, PMMemory, PMUser, SignalLog, ThesisVersion, TickerRegistry
+from axe.db.models import (
+    CatalystEvent,
+    MorningBrief,
+    PMMemory,
+    PMUser,
+    SignalLog,
+    ThesisVersion,
+    TickerRegistry,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -91,10 +100,10 @@ class MorningBriefAgent:
         as_of: datetime | None = None,
     ) -> MorningBriefOutput:
         """Generate a brief for ``pm_id`` scoped to the 24h window ending at ``as_of``."""
-        as_of = as_of or datetime.now(timezone.utc)
+        as_of = as_of or datetime.now(UTC)
         window_start = as_of - timedelta(hours=24)
 
-        user = await self._get_user(pm_id)
+        await self._get_user(pm_id)
         tickers = await self._get_tickers(pm_id)
         theses = await self._get_theses(pm_id)
         memory = await self._get_memory(pm_id)
@@ -126,7 +135,7 @@ class MorningBriefAgent:
         """Persist the brief, optionally deliver via ``deliver_fn`` and record result."""
         brief_record = MorningBrief(
             pm_id=pm_id,
-            date=datetime.now(timezone.utc).date(),
+            date=datetime.now(UTC).date(),
             sections=[s.model_dump() for s in brief.sections],
             focus_one=brief.focus_one.model_dump() if brief.focus_one else {},
             catalyst_week=[c.model_dump() for c in brief.catalyst_week],
@@ -151,7 +160,8 @@ class MorningBriefAgent:
     async def _get_tickers(self, pm_id: str) -> list[TickerRegistry]:
         result = await self.session.execute(
             select(TickerRegistry).where(
-                TickerRegistry.pm_id == pm_id, TickerRegistry.active == True  # noqa: E712
+                TickerRegistry.pm_id == pm_id,
+                TickerRegistry.active == True,  # noqa: E712
             )
         )
         return list(result.scalars().all())
@@ -191,10 +201,12 @@ class MorningBriefAgent:
         """Return upcoming catalysts for the rest of the current week."""
         week_end = as_of + timedelta(days=7)
         result = await self.session.execute(
-            select(CatalystEvent).where(
+            select(CatalystEvent)
+            .where(
                 CatalystEvent.event_date >= as_of,
                 CatalystEvent.event_date <= week_end,
-            ).order_by(CatalystEvent.event_date)
+            )
+            .order_by(CatalystEvent.event_date)
         )
         events = result.scalars().all()
         return [
@@ -232,7 +244,9 @@ class MorningBriefAgent:
 
             assumptions = thesis.key_assumptions or []
             for assumption in assumptions:
-                assumption_text = assumption.get("text", "") if isinstance(assumption, dict) else str(assumption)
+                assumption_text = (
+                    assumption.get("text", "") if isinstance(assumption, dict) else str(assumption)
+                )
                 assumption_id = assumption.get("id", "") if isinstance(assumption, dict) else ""
                 if not assumption_text:
                     continue
@@ -250,7 +264,14 @@ class MorningBriefAgent:
                     assumption_text=assumption_text,
                     memory=memory,
                 )
-                scored.append((signal, thesis, {"id": assumption_id, "text": assumption_text}, score_meta["relevance_score"]))
+                scored.append(
+                    (
+                        signal,
+                        thesis,
+                        {"id": assumption_id, "text": assumption_text},
+                        score_meta["relevance_score"],
+                    )
+                )
 
         scored.sort(key=lambda x: x[3], reverse=True)
         return scored
@@ -364,7 +385,9 @@ class MorningBriefAgent:
                         relevance_score=0.0,
                     )
 
-        return sorted(sections_by_assumption.values(), key=lambda s: s.relevance_score, reverse=True)
+        return sorted(
+            sections_by_assumption.values(), key=lambda s: s.relevance_score, reverse=True
+        )
 
     def _pick_focus_one(
         self,
@@ -388,18 +411,19 @@ class MorningBriefAgent:
 
         # Otherwise pick highest-scoring confirm/uncertain.
         top = sections[0]
-        if top.relevance_score <= 0.0:
+        if top.relevance_score <= 0.0 and tickers:
             # Fallback to largest position bucket if available.
-            if tickers:
-                biggest = max(
-                    tickers,
-                    key=lambda t: ({"small": 1, "medium": 2, "large": 3}.get(t.position_size_bucket or "", 0)),
-                )
-                return FocusOne(
-                    ticker=biggest.ticker,
-                    reason="Largest position; no new signals overnight.",
-                    urgency_score=0.0,
-                )
+            biggest = max(
+                tickers,
+                key=lambda t: {"small": 1, "medium": 2, "large": 3}.get(
+                    t.position_size_bucket or "", 0
+                ),
+            )
+            return FocusOne(
+                ticker=biggest.ticker,
+                reason="Largest position; no new signals overnight.",
+                urgency_score=0.0,
+            )
 
         reason = (
             f"Uncertain signal on {top.assumption_text}"
@@ -419,6 +443,4 @@ def is_nyse_trading_day(d: date) -> bool:
         return False
     # Approx fixed-date NYSE closures.
     fixed_holidays = {(1, 1), (7, 4), (12, 25)}
-    if (d.month, d.day) in fixed_holidays:
-        return False
-    return True
+    return (d.month, d.day) not in fixed_holidays

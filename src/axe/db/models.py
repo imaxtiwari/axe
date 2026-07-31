@@ -1,7 +1,7 @@
 """Full AXE v2.1 SQLAlchemy model definitions."""
 
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import Any
 
 from sqlalchemy import (
@@ -26,7 +26,7 @@ from axe.security.encryption import EncryptedJSON
 
 def utc_now() -> datetime:
     """Return timezone-aware UTC now."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class FundEntity(Base):
@@ -58,9 +58,7 @@ class PMUser(Base):
     role: Mapped[str] = mapped_column(String(64), default="pm", nullable=False)
     compliance_approved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     onboarding_complete: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    onboarding_state: Mapped[str] = mapped_column(
-        String(32), default="not_started", nullable=False
-    )
+    onboarding_state: Mapped[str] = mapped_column(String(32), default="not_started", nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
@@ -167,7 +165,9 @@ class BrokenAssumption(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "pm_id", "ticker", "assumption_id",
+            "pm_id",
+            "ticker",
+            "assumption_id",
             name="uq_broken_assumptions_pm_ticker_assumption",
         ),
         Index("ix_broken_assumptions_pm_alerted", "pm_id", "alerted_at"),
@@ -423,7 +423,9 @@ class CatalystEvent(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     ticker: Mapped[str | None] = mapped_column(String(32), index=True)
-    event_type: Mapped[str] = mapped_column(String(64), nullable=False)  # earnings, fed, macro, conference
+    event_type: Mapped[str] = mapped_column(
+        String(64), nullable=False
+    )  # earnings, fed, macro, conference
     event_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     event_time: Mapped[str | None] = mapped_column(String(16))  # e.g. "07:00 UTC"
     description: Mapped[str | None] = mapped_column(Text)
@@ -440,11 +442,15 @@ class BriefReply(Base):
     __tablename__ = "brief_replies"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    brief_id: Mapped[str] = mapped_column(ForeignKey("morning_briefs.id"), nullable=False, index=True)
+    brief_id: Mapped[str] = mapped_column(
+        ForeignKey("morning_briefs.id"), nullable=False, index=True
+    )
     pm_id: Mapped[str] = mapped_column(ForeignKey("pm_users.id"), nullable=False)
     slack_thread_ts: Mapped[str | None] = mapped_column(String(32))
     raw_text: Mapped[str] = mapped_column(Text, nullable=False)
-    intent: Mapped[str | None] = mapped_column(String(32))  # update_thesis, ask_followup, dismiss_signal
+    intent: Mapped[str | None] = mapped_column(
+        String(32)
+    )  # update_thesis, ask_followup, dismiss_signal
     action_taken: Mapped[str | None] = mapped_column(Text)
     action_payload: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
@@ -635,7 +641,9 @@ class InvestmentVehicle(Base):
     strategy: Mapped[str | None] = mapped_column(String(255))
     vintage: Mapped[int | None] = mapped_column(Integer)
     currency: Mapped[str] = mapped_column(String(8), default="USD", nullable=False)
-    reporting_frequency: Mapped[str] = mapped_column(String(32), default="quarterly", nullable=False)
+    reporting_frequency: Mapped[str] = mapped_column(
+        String(32), default="quarterly", nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
 

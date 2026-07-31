@@ -112,9 +112,7 @@ class RetryQueue:
         await self._db.flush()
         return task
 
-    async def dead_letter_after(
-        self, task_id: str, attempts: int = 5
-    ) -> RetryQueueModel | None:
+    async def dead_letter_after(self, task_id: str, attempts: int = 5) -> RetryQueueModel | None:
         """Force a task to dead-letter status regardless of current attempts."""
         result = await self._db.execute(
             select(RetryQueueModel).where(RetryQueueModel.id == task_id)

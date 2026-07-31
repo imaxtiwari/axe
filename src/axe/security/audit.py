@@ -6,7 +6,8 @@ import asyncio
 import functools
 import inspect
 import json
-from typing import Any, Callable, Coroutine, TypeVar
+from collections.abc import Callable, Coroutine
+from typing import Any, TypeVar
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -93,7 +94,12 @@ def audit_action(action_type: str, object_type: str) -> Callable[[F], F]:
             repository = args[0] if args else None
             object_id = bound.arguments.get("object_id") or bound.arguments.get("id")
 
-            if repository is not None and hasattr(repository, "get") and object_id and session is not None:
+            if (
+                repository is not None
+                and hasattr(repository, "get")
+                and object_id
+                and session is not None
+            ):
                 try:
                     prior = await repository.get(object_id, session=session)
                     if prior is not None:

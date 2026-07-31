@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import math
 from abc import ABC, abstractmethod
-from typing import Any
 
 
 class EmbeddingModel(ABC):
@@ -27,7 +26,7 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
     """Compute cosine similarity between two equal-length vectors."""
     if len(a) != len(b) or not a:
         return 0.0
-    dot = sum(x * y for x, y in zip(a, b))
+    dot = sum(x * y for x, y in zip(a, b, strict=True))
     norm_a = math.sqrt(sum(x * x for x in a)) or 1.0
     norm_b = math.sqrt(sum(y * y for y in b)) or 1.0
     score = dot / (norm_a * norm_b)

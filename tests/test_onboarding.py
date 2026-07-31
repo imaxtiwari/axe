@@ -96,9 +96,7 @@ async def test_cold_start_answers_create_memory(db_session: AsyncSession) -> Non
     for idx, field in enumerate(answers, start=1):
         await service.submit_answer(idx, answers[field])
 
-    result = await db_session.execute(
-        select(PMMemory).where(PMMemory.pm_id == user.id)
-    )
+    result = await db_session.execute(select(PMMemory).where(PMMemory.pm_id == user.id))
     memory = result.scalar_one_or_none()
     assert memory is not None
     assert memory.version == 1

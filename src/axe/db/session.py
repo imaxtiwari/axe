@@ -6,7 +6,6 @@ from sqlalchemy.event import listens_for
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from axe.config import get_settings
-from axe.db.base import Base
 
 settings = get_settings()
 

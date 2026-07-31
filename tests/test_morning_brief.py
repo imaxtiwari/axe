@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -10,7 +10,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from axe.agents.drift_detect import DriftStance
+from axe.agents.brief_reply import BriefReplyAgent
 from axe.agents.embedding import cosine_similarity
 from axe.agents.morning_brief import (
     BriefSection,
@@ -20,7 +20,6 @@ from axe.agents.morning_brief import (
     MorningBriefOutput,
     is_nyse_trading_day,
 )
-from axe.agents.brief_reply import BriefReplyAgent
 from axe.db.models import (
     FundEntity,
     MorningBrief,
@@ -28,6 +27,12 @@ from axe.db.models import (
     SignalFeedback,
     SignalLog,
     ThesisVersion,
+)
+from axe.services.brief_delivery import deliver_brief, format_brief
+from axe.services.brief_scheduler import (
+    deliver_briefs_to_all_active_pms,
+    generate_and_deliver_for_pm,
+    schedule_brief_jobs,
 )
 
 
@@ -40,14 +45,6 @@ def _make_brief(pm_id: str, brief_id: str = "brief_1") -> MorningBrief:
         focus_one={},
         catalyst_week=[],
     )
-
-
-from axe.services.brief_delivery import deliver_brief, format_brief
-from axe.services.brief_scheduler import (
-    deliver_briefs_to_all_active_pms,
-    generate_and_deliver_for_pm,
-    schedule_brief_jobs,
-)
 
 
 @pytest.fixture
@@ -161,12 +158,18 @@ async def test_catalyst_calendar_this_week():
 @pytest.mark.asyncio
 async def test_brief_not_generated_on_holiday(db_session: AsyncSession, mock_llm):
     fund = FundEntity(id=str(uuid4()), legal_name="Test Fund")
-    pm = PMUser(id=str(uuid4()), email="pm@example.com", active=True, slack_user_id="U1", fund_entity_id=fund.id)
+    pm = PMUser(
+        id=str(uuid4()),
+        email="pm@example.com",
+        active=True,
+        slack_user_id="U1",
+        fund_entity_id=fund.id,
+    )
     db_session.add_all([fund, pm])
     await db_session.commit()
 
     # Christmas Day 2026 falls on a Friday.
-    holiday = datetime(2026, 12, 25, 7, 0, tzinfo=timezone.utc)
+    holiday = datetime(2026, 12, 25, 7, 0, tzinfo=UTC)
     brief = await generate_and_deliver_for_pm(db_session, pm, as_of=holiday)
     assert brief is None
 
@@ -174,13 +177,21 @@ async def test_brief_not_generated_on_holiday(db_session: AsyncSession, mock_llm
 @pytest.mark.asyncio
 async def test_brief_generated_and_saved(db_session: AsyncSession, mock_llm, mock_delivery):
     fund = FundEntity(id=str(uuid4()), legal_name="Test Fund")
-    pm = PMUser(id=str(uuid4()), email="pm@example.com", active=True, slack_user_id="U1", fund_entity_id=fund.id)
+    pm = PMUser(
+        id=str(uuid4()),
+        email="pm@example.com",
+        active=True,
+        slack_user_id="U1",
+        fund_entity_id=fund.id,
+    )
     db_session.add_all([fund, pm])
     await db_session.commit()
 
     agent = MorningBriefAgent(db_session, llm=mock_llm)
-    with patch.object(agent, "_build_sections", new=MagicMock(return_value=[])), \
-         patch.object(agent, "_pick_focus_one", new=MagicMock(return_value=None)):
+    with (
+        patch.object(agent, "_build_sections", new=MagicMock(return_value=[])),
+        patch.object(agent, "_pick_focus_one", new=MagicMock(return_value=None)),
+    ):
         brief = await agent.generate(pm.id)
         saved = await agent.save_and_deliver(pm.id, brief, deliver_fn=lambda _: mock_delivery())
 
@@ -240,8 +251,20 @@ async def test_scheduler_cron_job_registered():
 async def test_full_scheduler_dispatch(db_session: AsyncSession, mock_llm, mock_delivery):
     fund1 = FundEntity(id=str(uuid4()), legal_name="Fund 1")
     fund2 = FundEntity(id=str(uuid4()), legal_name="Fund 2")
-    pm1 = PMUser(id=str(uuid4()), email="pm1@example.com", active=True, slack_user_id="U1", fund_entity_id=fund1.id)
-    pm2 = PMUser(id=str(uuid4()), email="pm2@example.com", active=False, slack_user_id="U2", fund_entity_id=fund2.id)
+    pm1 = PMUser(
+        id=str(uuid4()),
+        email="pm1@example.com",
+        active=True,
+        slack_user_id="U1",
+        fund_entity_id=fund1.id,
+    )
+    pm2 = PMUser(
+        id=str(uuid4()),
+        email="pm2@example.com",
+        active=False,
+        slack_user_id="U2",
+        fund_entity_id=fund2.id,
+    )
     db_session.add_all([fund1, fund2, pm1, pm2])
     await db_session.commit()
 
@@ -249,14 +272,18 @@ async def test_full_scheduler_dispatch(db_session: AsyncSession, mock_llm, mock_
     maker.return_value.__aenter__ = AsyncMock(return_value=db_session)
     maker.return_value.__aexit__ = AsyncMock(return_value=False)
 
-    with patch.object(MorningBriefAgent, "generate", new=AsyncMock(return_value=MagicMock())), \
-         patch.object(
-             MorningBriefAgent,
-             "save_and_deliver",
-             new=AsyncMock(side_effect=lambda pm_id, brief, deliver_fn: MagicMock(id=str(uuid4()))),
-         ), \
-         patch("axe.services.brief_scheduler.deliver_brief", new=mock_delivery):
-        ids = await deliver_briefs_to_all_active_pms(maker, as_of=datetime(2026, 7, 28, 7, 0, tzinfo=timezone.utc))
+    with (
+        patch.object(MorningBriefAgent, "generate", new=AsyncMock(return_value=MagicMock())),
+        patch.object(
+            MorningBriefAgent,
+            "save_and_deliver",
+            new=AsyncMock(side_effect=lambda pm_id, brief, deliver_fn: MagicMock(id=str(uuid4()))),
+        ),
+        patch("axe.services.brief_scheduler.deliver_brief", new=mock_delivery),
+    ):
+        ids = await deliver_briefs_to_all_active_pms(
+            maker, as_of=datetime(2026, 7, 28, 7, 0, tzinfo=UTC)
+        )
 
     assert len(ids) == 1
 

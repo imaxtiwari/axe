@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import Any
 
 from sqlalchemy import select
@@ -53,7 +53,7 @@ async def deliver_briefs_to_all_active_pms(
     as_of: datetime | None = None,
 ) -> list[str]:
     """Generate and deliver briefs for all active PMs on a trading day."""
-    as_of = as_of or datetime.now(timezone.utc)
+    as_of = as_of or datetime.now(UTC)
     if not is_nyse_trading_day(as_of.date()):
         logger.info("Not a NYSE trading day; no briefs sent.")
         return []

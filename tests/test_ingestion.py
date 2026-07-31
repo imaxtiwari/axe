@@ -68,9 +68,7 @@ async def test_dead_letter_after_max_attempts(db_session: AsyncSession) -> None:
     for _ in range(5):
         await queue.mark_failed_with_backoff(task.id)
 
-    result = await db_session.execute(
-        select(RetryQueueModel).where(RetryQueueModel.id == task.id)
-    )
+    result = await db_session.execute(select(RetryQueueModel).where(RetryQueueModel.id == task.id))
     row = result.scalar_one()
     assert row.attempts == 5
     assert row.status == "dead_letter"
@@ -314,9 +312,7 @@ async def test_worker_start_stop_background_loop(
         await worker.stop()
 
     async with db_session_factory() as session:
-        row = await session.execute(
-            select(RetryQueueModel).where(RetryQueueModel.id == task.id)
-        )
+        row = await session.execute(select(RetryQueueModel).where(RetryQueueModel.id == task.id))
         task_row = row.scalar_one()
         assert task_row.status == "succeeded"
 
@@ -411,9 +407,7 @@ async def test_worker_tick_rollback_on_exception(
     assert await worker.tick() is True
 
     async with db_session_factory() as session:
-        row = await session.execute(
-            select(RetryQueueModel).where(RetryQueueModel.id == task.id)
-        )
+        row = await session.execute(select(RetryQueueModel).where(RetryQueueModel.id == task.id))
         task_row = row.scalar_one()
         assert task_row.status == "failed"
         assert task_row.attempts == 1

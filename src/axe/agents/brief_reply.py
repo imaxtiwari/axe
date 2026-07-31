@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from axe.agents.llm import LLMProvider, get_default_provider
-from axe.db.models import BriefReply, SignalFeedback, SignalLog, ThesisVersion
+from axe.db.models import BriefReply, SignalFeedback, ThesisVersion
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +102,7 @@ class BriefReplyAgent:
     async def _classify(self, raw_text: str) -> ReplyIntent:
         prompt = (
             "A portfolio manager replied to a morning brief with:\n"
-            f"\"{raw_text}\"\n\n"
+            f'"{raw_text}"\n\n'
             "Classify the intent as one of: update_thesis, ask_followup, dismiss_signal, unknown. "
             "Return JSON with keys: intent, target_signal_id (if dismissing a specific signal), "
             "target_thesis_ticker (if updating a thesis), target_assumption_id (optional), "
@@ -155,7 +155,7 @@ class BriefReplyAgent:
         else:
             # If no assumption id, append as a new tracked item.
             assumptions.append(
-                {"id": f"from_reply_{datetime.now(timezone.utc).isoformat()}", "text": new_assumption_text}
+                {"id": f"from_reply_{datetime.now(UTC).isoformat()}", "text": new_assumption_text}
             )
 
         new_version = ThesisVersion(

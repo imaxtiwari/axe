@@ -50,8 +50,12 @@ class AzureFoundryProvider(LLMProvider):
         model: str | None = None,
     ) -> None:
         settings = get_settings()
-        self.endpoint = endpoint or settings.azure_foundry_endpoint or os.getenv("AZURE_OPENAI_ENDPOINT")
-        self.api_key = api_key or settings.azure_foundry_api_key or os.getenv("AZURE_OPENAI_API_KEY")
+        self.endpoint = (
+            endpoint or settings.azure_foundry_endpoint or os.getenv("AZURE_OPENAI_ENDPOINT")
+        )
+        self.api_key = (
+            api_key or settings.azure_foundry_api_key or os.getenv("AZURE_OPENAI_API_KEY")
+        )
         self.model = model or settings.azure_foundry_model
         self._client: Any | None = None
 
@@ -135,7 +139,9 @@ class MockProvider(LLMProvider):
             )
         return LLMResponse(content="", parsed={}, model=self.model, usage={"total_tokens": 0})
 
-    def record_call(self, idx: int = 0) -> tuple[list[dict[str, str]], float, type[BaseModel] | None] | None:
+    def record_call(
+        self, idx: int = 0
+    ) -> tuple[list[dict[str, str]], float, type[BaseModel] | None] | None:
         if idx < len(self._calls):
             return self._calls[idx]
         return None
@@ -144,6 +150,10 @@ class MockProvider(LLMProvider):
 def get_default_provider() -> LLMProvider:
     """Return a provider based on environment configuration."""
     settings = get_settings()
-    if settings.is_testing or not settings.azure_foundry_endpoint or not settings.azure_foundry_api_key:
+    if (
+        settings.is_testing
+        or not settings.azure_foundry_endpoint
+        or not settings.azure_foundry_api_key
+    ):
         return MockProvider()
     return AzureFoundryProvider()
