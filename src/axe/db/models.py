@@ -1,7 +1,8 @@
 """Full AXE v2.1 SQLAlchemy model definitions."""
 
+import datetime as dt
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import (
@@ -204,7 +205,7 @@ class MorningBrief(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     pm_id: Mapped[str] = mapped_column(ForeignKey("pm_users.id"), nullable=False)
-    date: Mapped[date] = mapped_column(Date, nullable=False)
+    date: Mapped[dt.date] = mapped_column(Date, nullable=False)
     sections: Mapped[list] = mapped_column(JSON, default=list)
     focus_one: Mapped[dict] = mapped_column(JSON, default=dict)
     catalyst_week: Mapped[list] = mapped_column(JSON, default=list)
@@ -426,7 +427,7 @@ class CatalystEvent(Base):
     event_type: Mapped[str] = mapped_column(
         String(64), nullable=False
     )  # earnings, fed, macro, conference
-    event_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    event_date: Mapped[dt.date] = mapped_column(Date, nullable=False, index=True)
     event_time: Mapped[str | None] = mapped_column(String(16))  # e.g. "07:00 UTC"
     description: Mapped[str | None] = mapped_column(Text)
     source_url: Mapped[str | None] = mapped_column(String(2048))
@@ -509,7 +510,7 @@ class CorporateAction(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     ticker: Mapped[str] = mapped_column(String(32), nullable=False)
     action_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    effective_date: Mapped[date | None] = mapped_column(Date)
+    effective_date: Mapped[dt.date | None] = mapped_column(Date)
     details: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
