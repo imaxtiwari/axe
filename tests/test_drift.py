@@ -19,6 +19,7 @@ from axe.agents.drift_detect import (
 from axe.agents.embedding import ThresholdMockEmbedding, cosine_similarity
 from axe.agents.llm import MockProvider
 from axe.db.models import FundEntity, PMUser, ThesisTest
+from axe.db.uow import UnitOfWork
 from axe.services.alert import AlertDelivery, dispatch_earnings_alert
 from axe.services.thesis import ThesisRepo
 from tests.drift_eval_dataset import DRIFT_DATASET, evaluate_stance
@@ -188,12 +189,13 @@ async def test_drift_classify_assumptions_with_ids(
 async def test_thesis_test_ensure_and_evaluate(db_session: AsyncSession) -> None:
     """ThesisTestAgent generates tests and evaluates a signal against them."""
     fund, user = await _setup_pm(db_session)
-    repo = ThesisRepo(db_session, user.id, fund.id)
-    thesis = await repo.create_thesis(
-        "AAPL",
-        key_assumptions=[{"id": "a1", "statement": "iPhone revenue grows 5% YoY"}],
-        is_draft=False,
-    )
+    async with UnitOfWork(db_session) as uow:
+        repo = ThesisRepo(uow, user.id, fund.id)
+        thesis = await repo.create_thesis(
+            "AAPL",
+            key_assumptions=[{"id": "a1", "statement": "iPhone revenue grows 5% YoY"}],
+            is_draft=False,
+        )
 
     provider = MockProvider(
         responses=[
@@ -219,12 +221,13 @@ async def test_thesis_test_ensure_and_evaluate(db_session: AsyncSession) -> None
 async def test_no_alert_for_broken_assumption(db_session: AsyncSession) -> None:
     """Re-alerts for an already-broken assumption are suppressed."""
     fund, user = await _setup_pm(db_session)
-    repo = ThesisRepo(db_session, user.id, fund.id)
-    await repo.create_thesis(
-        "AAPL",
-        key_assumptions=[{"id": "a1", "statement": "Revenue grows 10% YoY"}],
-        is_draft=False,
-    )
+    async with UnitOfWork(db_session) as uow:
+        repo = ThesisRepo(uow, user.id, fund.id)
+        await repo.create_thesis(
+            "AAPL",
+            key_assumptions=[{"id": "a1", "statement": "Revenue grows 10% YoY"}],
+            is_draft=False,
+        )
 
     provider = MockProvider(
         responses=[
@@ -238,42 +241,49 @@ async def test_no_alert_for_broken_assumption(db_session: AsyncSession) -> None:
         ]
     )
     embed = ThresholdMockEmbedding(similarity=0.85)
-    service = EarningsAlertService(
-        session=db_session,
-        drift_agent=DriftDetectionAgent(provider=provider, embedding_model=embed),
-    )
+    async with UnitOfWork(db_session) as uow:
+        service = EarningsAlertService(
+            uow=uow,
+            drift_agent=DriftDetectionAgent(provider=provider, embedding_model=embed),
+        )
 
-    first = await service.process_signal(
-        pm_id=user.id,
-        ticker="AAPL",
-        source_type="polygon",
-        source_url="https://polygon.io/transcript/1",
-        signal_text="Revenue dropped 15%, missing guidance.",
-    )
-    assert len(first) == 1
+        first = await service.process_signal(
+            pm_id=user.id,
+            ticker="AAPL",
+            source_type="polygon",
+            source_url="https://polygon.io/transcript/1",
+            signal_text="Revenue dropped 15%, missing guidance.",
+        )
+        assert len(first) == 1
     await db_session.commit()
 
     # Second identical contradiction should be suppressed.
-    second = await service.process_signal(
-        pm_id=user.id,
-        ticker="AAPL",
-        source_type="polygon",
-        source_url="https://polygon.io/transcript/2",
-        signal_text="Another report confirms revenue dropped 15%.",
-    )
-    assert len(second) == 0
+    async with UnitOfWork(db_session) as uow2:
+        service2 = EarningsAlertService(
+            uow=uow2,
+            drift_agent=DriftDetectionAgent(provider=provider, embedding_model=embed),
+        )
+        second = await service2.process_signal(
+            pm_id=user.id,
+            ticker="AAPL",
+            source_type="polygon",
+            source_url="https://polygon.io/transcript/2",
+            signal_text="Another report confirms revenue dropped 15%.",
+        )
+        assert len(second) == 0
 
 
 @pytest.mark.asyncio
 async def test_earnings_alert_within_sla(db_session: AsyncSession) -> None:
     """Mocked transcript arrival produces an alert payload within 30 min SLA."""
     fund, user = await _setup_pm(db_session)
-    repo = ThesisRepo(db_session, user.id, fund.id)
-    await repo.create_thesis(
-        "NVDA",
-        key_assumptions=[{"id": "a1", "statement": "Data-center revenue doubles YoY"}],
-        is_draft=False,
-    )
+    async with UnitOfWork(db_session) as uow:
+        repo = ThesisRepo(uow, user.id, fund.id)
+        await repo.create_thesis(
+            "NVDA",
+            key_assumptions=[{"id": "a1", "statement": "Data-center revenue doubles YoY"}],
+            is_draft=False,
+        )
 
     provider = MockProvider(
         responses=[
@@ -287,22 +297,23 @@ async def test_earnings_alert_within_sla(db_session: AsyncSession) -> None:
         ]
     )
     embed = ThresholdMockEmbedding(similarity=0.85)
-    service = EarningsAlertService(
-        session=db_session,
-        drift_agent=DriftDetectionAgent(provider=provider, embedding_model=embed),
-    )
+    async with UnitOfWork(db_session) as uow:
+        service = EarningsAlertService(
+            uow=uow,
+            drift_agent=DriftDetectionAgent(provider=provider, embedding_model=embed),
+        )
 
-    arrived_at = datetime.now(UTC)
-    alerts = await service.process_signal(
-        pm_id=user.id,
-        ticker="NVDA",
-        source_type="polygon",
-        source_url="https://polygon.io/transcript/nvda-q3",
-        signal_text="Data-center revenue was flat year over year.",
-        arrived_at=arrived_at,
-    )
-    assert len(alerts) == 1
+        arrived_at = datetime.now(UTC)
+        alerts = await service.process_signal(
+            pm_id=user.id,
+            ticker="NVDA",
+            source_type="polygon",
+            source_url="https://polygon.io/transcript/nvda-q3",
+            signal_text="Data-center revenue was flat year over year.",
+            arrived_at=arrived_at,
+        )
     await db_session.commit()
+    assert len(alerts) == 1
 
     alert = alerts[0]
     assert "[NVDA] THESIS ALERT" in alert["message"]
@@ -342,13 +353,7 @@ async def test_earnings_alert_within_sla(db_session: AsyncSession) -> None:
 async def test_non_polygon_source_ignored(db_session: AsyncSession) -> None:
     """Only Polygon earnings transcripts trigger earnings alerts."""
     fund, user = await _setup_pm(db_session)
-    repo = ThesisRepo(db_session, user.id, fund.id)
-    await repo.create_thesis(
-        "AAPL",
-        key_assumptions=[{"id": "a1", "statement": "Revenue grows"}],
-        is_draft=False,
-    )
-    service = EarningsAlertService(session=db_session)
+    service = EarningsAlertService(uow=UnitOfWork(db_session))
     alerts = await service.process_signal(
         pm_id=user.id,
         ticker="AAPL",
@@ -363,13 +368,14 @@ async def test_non_polygon_source_ignored(db_session: AsyncSession) -> None:
 async def test_draft_thesis_no_alert(db_session: AsyncSession) -> None:
     """Draft theses are not eligible for earnings alerts."""
     fund, user = await _setup_pm(db_session)
-    repo = ThesisRepo(db_session, user.id, fund.id)
-    await repo.create_thesis(
-        "AAPL",
-        key_assumptions=[{"id": "a1", "statement": "Revenue grows"}],
-        is_draft=True,
-    )
-    service = EarningsAlertService(session=db_session)
+    async with UnitOfWork(db_session) as uow:
+        repo = ThesisRepo(uow, user.id, fund.id)
+        await repo.create_thesis(
+            "AAPL",
+            key_assumptions=[{"id": "a1", "statement": "Revenue grows"}],
+            is_draft=True,
+        )
+    service = EarningsAlertService(uow=UnitOfWork(db_session))
     alerts = await service.process_signal(
         pm_id=user.id,
         ticker="AAPL",

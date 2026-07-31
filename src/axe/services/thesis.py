@@ -7,9 +7,9 @@ import json
 from typing import Any
 
 from sqlalchemy import desc, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from axe.db.models import AuditLog, ThesisVersion, TickerRegistry
+from axe.db.uow import UnitOfWork
 from axe.security.audit import _state_dict
 
 
@@ -29,8 +29,9 @@ class _ThesisLocks:
 class ThesisRepo:
     """CRUD for investment theses with immutable versioning."""
 
-    def __init__(self, session: AsyncSession, pm_id: str, fund_entity_id: str) -> None:
-        self.session = session
+    def __init__(self, uow: UnitOfWork, pm_id: str, fund_entity_id: str) -> None:
+        self.uow = uow
+        self.session = uow.session
         self.pm_id = pm_id
         self.fund_entity_id = fund_entity_id
 
@@ -105,7 +106,7 @@ class ThesisRepo:
         await self.session.flush()
         await self._upsert_ticker_registry(ticker, version, asset_class, direction)
         await self._audit("thesis_create", thesis)
-        await self.session.commit()
+        await self.uow.commit()
         return thesis
 
     async def update_thesis(self, ticker: str, **changes: Any) -> ThesisVersion:
@@ -142,7 +143,7 @@ class ThesisRepo:
                 next_version.direction,
             )
             await self._audit("thesis_update", next_version, prior)
-            await self.session.commit()
+            await self.uow.commit()
             return next_version
 
     async def get_latest_thesis(self, ticker: str) -> ThesisVersion | None:
@@ -285,8 +286,9 @@ class ThesisRepo:
 class DriftDetectionService:
     """Surface theses that are eligible for drift detection and alerting."""
 
-    def __init__(self, session: AsyncSession, pm_id: str) -> None:
-        self.session = session
+    def __init__(self, uow: UnitOfWork, pm_id: str) -> None:
+        self.uow = uow
+        self.session = uow.session
         self.pm_id = pm_id
 
     async def alertable_latest_theses(self) -> list[ThesisVersion]:

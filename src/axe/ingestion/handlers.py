@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from axe.agents.drift_detect import EarningsAlertService
 from axe.db.models import PMUser, RetryQueue, utc_now
+from axe.db.uow import UnitOfWork
 from axe.services.alert import AlertDelivery, dispatch_earnings_alert
 
 
@@ -59,18 +60,21 @@ async def process_transcript_handler(
     content_hash = payload.get("content_hash") or ""
     signal_id = payload.get("signal_id")
 
-    service = EarningsAlertService(session)
-    alerts = await service.process_signal(
-        pm_id=pm_id,
-        ticker=ticker,
-        source_type=source_type,
-        source_url=source_url,
-        signal_text=signal_text,
-        signal_id=signal_id,
-        raw_content=payload.get("raw_content"),
-        content_hash=content_hash,
-        arrived_at=arrived_at,
-    )
+    async with UnitOfWork(session) as uow:
+        service = EarningsAlertService(uow)
+        alerts = await service.process_signal(
+            pm_id=pm_id,
+            ticker=ticker,
+            source_type=source_type,
+            source_url=source_url,
+            signal_text=signal_text,
+            signal_id=signal_id,
+            raw_content=payload.get("raw_content"),
+            content_hash=content_hash,
+            arrived_at=arrived_at,
+        )
+        if not alerts:
+            return True
 
     deadline = arrived_at + timedelta(seconds=EarningsAlertService.ALERT_SLA_SECONDS)
 

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from axe.agents.thesis_extract import ThesisExtractAgent
 from axe.db.models import AuditLog, FundEntity, PMUser, TickerRegistry
+from axe.db.uow import UnitOfWork
 from axe.services.thesis import DriftDetectionService, ThesisRepo
 
 
@@ -50,69 +51,72 @@ async def _setup_pm(
 async def test_create_thesis_versions(db_session: AsyncSession) -> None:
     """Creating and updating a thesis produces immutable versioned rows."""
     fund, user = await _setup_pm(db_session)
-    repo = ThesisRepo(db_session, user.id, fund.id)
+    async with UnitOfWork(db_session) as uow:
+        repo = ThesisRepo(uow, user.id, fund.id)
 
-    v1 = await repo.create_thesis(
-        "AAPL",
-        bull_case="Services growth remains strong.",
-        conviction=4,
-    )
-    assert v1.version == 1
+        v1 = await repo.create_thesis(
+            "AAPL",
+            bull_case="Services growth remains strong.",
+            conviction=4,
+        )
+        assert v1.version == 1
 
-    v2 = await repo.update_thesis(
-        "AAPL",
-        bull_case="Services growth accelerated; margins expanded.",
-        conviction=5,
-    )
-    assert v2.version == 2
+        v2 = await repo.update_thesis(
+            "AAPL",
+            bull_case="Services growth accelerated; margins expanded.",
+            conviction=5,
+        )
+        assert v2.version == 2
 
-    latest = await repo.get_latest_thesis("AAPL")
-    assert latest is not None
-    assert latest.version == 2
-    assert latest.bull_case == "Services growth accelerated; margins expanded."
+        latest = await repo.get_latest_thesis("AAPL")
+        assert latest is not None
+        assert latest.version == 2
+        assert latest.bull_case == "Services growth accelerated; margins expanded."
 
-    all_versions = await repo.list_thesis_versions("AAPL")
-    assert [v.version for v in all_versions] == [1, 2]
+        all_versions = await repo.list_thesis_versions("AAPL")
+        assert [v.version for v in all_versions] == [1, 2]
 
 
 @pytest.mark.asyncio
 async def test_get_version_and_version_diff(db_session: AsyncSession) -> None:
     """Specific versions can be fetched and diffed accurately."""
     fund, user = await _setup_pm(db_session)
-    repo = ThesisRepo(db_session, user.id, fund.id)
+    async with UnitOfWork(db_session) as uow:
+        repo = ThesisRepo(uow, user.id, fund.id)
 
-    await repo.create_thesis(
-        "TSLA",
-        bull_case="Bull case 1",
-        bear_case="Demand softening.",
-        direction="long",
-    )
-    await repo.update_thesis(
-        "TSLA",
-        bull_case="Bull case 2",
-        direction="short",
-    )
+        await repo.create_thesis(
+            "TSLA",
+            bull_case="Bull case 1",
+            bear_case="Demand softening.",
+            direction="long",
+        )
+        await repo.update_thesis(
+            "TSLA",
+            bull_case="Bull case 2",
+            direction="short",
+        )
 
-    v1 = await repo.get_version("TSLA", 1)
-    assert v1 is not None
-    assert v1.bull_case == "Bull case 1"
-    assert v1.direction == "long"
+        v1 = await repo.get_version("TSLA", 1)
+        assert v1 is not None
+        assert v1.bull_case == "Bull case 1"
+        assert v1.direction == "long"
 
-    diff = await repo.get_version_diff("TSLA", 2)
-    assert set(diff.keys()) == {"bull_case", "direction", "version"}
-    assert diff["bull_case"] == {"old": "Bull case 1", "new": "Bull case 2"}
-    assert diff["direction"] == {"old": "long", "new": "short"}
-    assert diff["version"] == {"old": 1, "new": 2}
+        diff = await repo.get_version_diff("TSLA", 2)
+        assert set(diff.keys()) == {"bull_case", "direction", "version"}
+        assert diff["bull_case"] == {"old": "Bull case 1", "new": "Bull case 2"}
+        assert diff["direction"] == {"old": "long", "new": "short"}
+        assert diff["version"] == {"old": 1, "new": 2}
 
 
 @pytest.mark.asyncio
 async def test_ticker_registry_auto_updated(db_session: AsyncSession) -> None:
     """Creating/updating a thesis updates the PM's ticker registry."""
     fund, user = await _setup_pm(db_session)
-    repo = ThesisRepo(db_session, user.id, fund.id)
+    async with UnitOfWork(db_session) as uow:
+        repo = ThesisRepo(uow, user.id, fund.id)
 
-    await repo.create_thesis("NVDA", direction="long", asset_class="equity")
-    await repo.update_thesis("NVDA", direction="short")
+        await repo.create_thesis("NVDA", direction="long", asset_class="equity")
+        await repo.update_thesis("NVDA", direction="short")
 
     result = await db_session.execute(
         select(TickerRegistry).where(
@@ -130,10 +134,11 @@ async def test_ticker_registry_auto_updated(db_session: AsyncSession) -> None:
 async def test_audit_log_for_create_and_update(db_session: AsyncSession) -> None:
     """Every thesis mutation is recorded in the audit log."""
     fund, user = await _setup_pm(db_session)
-    repo = ThesisRepo(db_session, user.id, fund.id)
+    async with UnitOfWork(db_session) as uow:
+        repo = ThesisRepo(uow, user.id, fund.id)
 
-    created = await repo.create_thesis("MSFT", bull_case="Cloud growth.")
-    updated = await repo.update_thesis("MSFT", bull_case="Cloud growth; AI tailwinds.")
+        created = await repo.create_thesis("MSFT", bull_case="Cloud growth.")
+        updated = await repo.update_thesis("MSFT", bull_case="Cloud growth; AI tailwinds.")
 
     result = await db_session.execute(
         select(AuditLog)
@@ -200,8 +205,9 @@ async def test_extract_agent_and_create(db_session: AsyncSession) -> None:
             "status",
         }
     }
-    repo = ThesisRepo(db_session, user.id, fund.id)
-    thesis = await repo.create_thesis(payload["ticker"], **create_kwargs)
+    async with UnitOfWork(db_session) as uow:
+        repo = ThesisRepo(uow, user.id, fund.id)
+        thesis = await repo.create_thesis(payload["ticker"], **create_kwargs)
     assert thesis.ticker == "AMZN"
     assert thesis.direction == "long"
     assert thesis.is_draft is False
@@ -211,15 +217,16 @@ async def test_extract_agent_and_create(db_session: AsyncSession) -> None:
 async def test_draft_excluded_from_alerts(db_session: AsyncSession) -> None:
     """The drift detection service only surfaces non-draft theses."""
     fund, user = await _setup_pm(db_session)
-    repo = ThesisRepo(db_session, user.id, fund.id)
+    async with UnitOfWork(db_session) as uow:
+        repo = ThesisRepo(uow, user.id, fund.id)
 
-    await repo.create_thesis("DRAFT", bull_case="Draft idea.", is_draft=True)
-    await repo.create_thesis("PUB", bull_case="Published idea.", is_draft=False)
+        await repo.create_thesis("DRAFT", bull_case="Draft idea.", is_draft=True)
+        await repo.create_thesis("PUB", bull_case="Published idea.", is_draft=False)
 
-    drift = DriftDetectionService(db_session, user.id)
-    alertable = await drift.alertable_latest_theses()
-    tickers = {t.ticker for t in alertable}
-    assert tickers == {"PUB"}
+        drift = DriftDetectionService(uow, user.id)
+        alertable = await drift.alertable_latest_theses()
+        tickers = {t.ticker for t in alertable}
+        assert tickers == {"PUB"}
 
 
 @pytest.mark.asyncio
@@ -238,23 +245,25 @@ async def test_concurrent_writes_serialized(engine) -> None:
 
     async def worker(i: int) -> int:
         async with session_maker() as session:
-            repo = ThesisRepo(session, user.id, fund.id)
-            if i == 0:
-                await repo.create_thesis("CONC", bull_case=f"init {i}")
-            else:
-                await repo.update_thesis("CONC", bull_case=f"update {i}")
+            async with UnitOfWork(session) as uow:
+                repo = ThesisRepo(uow, user.id, fund.id)
+                if i == 0:
+                    await repo.create_thesis("CONC", bull_case=f"init {i}")
+                else:
+                    await repo.update_thesis("CONC", bull_case=f"update {i}")
             return i
 
     await asyncio.gather(*[worker(i) for i in range(10)])
 
     async with session_maker() as session:
-        repo = ThesisRepo(session, user.id, fund.id)
-        versions = await repo.list_thesis_versions("CONC")
-        assert [v.version for v in versions] == list(range(1, 11))
+        async with UnitOfWork(session) as uow:
+            repo = ThesisRepo(uow, user.id, fund.id)
+            versions = await repo.list_thesis_versions("CONC")
+            assert [v.version for v in versions] == list(range(1, 11))
 
-        latest = await repo.get_latest_thesis("CONC")
-        assert latest is not None
-        assert latest.version == 10
+            latest = await repo.get_latest_thesis("CONC")
+            assert latest is not None
+            assert latest.version == 10
 
         registry = await session.scalar(
             select(TickerRegistry).where(

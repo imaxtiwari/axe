@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from axe.agents.embedding import EmbeddingModel, cosine_similarity, get_default_embedding_model
 from axe.agents.llm import LLMProvider, get_default_provider
+from axe.db.uow import UnitOfWork
 from axe.db.models import (
     BrokenAssumption,
     SignalLog,
@@ -309,10 +310,11 @@ class EarningsAlertService:
 
     def __init__(
         self,
-        session: AsyncSession,
+        uow: UnitOfWork,
         drift_agent: DriftDetectionAgent | None = None,
     ) -> None:
-        self.session = session
+        self.uow = uow
+        self.session = uow.session
         self.drift_agent = drift_agent or DriftDetectionAgent()
 
     async def process_signal(
@@ -336,7 +338,7 @@ class EarningsAlertService:
         if source_type != "polygon":
             return alerts
 
-        repo = ThesisRepo(self.session, pm_id, "")
+        repo = ThesisRepo(self.uow, pm_id, "")
         latest = await repo.get_latest_thesis(ticker)
         if latest is None or latest.is_draft:
             return alerts
