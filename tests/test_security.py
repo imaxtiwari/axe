@@ -538,7 +538,7 @@ def test_axe_error_to_response_contains_envelope():
     err = AXEError("internal detail", request_id="req_123")
     response = err.to_response()
     assert response.status_code == 500
-    body = json.loads(response.body)
+    body = json.loads(response.body.decode("utf-8") if isinstance(response.body, (bytes, bytearray)) else str(response.body))
     assert body == {
         "request_id": "req_123",
         "code": "axe.internal_error",

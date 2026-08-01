@@ -50,7 +50,7 @@ class MNPIService:
     async def review_signal(
         self,
         signal_id: str,
-        signal_text: str,
+        signal_text: str | None,
         ticker: str | None,
         pm_id: str,
         alert_payloads: list[dict[str, Any]],
@@ -61,7 +61,7 @@ class MNPIService:
         is flagged. The alert payloads are stored on the review row for later
         release.
         """
-        result = await self.agent.review(signal_text, ticker)
+        result = await self.agent.review(signal_text or "", ticker)
         if not result.flagged:
             return MNPIReviewOutcome(blocked=False, result=result)
 
