@@ -11,6 +11,8 @@ from sqlalchemy import desc, func, select
 from axe.db.models import AuditLog, ThesisVersion, TickerRegistry
 from axe.db.uow import UnitOfWork
 from axe.security.audit import _state_dict
+from axe.security.context import RequestContext
+from axe.security.isolation import IsolationService
 
 
 class _ThesisLocks:
@@ -26,6 +28,26 @@ class _ThesisLocks:
         return cls._locks[key]
 
 
+class _ContextHelper:
+    """Bind a RequestContext when none is active; no-op otherwise."""
+
+    def __init__(self, pm_id: str, fund_entity_id: str | None) -> None:
+        self.pm_id = pm_id
+        self.fund_entity_id = fund_entity_id
+        self._token: Any | None = None
+
+    def __enter__(self) -> None:
+        if RequestContext.current_or_none() is None:
+            self._token = RequestContext.set_current(
+                RequestContext(pm_id=self.pm_id, fund_id=self.fund_entity_id)
+            )
+
+    def __exit__(self, *exc: Any) -> None:
+        if self._token is not None:
+            RequestContext.reset_current(self._token)
+            self._token = None
+
+
 class ThesisRepo:
     """CRUD for investment theses with immutable versioning."""
 
@@ -34,6 +56,15 @@ class ThesisRepo:
         self.session = uow.session
         self.pm_id = pm_id
         self.fund_entity_id = fund_entity_id
+        # Ensure an isolation context is available. In production this is set by
+        # middleware; in tests/background workers we bind one from the repo identity.
+        self._context = _ContextHelper(pm_id, fund_entity_id)
+        with self._context:
+            pass
+
+    async def _with_context(self, coro_factory: Any) -> Any:
+        with self._context:
+            return await coro_factory()
 
     async def create_thesis(
         self,
@@ -148,32 +179,41 @@ class ThesisRepo:
 
     async def get_latest_thesis(self, ticker: str) -> ThesisVersion | None:
         """Return the highest-version thesis for a ticker."""
-        result = await self.session.execute(
-            select(ThesisVersion)
-            .where(ThesisVersion.pm_id == self.pm_id, ThesisVersion.ticker == ticker)
-            .order_by(desc(ThesisVersion.version))
-            .limit(1)
-        )
-        return result.scalar_one_or_none()
+
+        def _build():
+            return self.session.scalar(
+                IsolationService.select_for(ThesisVersion)
+                .where(ThesisVersion.ticker == ticker)
+                .order_by(desc(ThesisVersion.version))
+                .limit(1)
+            )
+
+        return await self._with_context(_build)
 
     async def get_version(self, ticker: str, version: int) -> ThesisVersion | None:
         """Return a specific thesis version."""
-        result = await self.session.execute(
-            select(ThesisVersion).where(
-                ThesisVersion.pm_id == self.pm_id,
-                ThesisVersion.ticker == ticker,
-                ThesisVersion.version == version,
+
+        def _build():
+            return self.session.scalar(
+                IsolationService.select_for(ThesisVersion).where(
+                    ThesisVersion.ticker == ticker,
+                    ThesisVersion.version == version,
+                )
             )
-        )
-        return result.scalar_one_or_none()
+
+        return await self._with_context(_build)
 
     async def list_thesis_versions(self, ticker: str) -> list[ThesisVersion]:
         """Return all thesis versions for a ticker, oldest first."""
-        result = await self.session.execute(
-            select(ThesisVersion)
-            .where(ThesisVersion.pm_id == self.pm_id, ThesisVersion.ticker == ticker)
-            .order_by(ThesisVersion.version)
-        )
+
+        def _build():
+            return self.session.execute(
+                IsolationService.select_for(ThesisVersion)
+                .where(ThesisVersion.ticker == ticker)
+                .order_by(ThesisVersion.version)
+            )
+
+        result = await self._with_context(_build)
         return list(result.scalars().all())
 
     async def get_version_diff(
@@ -219,17 +259,18 @@ class ThesisRepo:
 
     async def _next_version(self, ticker: str) -> int:
         max_version = await self.session.scalar(
-            select(func.max(ThesisVersion.version)).where(
-                ThesisVersion.pm_id == self.pm_id,
-                ThesisVersion.ticker == ticker,
-            )
+            IsolationService.scope(
+                select(func.max(ThesisVersion.version)),
+                ThesisVersion,
+                self.pm_id,
+            ).where(ThesisVersion.ticker == ticker)
         )
         return (max_version or 0) + 1
 
     async def _latest_locked(self, ticker: str) -> ThesisVersion | None:
         result = await self.session.execute(
-            select(ThesisVersion)
-            .where(ThesisVersion.pm_id == self.pm_id, ThesisVersion.ticker == ticker)
+            IsolationService.scope(select(ThesisVersion), ThesisVersion, self.pm_id)
+            .where(ThesisVersion.ticker == ticker)
             .order_by(desc(ThesisVersion.version))
             .limit(1)
         )
@@ -243,8 +284,7 @@ class ThesisRepo:
         direction: str,
     ) -> None:
         result = await self.session.execute(
-            select(TickerRegistry).where(
-                TickerRegistry.pm_id == self.pm_id,
+            IsolationService.scope(select(TickerRegistry), TickerRegistry, self.pm_id).where(
                 TickerRegistry.ticker == ticker,
             )
         )
@@ -290,29 +330,36 @@ class DriftDetectionService:
         self.uow = uow
         self.session = uow.session
         self.pm_id = pm_id
+        # Production sets RequestContext via middleware; tests and background
+        # workers may need an explicit bind. `_ContextHelper`` is a no-op when
+        # a context is already active.
+        self._context = _ContextHelper(pm_id, None)
 
     async def alertable_latest_theses(self) -> list[ThesisVersion]:
         """Return the latest published (non-draft) thesis per ticker."""
-        subq = (
-            select(
-                ThesisVersion.ticker,
-                func.max(ThesisVersion.version).label("max_version"),
+        with self._context:
+            subq = (
+                IsolationService.scope(
+                    select(
+                        ThesisVersion.ticker,
+                        func.max(ThesisVersion.version).label("max_version"),
+                    ),
+                    ThesisVersion,
+                    self.pm_id,
+                )
+                .where(ThesisVersion.is_draft.is_(False))
+                .select_from(ThesisVersion)
+                .group_by(ThesisVersion.ticker)
+                .subquery()
             )
-            .where(
-                ThesisVersion.pm_id == self.pm_id,
-                ThesisVersion.is_draft.is_(False),
+            result = await self.session.execute(
+                IsolationService.select_for(ThesisVersion)
+                .join(
+                    subq,
+                    (ThesisVersion.ticker == subq.c.ticker)
+                    & (ThesisVersion.version == subq.c.max_version),
+                )
+                .where(ThesisVersion.is_draft.is_(False))
+                .order_by(ThesisVersion.ticker)
             )
-            .group_by(ThesisVersion.ticker)
-            .subquery()
-        )
-        result = await self.session.execute(
-            select(ThesisVersion)
-            .join(
-                subq,
-                (ThesisVersion.ticker == subq.c.ticker)
-                & (ThesisVersion.version == subq.c.max_version),
-            )
-            .where(ThesisVersion.pm_id == self.pm_id)
-            .order_by(ThesisVersion.ticker)
-        )
-        return list(result.scalars().all())
+            return list(result.scalars().all())

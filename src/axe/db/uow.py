@@ -3,6 +3,9 @@
 Provides a single async context manager that owns an async SQLAlchemy session,
 manages the transaction boundary (commit on success, rollback on exception), and
 exposes thin repositories that share that session.
+
+All repository reads use ``IsolationService`` helpers so isolation filters are
+injected automatically from the active ``RequestContext``.
 """
 
 from __future__ import annotations
@@ -10,7 +13,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from axe.db.models import (
@@ -20,6 +23,7 @@ from axe.db.models import (
     ThesisVersion,
 )
 from axe.db.session import AsyncSessionLocal
+from axe.security.isolation import IsolationService
 
 
 class _BaseRepo:
@@ -37,44 +41,47 @@ class ThesisRepository(_BaseRepo):
     until the full service is migrated.
     """
 
-    async def get_latest(self, pm_id: str, ticker: str) -> ThesisVersion | None:
-        """Return the latest published thesis for a ticker."""
-        from sqlalchemy import desc
-
+    async def get_latest(self, ticker: str) -> ThesisVersion | None:
+        """Return the latest published thesis for a ticker scoped to the current PM."""
         result = await self.session.execute(
-            select(ThesisVersion)
-            .where(ThesisVersion.pm_id == pm_id, ThesisVersion.ticker == ticker)
+            IsolationService.select_for(ThesisVersion)
+            .where(ThesisVersion.ticker == ticker)
             .order_by(desc(ThesisVersion.version))
             .limit(1)
         )
         return result.scalar_one_or_none()
 
-    async def get_version(self, pm_id: str, ticker: str, version: int) -> ThesisVersion | None:
-        """Return a specific thesis version."""
+    async def get_version(self, ticker: str, version: int) -> ThesisVersion | None:
+        """Return a specific thesis version scoped to the current PM."""
         result = await self.session.execute(
-            select(ThesisVersion).where(
-                ThesisVersion.pm_id == pm_id,
+            IsolationService.select_for(ThesisVersion).where(
                 ThesisVersion.ticker == ticker,
                 ThesisVersion.version == version,
             )
         )
         return result.scalar_one_or_none()
 
-    async def list_versions(self, pm_id: str, ticker: str) -> list[ThesisVersion]:
-        """Return all thesis versions for a ticker, oldest first."""
+    async def list_versions(self, ticker: str) -> list[ThesisVersion]:
+        """Return all thesis versions for a ticker, oldest first, scoped to current PM."""
         result = await self.session.execute(
-            select(ThesisVersion)
-            .where(ThesisVersion.pm_id == pm_id, ThesisVersion.ticker == ticker)
+            IsolationService.select_for(ThesisVersion)
+            .where(ThesisVersion.ticker == ticker)
             .order_by(ThesisVersion.version)
         )
         return list(result.scalars().all())
 
 
 class PMUserRepository(_BaseRepo):
-    """Read helpers for PM users."""
+    """Read helpers for PM users.
+
+    PMUser rows are scoped by fund_entity_id because the table has no pm_id
+    column; the PM's own identity is the row id.
+    """
 
     async def get_by_id(self, pm_id: str) -> PMUser | None:
-        result = await self.session.execute(select(PMUser).where(PMUser.id == pm_id))
+        result = await self.session.execute(
+            IsolationService.select_for(PMUser).where(PMUser.id == pm_id)
+        )
         return result.scalar_one_or_none()
 
 
@@ -110,7 +117,9 @@ class DealRepository(_BaseRepo):
     """Read helpers for deal rooms."""
 
     async def get_by_id(self, deal_id: str) -> DealRoom | None:
-        result = await self.session.execute(select(DealRoom).where(DealRoom.id == deal_id))
+        result = await self.session.execute(
+            IsolationService.select_for(DealRoom).where(DealRoom.id == deal_id)
+        )
         return result.scalar_one_or_none()
 
 

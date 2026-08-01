@@ -14,6 +14,9 @@ if TYPE_CHECKING:
 
 from axe.db.models import (
     AuditLog,
+    CatalystEvent,
+    CorporateAction,
+    DeckTemplate,
     FundEntity,
     PMMemory,
     PMOAuthToken,
@@ -24,6 +27,7 @@ from axe.db.models import (
 )
 from axe.exceptions import AXEError, IsolationError
 from axe.security.audit import AuditService, audit_action
+from axe.security.context import RequestContext
 from axe.security.encryption import (
     EncryptedJSON,
     EncryptionError,
@@ -576,3 +580,87 @@ def test_unknown_error_returns_500_generic_code(app_client: TestClient):
     assert "something unexpected" not in str(body)
     assert "RuntimeError" not in str(body)
     assert "traceback" not in str(body).lower()
+
+
+@pytest.mark.asyncio
+async def test_thesis_repo_isolates_pm_reads(db_session: AsyncSession):
+    """PM A cannot read PM B's thesis through the repository."""
+    from axe.db.uow import UnitOfWork
+    from axe.services.thesis import ThesisRepo
+
+    fund = await _fund_entity(db_session)
+    pm_a = await _pm_user(db_session, fund.id)
+    pm_b = await _pm_user(db_session, fund.id)
+
+    # PM A creates a thesis.
+    async with UnitOfWork(db_session) as uow_a:
+        repo_a = ThesisRepo(uow_a, pm_a.id, fund.id)
+        await repo_a.create_thesis("AAPL", bull_case="A only")
+
+    # PM B's repo sees no thesis for AAPL.
+    async with UnitOfWork(db_session) as uow_b:
+        repo_b = ThesisRepo(uow_b, pm_b.id, fund.id)
+        latest = await repo_b.get_latest_thesis("AAPL")
+        assert latest is None
+        versions = await repo_b.list_thesis_versions("AAPL")
+        assert versions == []
+
+
+@pytest.mark.asyncio
+async def test_isolation_service_scope_for_context_requires_context():
+    """select_for raises IsolationError outside a RequestContext."""
+    import pytest
+
+    # Ensure no stray context is active.
+    token = RequestContext.current_or_none()
+    assert token is None
+    with pytest.raises(IsolationError, match="No active RequestContext"):
+        IsolationService.select_for(ThesisVersion)
+
+
+@pytest.mark.asyncio
+async def test_isolation_service_scope_for_context_uses_current_context():
+    """select_for automatically applies pm_id from RequestContext."""
+    with RequestContext.bind(pm_id="pm_ctx", fund_id="fund_ctx"):
+        stmt = IsolationService.select_for(ThesisVersion)
+        compiled = str(stmt.compile(compile_kwargs={"literal_binds": True}))
+        assert "pm_id" in compiled
+        assert "pm_ctx" in compiled
+
+
+@pytest.mark.asyncio
+async def test_global_tables_are_unscoped():
+    """Tables marked isolation_scope='global' return an unmodified select."""
+    for model in (FundEntity, CatalystEvent, CorporateAction, DeckTemplate):
+        stmt = IsolationService.select_for(model)
+        # A global select should not raise even with no context.
+        assert IsolationService.isolation_scope(model) == "global"
+        assert "WHERE" not in str(stmt).upper()
+
+
+@pytest.mark.asyncio
+async def test_isolation_service_require_isolated_blocks_cross_pm():
+    """require_isolated raises when a loaded row belongs to a different PM."""
+    with RequestContext.bind(pm_id="pm_a"):
+        foreign = ThesisVersion(
+            id=str(uuid.uuid4()),
+            pm_id="pm_b",
+            ticker="AAPL",
+            version=1,
+            fund_entity_id=str(uuid.uuid4()),
+        )
+        with pytest.raises(IsolationError, match="Cross-PM isolation violation"):
+            IsolationService.require_isolated(foreign)
+
+
+def test_global_models_have_explicit_marker():
+    """Global models declare isolation_scope = 'global'."""
+    assert FundEntity.isolation_scope == "global"
+    assert CatalystEvent.isolation_scope == "global"
+    assert CorporateAction.isolation_scope == "global"
+    assert DeckTemplate.isolation_scope == "global"
+
+    # Scoped models default to 'pm'.
+    assert ThesisVersion.isolation_scope == "pm"
+    assert TickerRegistry.isolation_scope == "pm"
+    assert PMUser.isolation_scope == "pm"

@@ -35,6 +35,8 @@ class FundEntity(Base):
 
     __tablename__ = "fund_entities"
 
+    isolation_scope = "global"
+
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     legal_name: Mapped[str] = mapped_column(String(255), nullable=False)
     jurisdiction: Mapped[str | None] = mapped_column(String(64))
@@ -382,6 +384,8 @@ class DedupLog(Base):
 
     __tablename__ = "dedup_log"
 
+    isolation_scope = "global"
+
     content_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     source_id: Mapped[str | None] = mapped_column(String(255))
     source_type: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -421,6 +425,8 @@ class CatalystEvent(Base):
     """Market-moving catalysts for the weekly calendar (earnings, Fed, macro, etc.)."""
 
     __tablename__ = "catalyst_events"
+
+    isolation_scope = "global"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     ticker: Mapped[str | None] = mapped_column(String(32), index=True)
@@ -506,6 +512,8 @@ class CorporateAction(Base):
     """Corporate actions affecting tickers (splits, M&A, ticker changes, etc.)."""
 
     __tablename__ = "corporate_actions"
+
+    isolation_scope = "global"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     ticker: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -606,6 +614,8 @@ class DeckTemplate(Base):
     """Reusable IC / LP update deck templates."""
 
     __tablename__ = "deck_templates"
+
+    isolation_scope = "global"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     name: Mapped[str] = mapped_column(String(255), nullable=False)

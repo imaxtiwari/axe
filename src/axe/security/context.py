@@ -7,6 +7,7 @@ threading ad-hoc dictionaries through every call chain.
 
 from __future__ import annotations
 
+import contextlib
 import contextvars
 import logging
 import uuid
@@ -136,6 +137,38 @@ class RequestContext:
                 "RequestContext has no pm_id; identity is required for this operation"
             )
         return RequestIdentity(pm_id=self.pm_id, fund_id=self.fund_id, role=self.role)
+
+    @classmethod
+    @contextlib.contextmanager
+    def bind(
+        cls,
+        *,
+        pm_id: str | None = None,
+        fund_id: str | None = None,
+        role: str = "pm",
+        client_ip: str | None = None,
+        request_id: str | None = None,
+        user_agent: str | None = None,
+    ) -> Any:
+        """Temporarily bind a ``RequestContext`` for the current asyncio task.
+
+        Intended for tests, background workers, and any non-request code path
+        that still needs isolation or audit identity.
+        """
+        ctx = cls(
+            pm_id=pm_id,
+            fund_id=fund_id,
+            role=role,
+            client_ip=client_ip,
+            request_id=request_id or uuid.uuid4().hex,
+            user_agent=user_agent,
+            is_bypass=False,
+        )
+        token = cls.set_current(ctx)
+        try:
+            yield ctx
+        finally:
+            cls.reset_current(token)
 
 
 @dataclass(frozen=True, slots=True)

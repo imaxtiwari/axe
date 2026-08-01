@@ -61,7 +61,7 @@ async def deliver_briefs_to_all_active_pms(
     delivered_ids: list[str] = []
     async with session_maker() as session:
         result = await session.execute(
-            select(PMUser).where(PMUser.active == True)  # noqa: E712
+            select(PMUser).where(PMUser.active == True)  # noqa: E712  # isolation: system-wide
         )
         pms = result.scalars().all()
         for pm in pms:
