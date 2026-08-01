@@ -22,6 +22,7 @@ from axe.db.models import (
     ThesisVersion,
     TickerRegistry,
 )
+from axe.exceptions import AXEError, IsolationError
 from axe.security.audit import AuditService, audit_action
 from axe.security.encryption import (
     EncryptedJSON,
@@ -31,7 +32,7 @@ from axe.security.encryption import (
     generate_fernet_key,
     get_fernet,
 )
-from axe.security.isolation import IsolationError, IsolationService
+from axe.security.isolation import IsolationService
 
 
 async def _fund_entity(session: AsyncSession) -> FundEntity:
@@ -449,9 +450,27 @@ def app_client():
     """FastAPI TestClient fixture with request-context middleware installed."""
     from fastapi.testclient import TestClient
 
+    from axe.exceptions import AuditError, AuthError, IsolationError
     from axe.main import create_app
 
     app = create_app()
+
+    @app.get("/__test/auth_error")
+    async def _auth_error():
+        raise AuthError("invalid credentials")
+
+    @app.get("/__test/isolation_error")
+    async def _isolation_error():
+        raise IsolationError("cross-pm access attempt")
+
+    @app.get("/__test/audit_error")
+    async def _audit_error():
+        raise AuditError("audit log commit failed")
+
+    @app.get("/__test/unknown_error")
+    async def _unknown_error():
+        raise RuntimeError("something unexpected happened")
+
     return TestClient(app)
 
 
@@ -492,3 +511,68 @@ def test_transcripts_router_blocks_cross_pm(app_client: TestClient):
         headers={"X-PM-ID": "pm_attacker"},
     )
     assert response.status_code == 403
+
+
+def test_axe_error_to_response_contains_envelope():
+    """AXEError.to_response returns request_id, code, message."""
+    import json
+
+    err = AXEError("internal detail", request_id="req_123")
+    response = err.to_response()
+    assert response.status_code == 500
+    body = json.loads(response.body)
+    assert body == {
+        "request_id": "req_123",
+        "code": "axe.internal_error",
+        "message": "An internal error occurred.",
+    }
+
+
+def test_auth_error_returns_401_and_safe_body(app_client: TestClient):
+    """AuthError returns a deterministic JSON envelope without internal details."""
+    response = app_client.get("/__test/auth_error")
+    assert response.status_code == 401
+    body = response.json()
+    assert body["code"] == "auth.failed"
+    assert body["message"] == "Authentication failed."
+    assert "request_id" in body
+    assert "internal" not in body
+    assert "traceback" not in str(body).lower()
+
+
+def test_isolation_error_returns_403_and_is_audited(app_client: TestClient):
+    """IsolationError returns 403, safe message, and writes an AuditLog."""
+    response = app_client.get(
+        "/__test/isolation_error", headers={"X-PM-ID": "pm_victim", "X-Request-ID": "req_iso_1"}
+    )
+    assert response.status_code == 403
+    body = response.json()
+    assert body["code"] == "isolation.violation"
+    assert "isolation" in body["message"].lower()
+    assert "request_id" in body
+    assert "cross-pm" not in body["message"].lower()
+    assert "traceback" not in str(body).lower()
+
+
+def test_audit_error_returns_500_and_safe_body(app_client: TestClient):
+    """AuditError returns a deterministic compliance-flavoured envelope."""
+    response = app_client.get("/__test/audit_error")
+    assert response.status_code == 500
+    body = response.json()
+    assert body["code"] == "audit.failed"
+    assert body["message"] == "A compliance logging error occurred."
+    assert "request_id" in body
+    assert "traceback" not in str(body).lower()
+
+
+def test_unknown_error_returns_500_generic_code(app_client: TestClient):
+    """Unhandled exceptions map to a generic 500 without leaking stack traces."""
+    response = app_client.get("/__test/unknown_error")
+    assert response.status_code == 500
+    body = response.json()
+    assert body["code"] == "axe.internal_error"
+    assert body["message"] == "An internal error occurred."
+    assert "request_id" in body
+    assert "something unexpected" not in str(body)
+    assert "RuntimeError" not in str(body)
+    assert "traceback" not in str(body).lower()

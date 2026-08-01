@@ -9,10 +9,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from axe.db.base import Base
+from axe.exceptions import IsolationError
 
 
-class IsolationError(Exception):
-    """Raised when a database query is not correctly scoped to a single PM."""
+# Re-export IsolationError so existing imports in router/tests keep working.
+IsolationError = IsolationError
 
 
 class IsolationService:

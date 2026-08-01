@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse, Response
 
 from axe.config import Settings, get_settings
+from axe.exceptions import install_global_error_middleware, register_exception_handlers
 from axe.observability import (
     configure_logging,
     init_sentry,
@@ -41,8 +42,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         version="0.1.0",
         lifespan=lifespan,
     )
+    install_global_error_middleware(app)
     install_middleware(app)
     instrument_fastapi(app)
+    register_exception_handlers(app)
 
     @app.get("/healthz", tags=["health"])
     async def health_check() -> dict:
