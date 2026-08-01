@@ -12,15 +12,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 if TYPE_CHECKING:
     from fastapi.testclient import TestClient
 
+from axe.config import Settings
 from axe.db.models import (
     AuditLog,
     CatalystEvent,
     CorporateAction,
     DeckTemplate,
     FundEntity,
+    MNPIReviewQueue,
     PMMemory,
     PMOAuthToken,
     PMUser,
+    RetryQueue,
     SignalLog,
     ThesisVersion,
     TickerRegistry,
@@ -452,12 +455,23 @@ async def test_audit_action_works_for_sync_result(db_session: AsyncSession):
 @pytest.fixture
 def app_client():
     """FastAPI TestClient fixture with request-context middleware installed."""
+    import asyncio
+
     from fastapi.testclient import TestClient
 
+    from axe.db.base import Base
+    from axe.db.session import async_engine
     from axe.exceptions import AuditError, AuthError, IsolationError
     from axe.main import create_app
 
-    app = create_app()
+    app = create_app(settings=Settings(app_env="test"))
+
+    # Create tables in the DB the global async engine uses.
+    async def _create_tables() -> None:
+        async with async_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+    asyncio.run(_create_tables())
 
     @app.get("/__test/auth_error")
     async def _auth_error():
@@ -664,3 +678,350 @@ def test_global_models_have_explicit_marker():
     assert ThesisVersion.isolation_scope == "pm"
     assert TickerRegistry.isolation_scope == "pm"
     assert PMUser.isolation_scope == "pm"
+
+
+@pytest.mark.asyncio
+async def test_mnpi_service_flags_and_blocks_high_risk_signal(db_session: AsyncSession):
+    """High-MNPI signal flags the signal, blocks alerts, and creates a review."""
+    from axe.agents.mnpi_review import MNPIReviewAgent
+    from axe.services.mnpi import MNPIService
+
+    fund = await _fund_entity(db_session)
+    user = await _pm_user(db_session, fund.id)
+
+    # Force a high MNPI score deterministically.
+    agent = MNPIReviewAgent(threshold=0.0)
+    service = MNPIService(db_session, agent=agent)
+
+    signal = SignalLog(
+        id=str(uuid.uuid4()),
+        pm_id=user.id,
+        ticker="AAPL",
+        source_type="polygon",
+        content_hash="abc",
+        raw_content="confidential non-public earnings guidance",
+    )
+    db_session.add(signal)
+    await db_session.flush()
+
+    alerts = [{"signal_id": signal.id, "message": "alert"}]
+    outcome = await service.review_signal(
+        signal_id=signal.id,
+        signal_text=signal.raw_content,
+        ticker="AAPL",
+        pm_id=user.id,
+        alert_payloads=alerts,
+    )
+    await db_session.flush()
+
+    assert outcome.blocked is True
+    assert outcome.review is not None
+    assert outcome.review.status == "pending"
+    assert outcome.review.alert_payloads == alerts
+
+    refreshed = await db_session.get(SignalLog, signal.id)
+    assert refreshed is not None
+    assert refreshed.mnpi_flag is True
+
+    queue = await db_session.execute(
+        select(MNPIReviewQueue).where(MNPIReviewQueue.signal_id == signal.id)
+    )
+    assert queue.scalar_one_or_none() is not None
+
+
+@pytest.mark.asyncio
+async def test_mnpi_service_allows_low_risk_signal(db_session: AsyncSession):
+    """Non-MNPI signal passes through without blocking."""
+    from axe.agents.mnpi_review import MNPIReviewAgent
+    from axe.services.mnpi import MNPIService
+
+    fund = await _fund_entity(db_session)
+    user = await _pm_user(db_session, fund.id)
+
+    # High threshold ensures benign text is not flagged.
+    agent = MNPIReviewAgent(threshold=0.99)
+    service = MNPIService(db_session, agent=agent)
+
+    signal = SignalLog(
+        id=str(uuid.uuid4()),
+        pm_id=user.id,
+        ticker="AAPL",
+        source_type="polygon",
+        content_hash="abc",
+        raw_content="The weather is sunny today.",
+    )
+    db_session.add(signal)
+    await db_session.flush()
+
+    outcome = await service.review_signal(
+        signal_id=signal.id,
+        signal_text=signal.raw_content,
+        ticker="AAPL",
+        pm_id=user.id,
+        alert_payloads=[{"message": "alert"}],
+    )
+    await db_session.flush()
+
+    assert outcome.blocked is False
+
+    queue = await db_session.execute(
+        select(MNPIReviewQueue).where(MNPIReviewQueue.signal_id == signal.id)
+    )
+    assert queue.scalar_one_or_none() is None
+
+
+@pytest.mark.asyncio
+async def test_mnpi_service_approve_releases_alert_and_audits(db_session: AsyncSession):
+    """Approving a review un-flags the signal and enqueues a send_alert task."""
+    from axe.agents.mnpi_review import MNPIReviewAgent
+    from axe.services.mnpi import MNPIService
+
+    fund = await _fund_entity(db_session)
+    user = await _pm_user(db_session, fund.id)
+    user.slack_user_id = "U123"
+    user.email = "pm@example.com"
+
+    agent = MNPIReviewAgent(threshold=0.0)
+    service = MNPIService(db_session, agent=agent)
+
+    signal = SignalLog(
+        id=str(uuid.uuid4()),
+        pm_id=user.id,
+        ticker="AAPL",
+        source_type="polygon",
+        content_hash="abc",
+        raw_content="confidential board discussion",
+    )
+    db_session.add(signal)
+    await db_session.flush()
+
+    outcome = await service.review_signal(
+        signal_id=signal.id,
+        signal_text=signal.raw_content,
+        ticker="AAPL",
+        pm_id=user.id,
+        alert_payloads=[{"signal_id": signal.id, "message": "alert"}],
+    )
+    await db_session.flush()
+    review_id = outcome.review.id if outcome.review else ""
+
+    await service.decide(review_id=review_id, decision="approved", reviewer_id="reviewer_1")
+    await db_session.flush()
+
+    review = await db_session.get(MNPIReviewQueue, review_id)
+    assert review is not None
+    assert review.status == "approved"
+    assert review.reviewer_id == "reviewer_1"
+
+    refreshed_signal = await db_session.get(SignalLog, signal.id)
+    assert refreshed_signal is not None
+    assert refreshed_signal.mnpi_flag is False
+
+    tasks = await db_session.execute(
+        select(RetryQueue).where(
+            RetryQueue.pm_id == user.id,
+            RetryQueue.task_type == "send_alert",
+        )
+    )
+    queued = tasks.scalars().all()
+    assert len(queued) == 1
+    assert queued[0].payload["slack_user_id"] == "U123"
+    assert queued[0].payload["email"] == "pm@example.com"
+
+    audit = await db_session.execute(
+        select(AuditLog).where(
+            AuditLog.object_id == review_id,
+            AuditLog.action_type == "mnpi_review_approved",
+        )
+    )
+    assert audit.scalar_one_or_none() is not None
+
+
+@pytest.mark.asyncio
+async def test_mnpi_service_reject_keeps_signal_flagged(db_session: AsyncSession):
+    """Rejecting a review leaves the signal flagged and writes an audit entry."""
+    from axe.agents.mnpi_review import MNPIReviewAgent
+    from axe.services.mnpi import MNPIService
+
+    fund = await _fund_entity(db_session)
+    user = await _pm_user(db_session, fund.id)
+
+    agent = MNPIReviewAgent(threshold=0.0)
+    service = MNPIService(db_session, agent=agent)
+
+    signal = SignalLog(
+        id=str(uuid.uuid4()),
+        pm_id=user.id,
+        ticker="AAPL",
+        source_type="polygon",
+        content_hash="abc",
+        raw_content="confidential merger talks",
+    )
+    db_session.add(signal)
+    await db_session.flush()
+
+    outcome = await service.review_signal(
+        signal_id=signal.id,
+        signal_text=signal.raw_content,
+        ticker="AAPL",
+        pm_id=user.id,
+        alert_payloads=[{"message": "alert"}],
+    )
+    await db_session.flush()
+    review_id = outcome.review.id if outcome.review else ""
+
+    await service.decide(review_id=review_id, decision="rejected", reviewer_id="reviewer_2")
+    await db_session.flush()
+
+    review = await db_session.get(MNPIReviewQueue, review_id)
+    assert review is not None
+    assert review.status == "rejected"
+
+    refreshed_signal = await db_session.get(SignalLog, signal.id)
+    assert refreshed_signal is not None
+    assert refreshed_signal.mnpi_flag is True
+
+    tasks = await db_session.execute(
+        select(RetryQueue).where(
+            RetryQueue.pm_id == user.id,
+            RetryQueue.task_type == "send_alert",
+        )
+    )
+    assert tasks.scalars().all() == []
+
+    audit = await db_session.execute(
+        select(AuditLog).where(
+            AuditLog.object_id == review_id,
+            AuditLog.action_type == "mnpi_review_rejected",
+        )
+    )
+    assert audit.scalar_one_or_none() is not None
+
+
+def test_mnpi_review_endpoint_exists(app_client: TestClient):
+    """The MNPI decision endpoint is registered and returns expected errors."""
+    response = app_client.post(
+        "/api/v1/mnpi/nonexistent/decision",
+        json={"decision": "approved", "reviewer_id": "reviewer_x"},
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_process_transcript_handler_blocks_mnpi_signal(
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """process_transcript_handler does not enqueue alerts for high-MNPI signals."""
+    from axe.agents.drift_detect import EarningsAlertService
+    from axe.ingestion import handlers
+    from axe.ingestion.handlers import process_transcript_handler
+
+    fund = await _fund_entity(db_session)
+    user = await _pm_user(db_session, fund.id)
+
+    class _FakeEarningsAlertService:
+        ALERT_SLA_SECONDS = EarningsAlertService.ALERT_SLA_SECONDS
+
+        def __init__(self, uow) -> None:
+            self.session = uow.session
+
+        async def process_signal(self, **kwargs):
+            signal_id = str(uuid.uuid4())
+            signal = SignalLog(
+                id=signal_id,
+                pm_id=kwargs.get("pm_id"),
+                ticker=kwargs.get("ticker"),
+                source_type=kwargs.get("source_type"),
+                raw_content=kwargs.get("signal_text", ""),
+                content_hash=kwargs.get("content_hash", ""),
+            )
+            self.session.add(signal)
+            await self.session.flush()
+            return [{"signal_id": signal_id, "ticker": "AAPL", "message": "alert"}]
+
+    monkeypatch.setattr(handlers, "EarningsAlertService", _FakeEarningsAlertService)
+    monkeypatch.setenv("MNPI_THRESHOLD", "0.0")
+
+    payload = {
+        "pm_id": user.id,
+        "ticker": "AAPL",
+        "source_type": "polygon",
+        "signal_text": "confidential non-public board discussion",
+        "content_hash": "mnpi_hash",
+    }
+
+    processed = await process_transcript_handler(db_session, payload)
+    assert processed is True
+
+    tasks = await db_session.execute(
+        select(RetryQueue).where(
+            RetryQueue.pm_id == user.id,
+            RetryQueue.task_type == "send_alert",
+        )
+    )
+    assert tasks.scalars().all() == []
+
+    reviews = await db_session.execute(
+        select(MNPIReviewQueue).where(MNPIReviewQueue.pm_id == user.id)
+    )
+    review = reviews.scalar_one_or_none()
+    assert review is not None
+    assert review.status == "pending"
+
+
+@pytest.mark.asyncio
+async def test_process_transcript_handler_allows_clean_signal(
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """process_transcript_handler enqueues alerts for non-MNPI signals."""
+    from axe.agents.drift_detect import EarningsAlertService
+    from axe.ingestion import handlers
+    from axe.ingestion.handlers import process_transcript_handler
+
+    fund = await _fund_entity(db_session)
+    user = await _pm_user(db_session, fund.id)
+
+    class _FakeEarningsAlertService:
+        ALERT_SLA_SECONDS = EarningsAlertService.ALERT_SLA_SECONDS
+
+        def __init__(self, uow) -> None:
+            self.session = uow.session
+
+        async def process_signal(self, **kwargs):
+            signal_id = str(uuid.uuid4())
+            signal = SignalLog(
+                id=signal_id,
+                pm_id=kwargs.get("pm_id"),
+                ticker=kwargs.get("ticker"),
+                source_type=kwargs.get("source_type"),
+                raw_content=kwargs.get("signal_text", ""),
+                content_hash=kwargs.get("content_hash", ""),
+            )
+            self.session.add(signal)
+            await self.session.flush()
+            return [{"signal_id": signal_id, "ticker": "AAPL", "message": "alert"}]
+
+    monkeypatch.setattr(handlers, "EarningsAlertService", _FakeEarningsAlertService)
+    monkeypatch.setenv("MNPI_THRESHOLD", "0.99")
+
+    payload = {
+        "pm_id": user.id,
+        "ticker": "AAPL",
+        "source_type": "polygon",
+        "signal_text": "The company announced a new product color.",
+        "content_hash": "clean_hash",
+    }
+
+    processed = await process_transcript_handler(db_session, payload)
+    assert processed is True
+
+    tasks = await db_session.execute(
+        select(RetryQueue).where(
+            RetryQueue.pm_id == user.id,
+            RetryQueue.task_type == "send_alert",
+        )
+    )
+    assert len(tasks.scalars().all()) == 1
+

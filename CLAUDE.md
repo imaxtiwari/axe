@@ -7,13 +7,15 @@ This document is the source of truth for how the AXE codebase is organized, how 
 1. [Getting Started](#getting-started)
 2. [Project Layout](#project-layout)
 3. [Conventions](#conventions)
-4. [Agents](#agents)
-5. [Database & Migrations](#database--migrations)
-6. [Ingestion Pipeline](#ingestion-pipeline)
-7. [Alerting](#alerting)
-8. [Testing](#testing)
-9. [Common Tasks](#common-tasks)
-10. [Production Notes](#production-notes)
+4. [Exceptions & Error Handling](#exceptions--error-handling)
+5. [Agents](#agents)
+6. [Database & Migrations](#database--migrations)
+7. [Ingestion Pipeline](#ingestion-pipeline)
+8. [MNPI Review Gate](#mnpi-review-gate)
+9. [Alerting](#alerting)
+10. [Testing](#testing)
+11. [Common Tasks](#common-tasks)
+12. [Production Notes](#production-notes)
 
 ## Getting Started
 
@@ -61,6 +63,35 @@ Run tests: `pytest`
 - **LLM Providers**: Abstracted behind `axe.agents.llm.LLMProvider`. `MockProvider` is used in tests. Production uses `AzureFoundryProvider`.
 - **Settings**: All env vars flow through `axe.config.Settings` (Pydantic settings).
 - **Observability**: Metrics via Prometheus, tracing via OpenTelemetry, structured logging with `python-json-logger`.
+
+## Exceptions & Error Handling
+
+All application-level exceptions inherit from `AXEError` in `src/axe/exceptions.py`.
+
+```python
+raise IsolationError("cross-pm access attempt")
+```
+
+Hierarchy:
+- `AXEError` — base; unknown exceptions are normalized to this in the global middleware.
+- `AuthError` — HTTP 401, code `auth.failed`.
+- `IsolationError` — HTTP 403, code `isolation.violation`; automatically writes an `AuditLog` record.
+- `AuditError` — HTTP 500, code `audit.failed`.
+
+Error response envelope:
+
+```json
+{
+  "request_id": "<trace id>",
+  "code": "axe.internal_error",
+  "message": "An internal error occurred."
+}
+```
+
+- `request_id` comes from the active `RequestContext` or a generated UUID.
+- Internal details and stack traces are never returned to the client.
+- Every handled exception increments the Prometheus counter `axe.errors.total{code}`.
+- Register handlers via `create_app()` in `src/axe/main.py` using `register_exception_handlers(app)` and `install_global_error_middleware(app)`.
 
 ## Agents
 
@@ -123,7 +154,8 @@ Key tables:
 - `pm_users`, `fund_entities`
 - `ticker_registry`
 - `thesis_version` (JSON `key_assumptions`, versioned)
-- `signal_log` (raw ingested signals, foreign keys to PM/thesis)
+- `signal_log` (raw ingested signals, foreign keys to PM/thesis; `mnpi_flag` for review state)
+- `mnpi_review_queue` (pending compliance review items; holds blocked alert payloads)
 - `signal_feedback` (PM dismissals / confirmations)
 - `broken_assumptions` (alert deduplication)
 - `morning_briefs`, `brief_replies`
@@ -134,6 +166,29 @@ Create a migration after any model change:
 alembic revision --autogenerate -m "describe change"
 alembic upgrade head
 ```
+
+## MNPI Review Gate
+
+Before any alert is dispatched, signals are screened for material non-public information (MNPI).
+
+Components:
+- `src/axe/agents/mnpi_review.py` — `MNPIReviewAgent` scores signals.
+- `src/axe/services/mnpi.py` — `MNPIService` creates/updates review items and releases alerts on approval.
+- `src/axe/routers/mnpi.py` — `POST /api/v1/mnpi/{review_id}/decision` for compliance approve/reject.
+
+`MNPIReviewAgent` returns a JSON structure with `mnpi_score`, `materiality_score`, and `reasoning`. The agent uses a fast keyword heuristic by default; when `LLMProvider` is configured it calls the model for a calibrated score. Flagging threshold is controlled by `MNPI_THRESHOLD` (default `0.7`).
+
+`process_transcript_handler` in `src/axe/ingestion/handlers.py` calls the service after drift detection:
+- If flagged, the alert payloads are stored on `mnpi_review_queue`, `signal_log.mnpi_flag` is set, and no alert is enqueued.
+- If clean, alerts proceed to `RetryQueue` for dispatch.
+
+Approval/rejection flow:
+1. Reviewer calls `POST /api/v1/mnpi/{review_id}/decision` with `{"decision": "approved"|"rejected", "reviewer_id": "..."}`.
+2. On approval, `signal_log.mnpi_flag` is cleared and the stored alert payloads are enqueued.
+3. On rejection, the flag remains set and the alerts are discarded.
+4. Each decision writes an `AuditLog` entry (`mnpi_review_approved` or `mnpi_review_rejected`).
+
+Tests: `tests/test_security.py` contains MNPI service and handler tests under the `mnpi` keyword.
 
 ## Ingestion Pipeline
 

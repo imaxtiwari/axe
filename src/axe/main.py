@@ -15,6 +15,7 @@ from axe.observability import (
     instrument_fastapi,
     render_metrics,
 )
+from axe.routers.mnpi import router as mnpi_router
 from axe.routers.onboarding import router as onboarding_router
 from axe.routers.transcripts import router as transcripts_router
 from axe.security.context import install_middleware
@@ -75,6 +76,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(onboarding_router)
     app.include_router(transcripts_router)
+    app.include_router(mnpi_router)
 
     return app
 

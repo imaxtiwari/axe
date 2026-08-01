@@ -177,6 +177,27 @@ class BrokenAssumption(Base):
     )
 
 
+class MNPIReviewQueue(Base):
+    """Compliance review queue for signals flagged as potential MNPI."""
+
+    __tablename__ = "mnpi_review_queue"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    pm_id: Mapped[str] = mapped_column(ForeignKey("pm_users.id"), nullable=False)
+    signal_id: Mapped[str | None] = mapped_column(ForeignKey("signal_log.id"))
+    ticker: Mapped[str | None] = mapped_column(String(32))
+    status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False)
+    mnpi_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    materiality_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    reasoning: Mapped[str | None] = mapped_column(Text)
+    alert_payloads: Mapped[list] = mapped_column(JSON, default=list)
+    reviewer_id: Mapped[str | None] = mapped_column(String(36))
+    decision_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+    __table_args__ = (Index("ix_mnpi_review_queue_pm_created", "pm_id", "created_at"),)
+
+
 class SparringSession(Base):
     """Adversarial review session output."""
 

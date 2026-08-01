@@ -12,6 +12,7 @@ from axe.agents.drift_detect import EarningsAlertService
 from axe.db.models import PMUser, RetryQueue, utc_now
 from axe.db.uow import UnitOfWork
 from axe.services.alert import AlertDelivery, dispatch_earnings_alert
+from axe.services.mnpi import MNPIService
 
 
 def _parse_iso(ts: Any | None) -> datetime:
@@ -76,6 +77,22 @@ async def process_transcript_handler(
         if not alerts:
             return True
 
+        # MNPI screen before any alert is dispatched. The first alert carries
+        # the signal_id because process_signal creates one SignalLog per alert.
+        signal_id_for_review = alerts[0].get("signal_id") or signal_id or ""
+        mnpi_service = MNPIService(session)
+        outcome = await mnpi_service.review_signal(
+            signal_id=signal_id_for_review,
+            signal_text=signal_text,
+            ticker=ticker,
+            pm_id=pm_id,
+            alert_payloads=alerts,
+        )
+        if outcome.blocked:
+            # Alerts are held on the review row; do not enqueue dispatch yet.
+            await uow.commit()
+            return True
+
     deadline = arrived_at + timedelta(seconds=EarningsAlertService.ALERT_SLA_SECONDS)
 
     for alert in alerts:
@@ -85,7 +102,7 @@ async def process_transcript_handler(
             "email": payload.get("email"),
             "ticker": alert["ticker"],
             "signal_id": alert["signal_id"],
-            "assumption_id": alert["assumption_id"],
+            "assumption_id": alert.get("assumption_id"),
             "message": alert["message"],
             "source_url": alert.get("source_url"),
             "deadline_utc": deadline.isoformat(),
