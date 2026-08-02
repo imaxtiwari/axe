@@ -114,6 +114,8 @@ class ThesisVersion(Base):
     unresolved_risks: Mapped[list] = mapped_column(JSON, default=list)
     fund_entity_id: Mapped[str] = mapped_column(ForeignKey("fund_entities.id"), nullable=False)
     mnpi_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    retention_exempt: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
     __table_args__ = (
@@ -142,6 +144,8 @@ class SignalLog(Base):
     mnpi_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     extraction_confidence: Mapped[float | None] = mapped_column(Float)
     alerted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    retention_exempt: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
     __table_args__ = (
@@ -216,6 +220,8 @@ class SparringSession(Base):
     pm_response: Mapped[str | None] = mapped_column(Text)
     accepted_challenges: Mapped[list] = mapped_column(JSON, default=list)
     output_format: Mapped[str] = mapped_column(String(32), default="structured", nullable=False)
+    retention_exempt: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
     __table_args__ = (Index("ix_sparring_sessions_pm_created", "pm_id", "created_at"),)
@@ -234,6 +240,8 @@ class MorningBrief(Base):
     catalyst_week: Mapped[list] = mapped_column(JSON, default=list)
     delivered_slack: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     delivered_email: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    retention_exempt: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
     __table_args__ = (
@@ -258,6 +266,8 @@ class MeetingSummary(Base):
     tone_signals: Mapped[list] = mapped_column(JSON, default=list)
     thesis_conflicts: Mapped[list] = mapped_column(JSON, default=list)
     mnpi_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    retention_exempt: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     speaker_roles: Mapped[list] = mapped_column(JSON, default=list)
     citation_timestamps: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
@@ -512,6 +522,9 @@ class ThesisTestResult(Base):
     test_id: Mapped[str] = mapped_column(ForeignKey("thesis_tests.id"), nullable=False)
     result: Mapped[str] = mapped_column(String(32), nullable=False)
     evidence: Mapped[str | None] = mapped_column(Text)
+    retention_exempt: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
     evaluated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
 
@@ -526,6 +539,8 @@ class ThesisPostMortem(Base):
     broken_assumption_id: Mapped[str | None] = mapped_column(String(64))
     ignored_signal_id: Mapped[str | None] = mapped_column(String(36))
     notes: Mapped[str | None] = mapped_column(Text)
+    retention_exempt: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
 
@@ -720,6 +735,8 @@ class CommunicationArchive(Base):
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     raw_content: Mapped[str | None] = mapped_column(Text)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime)
+    retention_exempt: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
     __table_args__ = (Index("ix_communication_archive_pm_created", "pm_id", "created_at"),)

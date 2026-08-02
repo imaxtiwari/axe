@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import uuid
 from typing import TYPE_CHECKING
 
@@ -1107,6 +1109,244 @@ def test_onboarding_requires_admin(app_client: TestClient):
     pm_resp = app_client.post(
         "/onboarding/start",
         json={"pm_id": "pm_007"},
+        headers=_headers("pm_007", "pm"),
+    )
+    assert pm_resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_retention_dry_run_counts_old_records(db_session: AsyncSession):
+    """RetentionService dry_run counts only non-exempt, non-deleted old rows."""
+    from datetime import UTC, datetime, timedelta
+
+    from axe.services.retention import RetentionService
+
+    fund = await _fund_entity(db_session)
+    user = await _pm_user(db_session, fund.id)
+
+    old = SignalLog(
+        id=str(uuid.uuid4()),
+        pm_id=user.id,
+        source_type="polygon",
+        content_hash="old",
+        created_at=datetime.now(UTC) - timedelta(days=4000),
+    )
+    recent = SignalLog(
+        id=str(uuid.uuid4()),
+        pm_id=user.id,
+        source_type="polygon",
+        content_hash="recent",
+    )
+    exempt = SignalLog(
+        id=str(uuid.uuid4()),
+        pm_id=user.id,
+        source_type="polygon",
+        content_hash="exempt",
+        created_at=datetime.now(UTC) - timedelta(days=4000),
+        retention_exempt=True,
+    )
+    deleted = SignalLog(
+        id=str(uuid.uuid4()),
+        pm_id=user.id,
+        source_type="polygon",
+        content_hash="deleted",
+        created_at=datetime.now(UTC) - timedelta(days=4000),
+        deleted_at=datetime.now(UTC),
+    )
+    db_session.add_all([old, recent, exempt, deleted])
+    await db_session.flush()
+
+    service = RetentionService(db_session)
+    summary = await service.run(dry_run=True)
+
+    assert summary["enabled"] is True
+    assert summary["dry_run"] is True
+    assert summary["counts"].get("signal_log") == 1
+
+
+@pytest.mark.asyncio
+async def test_retention_soft_deletes_and_writes_audit_log(db_session: AsyncSession):
+    """A real run soft-deletes eligible rows and records an AuditLog entry."""
+    from datetime import UTC, datetime, timedelta
+
+    from axe.services.retention import RetentionService
+
+    fund = await _fund_entity(db_session)
+    user = await _pm_user(db_session, fund.id)
+
+    old = SignalLog(
+        id=str(uuid.uuid4()),
+        pm_id=user.id,
+        source_type="polygon",
+        content_hash="old",
+        created_at=datetime.now(UTC) - timedelta(days=4000),
+    )
+    db_session.add(old)
+    await db_session.flush()
+
+    service = RetentionService(db_session, settings=Settings(app_env="test", retention_days=365))
+    summary = await service.run(dry_run=False)
+
+    assert summary["dry_run"] is False
+    assert summary["counts"].get("signal_log") == 1
+
+    refreshed = await db_session.get(SignalLog, old.id)
+    assert refreshed is not None
+    assert refreshed.deleted_at is not None
+
+    log = await db_session.execute(
+        select(AuditLog).where(AuditLog.action_type == "retention_soft_delete")
+    )
+    assert log.scalar_one_or_none() is not None
+
+
+@pytest.mark.asyncio
+async def test_retention_disabled_returns_no_changes(db_session: AsyncSession):
+    """When retention is disabled, no modifications are made."""
+    from axe.services.retention import RetentionService
+
+    service = RetentionService(
+        db_session, settings=Settings(app_env="test", retention_enabled=False)
+    )
+    summary = await service.run(dry_run=False)
+
+    assert summary["enabled"] is False
+    assert summary["counts"] == {}
+
+
+@pytest.mark.asyncio
+async def test_retention_exempt_records_preserved(db_session: AsyncSession):
+    """Retention skips rows marked retention_exempt."""
+    from datetime import UTC, datetime, timedelta
+
+    from axe.services.retention import RetentionService
+
+    fund = await _fund_entity(db_session)
+    user = await _pm_user(db_session, fund.id)
+
+    exempt = SignalLog(
+        id=str(uuid.uuid4()),
+        pm_id=user.id,
+        source_type="polygon",
+        content_hash="exempt",
+        created_at=datetime.now(UTC) - timedelta(days=4000),
+        retention_exempt=True,
+    )
+    db_session.add(exempt)
+    await db_session.flush()
+
+    service = RetentionService(db_session, settings=Settings(app_env="test", retention_days=365))
+    summary = await service.run(dry_run=False)
+
+    assert summary["counts"].get("signal_log", 0) == 0
+    refreshed = await db_session.get(SignalLog, exempt.id)
+    assert refreshed is not None
+    assert refreshed.deleted_at is None
+
+
+@pytest.mark.asyncio
+async def test_export_service_encrypts_and_round_trips(db_session: AsyncSession):
+    """ExportService bundles entity + audit trail, encrypts, and decrypts faithfully."""
+    from axe.services.export import ExportService
+
+    fund = await _fund_entity(db_session)
+    user = await _pm_user(db_session, fund.id)
+
+    signal = SignalLog(
+        id=str(uuid.uuid4()),
+        pm_id=user.id,
+        source_type="polygon",
+        content_hash="export",
+        raw_content="sensitive signal",
+    )
+    db_session.add(signal)
+    await db_session.flush()
+
+    audit_service = AuditService(db_session)
+    await audit_service.log(
+        action_type="signal_received",
+        object_type="signal_log",
+        object_id=signal.id,
+        pm_id=user.id,
+        fund_entity_id=fund.id,
+        non_blocking=False,
+    )
+    await db_session.flush()
+
+    settings = Settings(
+        app_env="test",
+        encryption_key=generate_fernet_key(),
+        export_encryption_key=generate_fernet_key(),
+    )
+    service = ExportService(db_session, settings=settings)
+    exported = await service.export(signal)
+
+    assert exported["object_type"] == "signal_log"
+    assert exported["object_id"] == signal.id
+    assert exported["sha256_checksum"] is not None
+    assert exported["encrypted_payload"] is not None
+    assert "super_secret" not in exported["encrypted_payload"]
+
+    assert settings.export_encryption_key is not None
+    decrypted = ExportService.decrypt(exported["encrypted_payload"], settings.export_encryption_key)
+    assert decrypted["object_type"] == "signal_log"
+    assert decrypted["entity"]["id"] == signal.id
+    assert decrypted["entity"]["raw_content"] == "sensitive signal"
+    assert len(decrypted["audit_trail"]) == 1
+    assert decrypted["audit_trail"][0]["action_type"] == "signal_received"
+
+    archive_plaintext = json.dumps(decrypted, sort_keys=True, default=str).encode("utf-8")
+    expected_checksum = hashlib.sha256(archive_plaintext).hexdigest()
+    assert exported["sha256_checksum"] == expected_checksum
+
+
+@pytest.mark.asyncio
+async def test_export_service_falls_back_to_encryption_key(db_session: AsyncSession):
+    """ExportService uses ENCRYPTION_KEY when EXPORT_ENCRYPTION_KEY is unset."""
+    from axe.services.export import ExportService
+
+    fund = await _fund_entity(db_session)
+    user = await _pm_user(db_session, fund.id)
+
+    signal = SignalLog(
+        id=str(uuid.uuid4()),
+        pm_id=user.id,
+        source_type="polygon",
+        content_hash="fallback",
+    )
+    db_session.add(signal)
+    await db_session.flush()
+
+    key = generate_fernet_key()
+    settings = Settings(app_env="test", encryption_key=key)
+    service = ExportService(db_session, settings=settings)
+    exported = await service.export(signal)
+
+    decrypted = ExportService.decrypt(exported["encrypted_payload"], key)
+    assert decrypted["entity"]["id"] == signal.id
+
+
+def test_export_service_decrypt_rejects_tampered_payload():
+    """Decrypting a tampered payload raises EncryptionError."""
+    from axe.services.export import ExportService
+
+    key = generate_fernet_key()
+    with pytest.raises(EncryptionError, match="valid base64"):
+        ExportService.decrypt("not-base64!!!", key)
+
+
+@pytest.mark.asyncio
+async def test_retention_endpoint_requires_compliance(app_client: TestClient):
+    """Only compliance can trigger the retention job."""
+    dry_resp = app_client.post(
+        "/api/v1/audit/retention/run?dry_run=true",
+        headers=_headers("pm_007", "compliance"),
+    )
+    assert dry_resp.status_code == 200
+    assert dry_resp.json()["dry_run"] is True
+
+    pm_resp = app_client.post(
+        "/api/v1/audit/retention/run",
         headers=_headers("pm_007", "pm"),
     )
     assert pm_resp.status_code == 403

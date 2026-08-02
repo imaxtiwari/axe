@@ -35,6 +35,30 @@ class Settings(BaseSettings):
     encryption_key: str | None = Field(
         default=None, description="Fernet key for encrypting sensitive data at rest"
     )
+    export_encryption_key: str | None = Field(
+        default=None, description="Fernet key for encrypted compliance exports"
+    )
+
+    # Retention policy
+    retention_days: int = Field(
+        default=2555, description="Default retention period in days (~7 years)"
+    )
+    retention_enabled: bool = Field(
+        default=True, description="Enable the nightly retention soft-delete job"
+    )
+    retention_entity_types: list[str] = Field(
+        default_factory=lambda: [
+            "signal_log",
+            "meeting_summary",
+            "morning_brief",
+            "sparring_session",
+            "thesis_version",
+            "thesis_test_result",
+            "thesis_post_mortem",
+            "communication_archive",
+        ],
+        description="Entity types eligible for retention soft-delete",
+    )
 
     # Azure Foundry LLM
     azure_foundry_endpoint: str | None = Field(default=None)
