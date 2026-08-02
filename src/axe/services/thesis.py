@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any
+from collections.abc import Callable, Coroutine
+from typing import Any, TypeVar, cast
 
-from sqlalchemy import desc, func, select
+T = TypeVar("T")
+
+from sqlalchemy import Result, desc, func, select
 
 from axe.db.models import AuditLog, ThesisVersion, TickerRegistry
 from axe.db.uow import UnitOfWork
@@ -62,7 +65,9 @@ class ThesisRepo:
         with self._context:
             pass
 
-    async def _with_context(self, coro_factory: Any) -> Any:
+    async def _with_context(
+        self, coro_factory: Callable[[], Coroutine[Any, Any, T]]
+    ) -> T:
         with self._context:
             return await coro_factory()
 
@@ -180,12 +185,15 @@ class ThesisRepo:
     async def get_latest_thesis(self, ticker: str) -> ThesisVersion | None:
         """Return the highest-version thesis for a ticker."""
 
-        def _build():
-            return self.session.scalar(
-                IsolationService.select_for(ThesisVersion)
-                .where(ThesisVersion.ticker == ticker)
-                .order_by(desc(ThesisVersion.version))
-                .limit(1)
+        async def _build() -> ThesisVersion | None:
+            return cast(
+                ThesisVersion | None,
+                await self.session.scalar(
+                    IsolationService.select_for(ThesisVersion)
+                    .where(ThesisVersion.ticker == ticker)
+                    .order_by(desc(ThesisVersion.version))
+                    .limit(1)
+                ),
             )
 
         return await self._with_context(_build)
@@ -193,12 +201,15 @@ class ThesisRepo:
     async def get_version(self, ticker: str, version: int) -> ThesisVersion | None:
         """Return a specific thesis version."""
 
-        def _build():
-            return self.session.scalar(
-                IsolationService.select_for(ThesisVersion).where(
-                    ThesisVersion.ticker == ticker,
-                    ThesisVersion.version == version,
-                )
+        async def _build() -> ThesisVersion | None:
+            return cast(
+                ThesisVersion | None,
+                await self.session.scalar(
+                    IsolationService.select_for(ThesisVersion).where(
+                        ThesisVersion.ticker == ticker,
+                        ThesisVersion.version == version,
+                    )
+                ),
             )
 
         return await self._with_context(_build)
@@ -206,11 +217,14 @@ class ThesisRepo:
     async def list_thesis_versions(self, ticker: str) -> list[ThesisVersion]:
         """Return all thesis versions for a ticker, oldest first."""
 
-        def _build():
-            return self.session.execute(
-                IsolationService.select_for(ThesisVersion)
-                .where(ThesisVersion.ticker == ticker)
-                .order_by(ThesisVersion.version)
+        async def _build() -> Result[Any]:
+            return cast(
+                Result[Any],
+                await self.session.execute(
+                    IsolationService.select_for(ThesisVersion)
+                    .where(ThesisVersion.ticker == ticker)
+                    .order_by(ThesisVersion.version)
+                ),
             )
 
         result = await self._with_context(_build)
@@ -255,7 +269,7 @@ class ThesisRepo:
             return json.dumps(a, sort_keys=True, default=str) != json.dumps(
                 b, sort_keys=True, default=str
             )
-        return a != b
+        return bool(a != b)
 
     async def _next_version(self, ticker: str) -> int:
         max_version = await self.session.scalar(

@@ -14,7 +14,7 @@ import tarfile
 import tempfile
 from contextlib import suppress
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse
 
 with suppress(ImportError):
@@ -59,7 +59,7 @@ def _parse_sqlite_path(database_url: str) -> Path | None:
 
 def _encrypt(data: bytes, key: str) -> bytes:
     """Encrypt ``data`` with a Fernet key."""
-    return _fernet(key).encrypt(data)
+    return cast(bytes, _fernet(key).encrypt(data))
 
 
 def _upload(

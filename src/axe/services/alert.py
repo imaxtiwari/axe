@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -75,7 +75,7 @@ class AlertDelivery:
                     "as_user": True,
                 },
             )
-            return response.json()
+            return cast(dict[str, Any], response.json())
 
     async def send_email(
         self,
@@ -110,7 +110,7 @@ class AlertDelivery:
                     "text": body,
                 },
             )
-            return response.json()
+            return cast(dict[str, Any], response.json())
 
     async def dispatch(
         self,
