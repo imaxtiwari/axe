@@ -12,7 +12,6 @@ from axe.db.base import Base
 from axe.exceptions import IsolationError
 from axe.security.context import RequestContext
 
-
 # Re-export IsolationError so existing imports in router/tests keep working.
 IsolationError = IsolationError
 
@@ -96,9 +95,7 @@ class IsolationService:
 
         ctx = RequestContext.current_or_none()
         if ctx is None:
-            raise IsolationError(
-                "No active RequestContext; cannot perform isolated database read"
-            )
+            raise IsolationError("No active RequestContext; cannot perform isolated database read")
 
         pm_col, fund_col = IsolationService._filter_columns(model)
         if pm_col is not None:
@@ -150,8 +147,7 @@ class IsolationService:
             return
 
         raise IsolationError(
-            f"Model {model.__name__} has neither pm_id nor fund_entity_id; "
-            "cannot verify isolation"
+            f"Model {model.__name__} has neither pm_id nor fund_entity_id; cannot verify isolation"
         )
 
     @staticmethod

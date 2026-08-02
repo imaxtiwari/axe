@@ -7,8 +7,6 @@ import json
 from collections.abc import Callable, Coroutine
 from typing import Any, TypeVar, cast
 
-T = TypeVar("T")
-
 from sqlalchemy import Result, desc, func, select
 
 from axe.db.models import AuditLog, ThesisVersion, TickerRegistry
@@ -16,6 +14,8 @@ from axe.db.uow import UnitOfWork
 from axe.security.audit import _state_dict
 from axe.security.context import RequestContext
 from axe.security.isolation import IsolationService
+
+T = TypeVar("T")
 
 
 class _ThesisLocks:
@@ -65,9 +65,7 @@ class ThesisRepo:
         with self._context:
             pass
 
-    async def _with_context(
-        self, coro_factory: Callable[[], Coroutine[Any, Any, T]]
-    ) -> T:
+    async def _with_context(self, coro_factory: Callable[[], Coroutine[Any, Any, T]]) -> T:
         with self._context:
             return await coro_factory()
 

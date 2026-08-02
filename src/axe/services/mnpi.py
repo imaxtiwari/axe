@@ -132,9 +132,7 @@ class MNPIService:
         if not review.alert_payloads:
             return
 
-        result = await self.session.execute(
-            select(PMUser).where(PMUser.id == review.pm_id)
-        )
+        result = await self.session.execute(select(PMUser).where(PMUser.id == review.pm_id))
         user = result.scalar_one_or_none()
 
         for alert in review.alert_payloads:

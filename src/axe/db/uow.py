@@ -13,7 +13,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from sqlalchemy import desc, select
+from sqlalchemy import desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from axe.db.models import (

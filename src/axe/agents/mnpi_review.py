@@ -95,9 +95,7 @@ class MNPIReviewAgent:
         threshold: float | None = None,
     ) -> None:
         self.provider = provider or get_default_provider()
-        self.threshold = threshold or float(
-            os.getenv("MNPI_THRESHOLD", self.DEFAULT_THRESHOLD)
-        )
+        self.threshold = threshold or float(os.getenv("MNPI_THRESHOLD", self.DEFAULT_THRESHOLD))
 
     async def review(
         self,

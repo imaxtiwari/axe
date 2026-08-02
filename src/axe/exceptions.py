@@ -90,7 +90,9 @@ class IsolationError(AXEError):
 
     http_status_code = status.HTTP_403_FORBIDDEN
     code = "isolation.violation"
-    public_message = "Access denied because the requested resource is outside your isolation boundary."
+    public_message = (
+        "Access denied because the requested resource is outside your isolation boundary."
+    )
 
     def __init__(
         self,
@@ -129,9 +131,7 @@ def _capture_code(code: str) -> None:
 def make_exception_handler() -> Any:
     """Return a FastAPI exception handler for ``AXEError`` and unknowns."""
 
-    async def axe_exception_handler(
-        request: Request, exc: Exception
-    ) -> JSONResponse:
+    async def axe_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         """Handle AXEError subtypes and catch-all errors deterministically."""
         if isinstance(exc, AXEError):
             response = exc.to_response(request)

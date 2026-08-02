@@ -53,7 +53,7 @@ GLOBAL_SCOPE_RE = re.compile(
 
 def _looks_like_docstring_or_comment(line: str) -> bool:
     stripped = line.strip()
-    return stripped.startswith("#") or ("\"" in stripped and "\"\"\"" in stripped)
+    return stripped.startswith("#") or ('"' in stripped and '"""' in stripped)
 
 
 def _global_models() -> set[str]:
@@ -101,10 +101,7 @@ def _is_safe(source: str, match_start: int, global_models: set[str]) -> bool:
 
     # Check whether the select targets a global model: select(GlobalModel).
     global_match = re.search(r"select\s*\(\s*([A-Z][A-Za-z0-9_]+)", statement)
-    if global_match and global_match.group(1) in global_models:
-        return True
-
-    return False
+    return bool(global_match and global_match.group(1) in global_models)
 
 
 def check() -> list[str]:
@@ -119,7 +116,7 @@ def check() -> list[str]:
             for match in SELECT_RE.finditer(source):
                 line_start = source.rfind("\n", 0, match.start()) + 1
                 line_end = source.find("\n", match.start())
-                line = source[line_start:line_end if line_end != -1 else None]
+                line = source[line_start : line_end if line_end != -1 else None]
                 if _looks_like_docstring_or_comment(line):
                     continue
                 if _is_safe(source, match.start(), global_models):
