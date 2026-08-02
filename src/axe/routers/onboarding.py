@@ -9,10 +9,15 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from axe.db.session import get_async_session
+from axe.security.authz import require_role
 from axe.security.context import RequestContext, get_request_context
 from axe.services.onboarding import OnboardingService
 
-router = APIRouter(prefix="/onboarding", tags=["onboarding"])
+router = APIRouter(
+    prefix="/onboarding",
+    tags=["onboarding"],
+    dependencies=[Depends(require_role("admin"))],
+)
 
 
 class StartOnboardingRequest(BaseModel):

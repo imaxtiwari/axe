@@ -15,7 +15,7 @@ from axe.security.authz import require_role
 router = APIRouter(
     prefix="/api/v1/audit",
     tags=["audit"],
-    dependencies=[Depends(require_role("compliance", "admin"))],
+    dependencies=[Depends(require_role("compliance"))],
 )
 
 

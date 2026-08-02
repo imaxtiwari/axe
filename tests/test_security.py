@@ -902,15 +902,6 @@ async def test_mnpi_service_reject_keeps_signal_flagged(db_session: AsyncSession
     assert audit.scalar_one_or_none() is not None
 
 
-def test_mnpi_review_endpoint_exists(app_client: TestClient):
-    """The MNPI decision endpoint is registered and returns expected errors."""
-    response = app_client.post(
-        "/api/v1/mnpi/nonexistent/decision",
-        json={"decision": "approved", "reviewer_id": "reviewer_x"},
-    )
-    assert response.status_code == 404
-
-
 @pytest.mark.asyncio
 async def test_process_transcript_handler_blocks_mnpi_signal(
     db_session: AsyncSession,
@@ -1030,143 +1021,92 @@ async def test_process_transcript_handler_allows_clean_signal(
     assert len(tasks.scalars().all()) == 1
 
 
-ROLE_MATRIX = [
-    # (endpoint_method, endpoint_path, payload, allowed_roles, forbidden_roles)
-    (
-        "post",
+def _headers(pm_id: str = "pm_007", role: str = "pm") -> dict[str, str]:
+    return {"X-PM-ID": pm_id, "X-Role": role}
+
+
+def _transcript_payload(pm_id: str = "pm_007") -> dict[str, str]:
+    return {
+        "pm_id": pm_id,
+        "ticker": "AAPL",
+        "source_type": "polygon",
+        "signal_text": "beat EPS",
+        "content_hash": "hash",
+    }
+
+
+def test_transcripts_allows_pm_and_admin(app_client: TestClient):
+    """PMs and admins can invoke transcript ingestion."""
+    for role in ("pm", "admin"):
+        response = app_client.post(
+            "/api/v1/transcripts",
+            json=_transcript_payload("pm_007"),
+            headers=_headers("pm_007", role),
+        )
+        assert response.status_code not in {401, 403}, (
+            f"role={role} should reach downstream validation, got {response.status_code}"
+        )
+
+
+def test_transcripts_blocks_compliance(app_client: TestClient):
+    """Compliance cannot ingest transcripts."""
+    response = app_client.post(
         "/api/v1/transcripts",
-        {
-            "pm_id": "pm_target",
-            "ticker": "AAPL",
-            "source_type": "polygon",
-            "signal_text": "beat EPS",
-            "content_hash": "hash",
-        },
-        ("pm", "admin"),
-        ("compliance",),
-    ),
-    (
-        "get",
-        "/api/v1/audit/log",
-        None,
-        ("compliance", "admin"),
-        ("pm",),
-    ),
-]
+        json=_transcript_payload("pm_007"),
+        headers=_headers("pm_007", "compliance"),
+    )
+    assert response.status_code == 403
 
 
-@pytest.mark.parametrize("method, path, payload, allowed, forbidden", ROLE_MATRIX)
-def test_role_matrix_allows_authorized_roles(
-    app_client: TestClient,
-    method: str,
-    path: str,
-    payload: dict[str, str] | None,
-    allowed: tuple[str, ...],
-    forbidden: tuple[str, ...],
-):
-    """Authorized roles can access the endpoint (or hit downstream validation)."""
-    for role in allowed:
-        headers = {"X-PM-ID": "pm_007", "X-Role": role}
-        caller = getattr(app_client, method)
-        response = caller(path, json=payload, headers=headers)
-        assert response.status_code not in {403, 401}, (
-            f"role={role} should not be forbidden for {method.upper()} {path}"
+def test_audit_log_allows_compliance(app_client: TestClient):
+    """Compliance can export the audit log."""
+    response = app_client.get("/api/v1/audit/log", headers=_headers("pm_007", "compliance"))
+    assert response.status_code == 200
+    assert "entries" in response.json()
+
+
+def test_audit_log_blocks_pm_and_admin(app_client: TestClient):
+    """PMs and admins cannot export the audit log."""
+    for role in ("pm", "admin"):
+        response = app_client.get("/api/v1/audit/log", headers=_headers("pm_007", role))
+        assert response.status_code == 403, f"role={role} should be blocked"
+
+
+def test_mnpi_decision_allows_compliance_and_admin(app_client: TestClient):
+    """Compliance and admin can call the MNPI decision endpoint (or 404 if unknown)."""
+    for role in ("compliance", "admin"):
+        response = app_client.post(
+            "/api/v1/mnpi/nonexistent/decision",
+            json={"decision": "approved", "reviewer_id": "reviewer_x"},
+            headers=_headers("pm_007", role),
+        )
+        assert response.status_code in {200, 404}, (
+            f"role={role} should not be blocked by RBAC, got {response.status_code}"
         )
 
 
-@pytest.mark.parametrize("method, path, payload, allowed, forbidden", ROLE_MATRIX)
-def test_role_matrix_forbids_unauthorized_roles(
-    app_client: TestClient,
-    method: str,
-    path: str,
-    payload: dict[str, str] | None,
-    allowed: tuple[str, ...],
-    forbidden: tuple[str, ...],
-):
-    """Unauthorized roles receive 403 for protected endpoints."""
-    for role in forbidden:
-        headers = {"X-PM-ID": "pm_007", "X-Role": role}
-        caller = getattr(app_client, method)
-        response = caller(path, json=payload, headers=headers)
-        assert response.status_code == 403, (
-            f"role={role} should be forbidden for {method.upper()} {path}"
-        )
-
-
-@pytest.mark.parametrize("role,allowed", [
-    ("compliance", True),
-    ("admin", True),
-    ("pm", False),
-])
-@pytest.mark.asyncio
-async def test_mnpi_decision_role_enforcement(
-    db_session: AsyncSession,
-    monkeypatch: pytest.MonkeyPatch,
-    role: str,
-    allowed: bool,
-):
-    """MNPI review decisions may only be made by compliance or admin."""
-    import asyncio
-
-    from fastapi.testclient import TestClient
-
-    from axe.db.base import Base
-    from axe.db.session import async_engine
-    from axe.main import create_app
-
-    app = create_app(settings=Settings(app_env="test"))
-
-    async def _create_tables() -> None:
-        async with async_engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-
-    await _create_tables()
-
-    fund = await _fund_entity(db_session)
-    user = await _pm_user(db_session, fund.id)
-
-    from axe.agents.mnpi_review import MNPIReviewAgent
-    from axe.services.mnpi import MNPIService
-
-    agent = MNPIReviewAgent(threshold=0.0)
-    service = MNPIService(db_session, agent=agent)
-
-    signal = SignalLog(
-        id=str(uuid.uuid4()),
-        pm_id=user.id,
-        ticker="AAPL",
-        source_type="polygon",
-        content_hash="abc",
-        raw_content="confidential non-public board discussion",
+def test_mnpi_decision_blocks_pm(app_client: TestClient):
+    """PMs cannot call the MNPI decision endpoint."""
+    response = app_client.post(
+        "/api/v1/mnpi/nonexistent/decision",
+        json={"decision": "approved", "reviewer_id": "reviewer_x"},
+        headers=_headers("pm_007", "pm"),
     )
-    db_session.add(signal)
-    await db_session.flush()
+    assert response.status_code == 403
 
-    outcome = await service.review_signal(
-        signal_id=signal.id,
-        signal_text=signal.raw_content,
-        ticker="AAPL",
-        pm_id=user.id,
-        alert_payloads=[{"message": "alert"}],
+
+def test_onboarding_requires_admin(app_client: TestClient):
+    """Onboarding endpoints are admin-only."""
+    admin_resp = app_client.post(
+        "/onboarding/start",
+        json={"pm_id": "pm_007"},
+        headers=_headers("pm_007", "admin"),
     )
-    await db_session.flush()
-    review_id = outcome.review.id if outcome.review else ""
+    assert admin_resp.status_code in {200, 400, 422}
 
-    # Cannot easily share the fixture session with TestClient, so :
-    # commit the review row here and let the request use its own session.
-    await db_session.commit()
-
-    # Run TestClient in a thread to avoid event-loop conflicts.
-    def _request():
-        with TestClient(app) as client:
-            return client.post(
-                f"/api/v1/mnpi/{review_id}/decision",
-                json={"decision": "approved", "reviewer_id": "reviewer_x"},
-                headers={"X-PM-ID": "pm_007", "X-Fund-ID": fund.id, "X-Role": role},
-            )
-
-    response = await asyncio.to_thread(_request)
-    if allowed:
-        assert response.status_code in {200, 404}, response.text
-    else:
-        assert response.status_code == 403, response.text
+    pm_resp = app_client.post(
+        "/onboarding/start",
+        json={"pm_id": "pm_007"},
+        headers=_headers("pm_007", "pm"),
+    )
+    assert pm_resp.status_code == 403
