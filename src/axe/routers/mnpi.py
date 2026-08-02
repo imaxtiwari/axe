@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from axe.db.session import get_async_session
+from axe.security.authz import require_role
 from axe.security.context import RequestContext, get_request_context
 from axe.services.mnpi import MNPIService
 
@@ -30,7 +31,11 @@ class ReviewResponse(BaseModel):
     signal_id: str | None
 
 
-@router.post("/{review_id}/decision", response_model=ReviewResponse)
+@router.post(
+    "/{review_id}/decision",
+    response_model=ReviewResponse,
+    dependencies=[Depends(require_role("compliance", "admin"))],
+)
 async def decide_review(
     review_id: str,
     body: ReviewDecision,

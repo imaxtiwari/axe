@@ -1028,3 +1028,145 @@ async def test_process_transcript_handler_allows_clean_signal(
         )
     )
     assert len(tasks.scalars().all()) == 1
+
+
+ROLE_MATRIX = [
+    # (endpoint_method, endpoint_path, payload, allowed_roles, forbidden_roles)
+    (
+        "post",
+        "/api/v1/transcripts",
+        {
+            "pm_id": "pm_target",
+            "ticker": "AAPL",
+            "source_type": "polygon",
+            "signal_text": "beat EPS",
+            "content_hash": "hash",
+        },
+        ("pm", "admin"),
+        ("compliance",),
+    ),
+    (
+        "get",
+        "/api/v1/audit/log",
+        None,
+        ("compliance", "admin"),
+        ("pm",),
+    ),
+]
+
+
+@pytest.mark.parametrize("method, path, payload, allowed, forbidden", ROLE_MATRIX)
+def test_role_matrix_allows_authorized_roles(
+    app_client: TestClient,
+    method: str,
+    path: str,
+    payload: dict[str, str] | None,
+    allowed: tuple[str, ...],
+    forbidden: tuple[str, ...],
+):
+    """Authorized roles can access the endpoint (or hit downstream validation)."""
+    for role in allowed:
+        headers = {"X-PM-ID": "pm_007", "X-Role": role}
+        caller = getattr(app_client, method)
+        response = caller(path, json=payload, headers=headers)
+        assert response.status_code not in {403, 401}, (
+            f"role={role} should not be forbidden for {method.upper()} {path}"
+        )
+
+
+@pytest.mark.parametrize("method, path, payload, allowed, forbidden", ROLE_MATRIX)
+def test_role_matrix_forbids_unauthorized_roles(
+    app_client: TestClient,
+    method: str,
+    path: str,
+    payload: dict[str, str] | None,
+    allowed: tuple[str, ...],
+    forbidden: tuple[str, ...],
+):
+    """Unauthorized roles receive 403 for protected endpoints."""
+    for role in forbidden:
+        headers = {"X-PM-ID": "pm_007", "X-Role": role}
+        caller = getattr(app_client, method)
+        response = caller(path, json=payload, headers=headers)
+        assert response.status_code == 403, (
+            f"role={role} should be forbidden for {method.upper()} {path}"
+        )
+
+
+@pytest.mark.parametrize("role,allowed", [
+    ("compliance", True),
+    ("admin", True),
+    ("pm", False),
+])
+@pytest.mark.asyncio
+async def test_mnpi_decision_role_enforcement(
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+    role: str,
+    allowed: bool,
+):
+    """MNPI review decisions may only be made by compliance or admin."""
+    import asyncio
+
+    from fastapi.testclient import TestClient
+
+    from axe.db.base import Base
+    from axe.db.session import async_engine
+    from axe.main import create_app
+
+    app = create_app(settings=Settings(app_env="test"))
+
+    async def _create_tables() -> None:
+        async with async_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+    await _create_tables()
+
+    fund = await _fund_entity(db_session)
+    user = await _pm_user(db_session, fund.id)
+
+    from axe.agents.mnpi_review import MNPIReviewAgent
+    from axe.services.mnpi import MNPIService
+
+    agent = MNPIReviewAgent(threshold=0.0)
+    service = MNPIService(db_session, agent=agent)
+
+    signal = SignalLog(
+        id=str(uuid.uuid4()),
+        pm_id=user.id,
+        ticker="AAPL",
+        source_type="polygon",
+        content_hash="abc",
+        raw_content="confidential non-public board discussion",
+    )
+    db_session.add(signal)
+    await db_session.flush()
+
+    outcome = await service.review_signal(
+        signal_id=signal.id,
+        signal_text=signal.raw_content,
+        ticker="AAPL",
+        pm_id=user.id,
+        alert_payloads=[{"message": "alert"}],
+    )
+    await db_session.flush()
+    review_id = outcome.review.id if outcome.review else ""
+
+    # Cannot easily share the fixture session with TestClient, so :
+    # commit the review row here and let the request use its own session.
+    await db_session.commit()
+
+    # Run TestClient in a thread to avoid event-loop conflicts.
+    def _request():
+        with TestClient(app) as client:
+            return client.post(
+                f"/api/v1/mnpi/{review_id}/decision",
+                json={"decision": "approved", "reviewer_id": "reviewer_x"},
+                headers={"X-PM-ID": "pm_007", "X-Fund-ID": fund.id, "X-Role": role},
+            )
+
+    response = await asyncio.to_thread(_request)
+    if allowed:
+        assert response.status_code in {200, 404}, response.text
+    else:
+        assert response.status_code == 403, response.text
