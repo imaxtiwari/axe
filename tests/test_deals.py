@@ -540,7 +540,11 @@ async def test_underwriting_checklist_and_scenario_loop(
     assert "underwriting_scenarios_generated" in audit_types
 
     # 8. Verify DB rows exist for non-required template too
-    db_checklist = await db_session.execute(select(UnderwritingChecklist).where(UnderwritingChecklist.deal_id == deal_id))
+    db_checklist = await db_session.execute(
+        select(UnderwritingChecklist).where(UnderwritingChecklist.deal_id == deal_id)
+    )
     assert len(list(db_checklist.scalars().all())) == 5
-    db_scenarios = await db_session.execute(select(UnderwritingScenario).where(UnderwritingScenario.deal_id == deal_id))
+    db_scenarios = await db_session.execute(
+        select(UnderwritingScenario).where(UnderwritingScenario.deal_id == deal_id)
+    )
     assert len(list(db_scenarios.scalars().all())) == 3

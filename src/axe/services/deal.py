@@ -386,11 +386,7 @@ class DealUnderwritingService:
             if not checklist_rows:
                 raise ValueError("Checklist must be initialized before running scenarios")
 
-            vehicle_type = (
-                vehicle_type
-                or self._infer_vehicle_type(deal.asset_class)
-                or "equity"
-            )
+            vehicle_type = vehicle_type or self._infer_vehicle_type(deal.asset_class) or "equity"
 
             output = await self.agent.run_scenarios(
                 thesis_text=thesis_text,

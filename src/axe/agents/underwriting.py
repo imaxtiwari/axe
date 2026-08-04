@@ -42,23 +42,88 @@ class ChecklistItem(BaseModel):
 
 DEFAULT_TEMPLATES: dict[str, list[ChecklistItem]] = {
     "equity": [
-        ChecklistItem(category="Business", question="Confirm revenue model and TAM", required=True, sort_order=1),
-        ChecklistItem(category="Financials", question="Validate last three years of audited financials", required=True, sort_order=2),
-        ChecklistItem(category="Management", question="Assess management track record and incentives", required=True, sort_order=3),
-        ChecklistItem(category="Risk", question="Identify key downside and break conditions", required=True, sort_order=4),
-        ChecklistItem(category="Valuation", question="Benchmark valuation vs comparable transactions", required=False, sort_order=5),
+        ChecklistItem(
+            category="Business",
+            question="Confirm revenue model and TAM",
+            required=True,
+            sort_order=1,
+        ),
+        ChecklistItem(
+            category="Financials",
+            question="Validate last three years of audited financials",
+            required=True,
+            sort_order=2,
+        ),
+        ChecklistItem(
+            category="Management",
+            question="Assess management track record and incentives",
+            required=True,
+            sort_order=3,
+        ),
+        ChecklistItem(
+            category="Risk",
+            question="Identify key downside and break conditions",
+            required=True,
+            sort_order=4,
+        ),
+        ChecklistItem(
+            category="Valuation",
+            question="Benchmark valuation vs comparable transactions",
+            required=False,
+            sort_order=5,
+        ),
     ],
     "credit": [
-        ChecklistItem(category="Credit", question="Review leverage, coverage ratios, and covenants", required=True, sort_order=1),
-        ChecklistItem(category="Collateral", question="Confirm collateral package and security ranking", required=True, sort_order=2),
-        ChecklistItem(category="Issuer", question="Evaluate issuer cash flow stability", required=True, sort_order=3),
-        ChecklistItem(category="Market", question="Assess secondary market liquidity", required=False, sort_order=4),
+        ChecklistItem(
+            category="Credit",
+            question="Review leverage, coverage ratios, and covenants",
+            required=True,
+            sort_order=1,
+        ),
+        ChecklistItem(
+            category="Collateral",
+            question="Confirm collateral package and security ranking",
+            required=True,
+            sort_order=2,
+        ),
+        ChecklistItem(
+            category="Issuer",
+            question="Evaluate issuer cash flow stability",
+            required=True,
+            sort_order=3,
+        ),
+        ChecklistItem(
+            category="Market",
+            question="Assess secondary market liquidity",
+            required=False,
+            sort_order=4,
+        ),
     ],
     "lp_gp": [
-        ChecklistItem(category="Fund", question="Review fund terms, fees, and waterfall", required=True, sort_order=1),
-        ChecklistItem(category="Track Record", question="Validate GP track record across funds", required=True, sort_order=2),
-        ChecklistItem(category="Alignment", question="Confirm GP commitment and key-person provisions", required=True, sort_order=3),
-        ChecklistItem(category="Strategy", question="Assess strategy consistency with target portfolio", required=False, sort_order=4),
+        ChecklistItem(
+            category="Fund",
+            question="Review fund terms, fees, and waterfall",
+            required=True,
+            sort_order=1,
+        ),
+        ChecklistItem(
+            category="Track Record",
+            question="Validate GP track record across funds",
+            required=True,
+            sort_order=2,
+        ),
+        ChecklistItem(
+            category="Alignment",
+            question="Confirm GP commitment and key-person provisions",
+            required=True,
+            sort_order=3,
+        ),
+        ChecklistItem(
+            category="Strategy",
+            question="Assess strategy consistency with target portfolio",
+            required=False,
+            sort_order=4,
+        ),
     ],
 }
 
@@ -160,9 +225,9 @@ class UnderwritingAgent:
                     confidence=0.35,
                 ),
             ]
-        avg_confidence = round(
-            sum(s.confidence * s.probability_weight for s in scenarios), 3
-        ) or 0.5
+        avg_confidence = (
+            round(sum(s.confidence * s.probability_weight for s in scenarios), 3) or 0.5
+        )
         return ScenarioOutput(scenarios=scenarios, confidence=avg_confidence)
 
     async def _llm_scenarios(self, thesis_text: str, vehicle_type: str) -> ScenarioOutput:
