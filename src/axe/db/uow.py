@@ -13,7 +13,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from sqlalchemy import desc
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from axe.db.models import (
@@ -22,6 +22,8 @@ from axe.db.models import (
     DealRoom,
     PMUser,
     ThesisVersion,
+    UnderwritingChecklist,
+    UnderwritingScenario,
 )
 from axe.db.session import AsyncSessionLocal
 from axe.exceptions import IsolationError
@@ -202,6 +204,52 @@ class DealDocumentRepository(_BaseRepo):
         return doc
 
 
+class UnderwritingChecklistRepository(_BaseRepo):
+    """CRUD helpers for deal underwriting checklists."""
+
+    async def get_by_id(self, checklist_id: str) -> UnderwritingChecklist | None:
+        result = await self.session.execute(
+            select(UnderwritingChecklist).where(UnderwritingChecklist.id == checklist_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def list_for_deal(
+        self,
+        deal_id: str,
+        *,
+        include_scoped: bool = True,
+    ) -> list[UnderwritingChecklist]:
+        stmt = (
+            select(UnderwritingChecklist)
+            .where(UnderwritingChecklist.deal_id == deal_id)
+            .order_by(UnderwritingChecklist.sort_order, UnderwritingChecklist.updated_at)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    def create_item(self, **kwargs: Any) -> UnderwritingChecklist:
+        item = UnderwritingChecklist(**kwargs)
+        self.session.add(item)
+        return item
+
+
+class UnderwritingScenarioRepository(_BaseRepo):
+    """CRUD helpers for deal underwriting scenarios."""
+
+    async def list_for_deal(self, deal_id: str) -> list[UnderwritingScenario]:
+        result = await self.session.execute(
+            select(UnderwritingScenario)
+            .where(UnderwritingScenario.deal_id == deal_id)
+            .order_by(UnderwritingScenario.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    def create_scenario(self, **kwargs: Any) -> UnderwritingScenario:
+        scenario = UnderwritingScenario(**kwargs)
+        self.session.add(scenario)
+        return scenario
+
+
 class UnitOfWork:
     """Async Unit of Work context manager.
 
@@ -215,11 +263,13 @@ class UnitOfWork:
     rolled back when the context exits (even without exception).
 
     Repositories:
-        - ``uow.theses``    -> ``ThesisRepository``
-        - ``uow.pm_users``  -> ``PMUserRepository``
-        - ``uow.audit``     -> ``AuditRepository``
-        - ``uow.deals``           -> ``DealRepository``
-        - ``uow.deal_documents``  -> ``DealDocumentRepository``
+        - ``uow.theses``                 -> ``ThesisRepository``
+        - ``uow.pm_users``               -> ``PMUserRepository``
+        - ``uow.audit``                  -> ``AuditRepository``
+        - ``uow.deals``                  -> ``DealRepository``
+        - ``uow.deal_documents``         -> ``DealDocumentRepository``
+        - ``uow.underwriting_checklists`` -> ``UnderwritingChecklistRepository``
+        - ``uow.underwriting_scenarios``  -> ``UnderwritingScenarioRepository``
     """
 
     session: AsyncSession
@@ -233,6 +283,8 @@ class UnitOfWork:
         self.audit = AuditRepository(self.session)
         self.deals = DealRepository(self.session)
         self.deal_documents = DealDocumentRepository(self.session)
+        self.underwriting_checklists = UnderwritingChecklistRepository(self.session)
+        self.underwriting_scenarios = UnderwritingScenarioRepository(self.session)
 
     async def __aenter__(self) -> UnitOfWork:
         if self._owns_session:
@@ -242,6 +294,8 @@ class UnitOfWork:
             self.audit = AuditRepository(self.session)
             self.deals = DealRepository(self.session)
             self.deal_documents = DealDocumentRepository(self.session)
+            self.underwriting_checklists = UnderwritingChecklistRepository(self.session)
+            self.underwriting_scenarios = UnderwritingScenarioRepository(self.session)
         if self.session is None:  # pragma: no cover - type guard
             raise RuntimeError("UnitOfWork has no active session")
         return self

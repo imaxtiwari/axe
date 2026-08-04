@@ -628,6 +628,8 @@ class UnderwritingChecklist(Base):
     deal_id: Mapped[str] = mapped_column(ForeignKey("deal_rooms.id"), nullable=False)
     category: Mapped[str] = mapped_column(String(128), nullable=False)
     question: Mapped[str] = mapped_column(Text, nullable=False)
+    required: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="open", nullable=False)
     evidence_url: Mapped[str | None] = mapped_column(String(2048))
     answered_by: Mapped[str | None] = mapped_column(String(36))
@@ -645,6 +647,7 @@ class UnderwritingScenario(Base):
     assumptions: Mapped[dict] = mapped_column(JSON, default=dict)
     output_metrics: Mapped[dict] = mapped_column(JSON, default=dict)
     probability_weight: Mapped[float | None] = mapped_column(Float)
+    confidence: Mapped[float | None] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
 

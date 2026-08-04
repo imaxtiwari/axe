@@ -6,7 +6,8 @@ import asyncio
 from collections.abc import Callable, Coroutine
 from typing import Any, TypeVar
 
-from axe.db.models import AuditLog, DealDocument, DealRoom
+from axe.agents.underwriting import ScenarioOutput, UnderwritingAgent
+from axe.db.models import AuditLog, DealDocument, DealRoom, UnderwritingChecklist, UnderwritingScenario
 from axe.db.uow import UnitOfWork
 from axe.ingestion.hashing import content_hash
 from axe.security.audit import _state_dict
@@ -246,6 +247,216 @@ class DealDocumentService:
             object_id=doc.id,
             before_state={},
             after_state=_state_dict(doc),
+        )
+        self.session.add(entry)
+        await self.session.flush()
+
+
+class DealUnderwritingService:
+    """Checklist generation and scenario analysis for a deal."""
+
+    def __init__(
+        self,
+        uow: UnitOfWork,
+        pm_id: str,
+        fund_entity_id: str,
+        agent: UnderwritingAgent | None = None,
+    ) -> None:
+        self.uow = uow
+        self.session = uow.session
+        self.pm_id = pm_id
+        self.fund_entity_id = fund_entity_id
+        self.agent = agent or UnderwritingAgent()
+        self._context = _ContextHelper(pm_id, fund_entity_id)
+        with self._context:
+            pass
+
+    async def _with_context(self, coro_factory: Callable[[], Coroutine[Any, Any, T]]) -> T:
+        with self._context:
+            return await coro_factory()
+
+    async def initialize_checklist(
+        self,
+        deal_id: str,
+        vehicle_type: str,
+    ) -> list[UnderwritingChecklist]:
+        """Populate the default underwriting checklist for a deal."""
+        async with _DealLocks.get(self.pm_id, deal_id):
+
+            async def _build() -> list[UnderwritingChecklist]:
+                deal = await self.uow.deals.get_by_id(deal_id)
+                if deal is None:
+                    raise ValueError(f"Deal {deal_id} not found")
+
+                template_items = UnderwritingAgent.default_checklist(vehicle_type)
+                created: list[UnderwritingChecklist] = []
+                for item in template_items:
+                    row = self.uow.underwriting_checklists.create_item(
+                        deal_id=deal_id,
+                        category=item.category,
+                        question=item.question,
+                        required=item.required,
+                        sort_order=item.sort_order,
+                    )
+                    created.append(row)
+                await self.session.flush()
+                await self._audit(
+                    "underwriting_checklist_initialized",
+                    deal_id,
+                    deal_id,
+                    after_state={
+                        "vehicle_type": vehicle_type,
+                        "items": [
+                            {
+                                "category": it.category,
+                                "question": it.question,
+                                "required": it.required,
+                                "sort_order": it.sort_order,
+                            }
+                            for it in template_items
+                        ],
+                    },
+                )
+                await self.uow.commit()
+                return created
+
+            return await self._with_context(_build)
+
+    async def list_checklist(self, deal_id: str) -> list[UnderwritingChecklist]:
+        async def _build() -> list[UnderwritingChecklist]:
+            return await self.uow.underwriting_checklists.list_for_deal(deal_id)
+
+        return await self._with_context(_build)
+
+    async def update_checklist_item(
+        self,
+        deal_id: str,
+        checklist_item_id: str,
+        *,
+        status: str,
+        evidence_url: str | None = None,
+        answered_by: str | None = None,
+    ) -> UnderwritingChecklist:
+        """Update a checklist item status."""
+        if status not in UnderwritingAgent.VALID_STATUSES:
+            raise ValueError(f"Invalid status {status}")
+
+        async with _DealLocks.get(self.pm_id, deal_id):
+            item = await self.uow.underwriting_checklists.get_by_id(checklist_item_id)
+            if item is None or item.deal_id != deal_id:
+                raise ValueError(f"Checklist item {checklist_item_id} not found")
+
+            before = _state_dict(item)
+            item.status = status
+            if evidence_url is not None:
+                item.evidence_url = evidence_url
+            if answered_by is not None:
+                item.answered_by = answered_by
+            await self.session.flush()
+            await self._audit(
+                "underwriting_checklist_updated",
+                deal_id,
+                checklist_item_id,
+                before_state=before,
+                after_state=_state_dict(item),
+            )
+            await self.uow.commit()
+            return item
+
+    async def run_scenarios(
+        self,
+        deal_id: str,
+        thesis_text: str,
+        *,
+        vehicle_type: str | None = None,
+    ) -> tuple[ScenarioOutput, list[UnderwritingScenario]]:
+        """Generate and persist scenario analysis for a deal."""
+        async with _DealLocks.get(self.pm_id, deal_id):
+            deal = await self.uow.deals.get_by_id(deal_id)
+            if deal is None:
+                raise ValueError(f"Deal {deal_id} not found")
+
+            checklist_rows = await self.uow.underwriting_checklists.list_for_deal(deal_id)
+            if not checklist_rows:
+                raise ValueError("Checklist must be initialized before running scenarios")
+
+            vehicle_type = (
+                vehicle_type
+                or self._infer_vehicle_type(deal.asset_class)
+                or "equity"
+            )
+
+            output = await self.agent.run_scenarios(
+                thesis_text=thesis_text,
+                vehicle_type=vehicle_type,
+                checklist=[_state_dict(row) for row in checklist_rows],
+            )
+
+            persisted: list[UnderwritingScenario] = []
+            for scenario in output.scenarios:
+                row = self.uow.underwriting_scenarios.create_scenario(
+                    deal_id=deal_id,
+                    scenario_name=scenario.scenario_name,
+                    assumptions=scenario.assumptions,
+                    output_metrics=scenario.output_metrics,
+                    probability_weight=scenario.probability_weight,
+                    confidence=scenario.confidence,
+                )
+                persisted.append(row)
+            await self.session.flush()
+
+            after_state: dict[str, Any] = {
+                "overall_confidence": output.confidence,
+                "scenario_names": [s.scenario_name for s in output.scenarios],
+                "thesis_length_chars": len(thesis_text),
+            }
+            await self._audit(
+                "underwriting_scenarios_generated",
+                deal_id,
+                persisted[0].id if persisted else "",
+                after_state=after_state,
+            )
+            await self.uow.commit()
+            return output, persisted
+
+    async def list_scenarios(self, deal_id: str) -> list[UnderwritingScenario]:
+        async def _build() -> list[UnderwritingScenario]:
+            return await self.uow.underwriting_scenarios.list_for_deal(deal_id)
+
+        return await self._with_context(_build)
+
+    @staticmethod
+    def _infer_vehicle_type(asset_class: str | None) -> str | None:
+        """Map a deal asset_class to a supported underwriting vehicle type."""
+        mapping = {
+            "credit": "credit",
+            "private_credit": "credit",
+            "pe": "equity",
+            "private_equity": "equity",
+            "vc": "equity",
+            "lp": "lp_gp",
+            "lp_gp": "lp_gp",
+            "fund_commitment": "lp_gp",
+        }
+        return mapping.get((asset_class or "").lower())
+
+    async def _audit(
+        self,
+        action_type: str,
+        deal_id: str,
+        object_id: str,
+        *,
+        before_state: dict[str, Any] | None = None,
+        after_state: dict[str, Any] | None = None,
+    ) -> None:
+        entry = AuditLog(
+            pm_id=self.pm_id,
+            fund_entity_id=self.fund_entity_id,
+            action_type=action_type,
+            object_type="deal_room",
+            object_id=object_id or deal_id,
+            before_state=before_state or {},
+            after_state=after_state or {},
         )
         self.session.add(entry)
         await self.session.flush()

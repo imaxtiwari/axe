@@ -8,12 +8,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from axe.db.models import DealDocument, DealRoom
+from axe.db.models import DealDocument, DealRoom, UnderwritingChecklist, UnderwritingScenario
 from axe.db.session import get_async_session
 from axe.db.uow import UnitOfWork
 from axe.security.authz import require_role
 from axe.security.context import RequestContext, get_request_context
-from axe.services.deal import DealDocumentService, DealRoomService
+from axe.services.deal import DealDocumentService, DealRoomService, DealUnderwritingService
 
 router = APIRouter(prefix="/api/v1/deals", tags=["deals"])
 
@@ -96,6 +96,66 @@ class DocumentUploadResponse(BaseModel):
 
     document: DocumentResponse
     is_new: bool
+
+
+class ChecklistInitRequest(BaseModel):
+    """Start an underwriting checklist from a vehicle-type template."""
+
+    vehicle_type: str = Field(..., max_length=64)
+
+
+class ChecklistItemResponse(BaseModel):
+    """Single underwriting checklist item."""
+
+    id: str
+    deal_id: str
+    category: str
+    question: str
+    required: bool
+    sort_order: int
+    status: str
+    evidence_url: str | None
+    answered_by: str | None
+    updated_at: Any
+
+    model_config = {"from_attributes": True}
+
+
+class ChecklistItemUpdateRequest(BaseModel):
+    """Update a checklist item status."""
+
+    status: str = Field(..., max_length=32)
+    evidence_url: str | None = Field(default=None, max_length=2048)
+    answered_by: str | None = Field(default=None, max_length=36)
+
+
+class ScenarioResponse(BaseModel):
+    """A persisted underwriting scenario."""
+
+    id: str
+    deal_id: str
+    scenario_name: str
+    assumptions: dict[str, Any]
+    output_metrics: dict[str, Any]
+    probability_weight: float | None
+    confidence: float | None
+    created_at: Any
+
+    model_config = {"from_attributes": True}
+
+
+class ScenarioRunResponse(BaseModel):
+    """Scenario analysis output plus persisted scenario IDs."""
+
+    overall_confidence: float
+    scenarios: list[ScenarioResponse]
+
+
+class ScenarioRunRequest(BaseModel):
+    """Run scenario analysis against a deal thesis."""
+
+    thesis_text: str = Field(..., min_length=1)
+    vehicle_type: str | None = Field(default=None, max_length=64)
 
 
 # ---------------------------------------------------------------------------
@@ -329,6 +389,138 @@ async def get_document(
             detail=f"Document {document_id} not found",
         )
     return doc
+
+
+# ---------------------------------------------------------------------------
+# Underwriting endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/{deal_id}/underwriting/checklist",
+    response_model=list[ChecklistItemResponse],
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_role("pm", "admin"))],
+)
+async def initialize_underwriting_checklist(
+    deal_id: str,
+    body: ChecklistInitRequest,
+    session: AsyncSession = Depends(get_async_session),
+    ctx: RequestContext = Depends(get_request_context),
+) -> list[UnderwritingChecklist]:
+    """Initialize a default underwriting checklist for the deal."""
+    pm_id, fund_id = _ensure_identity(ctx)
+    async with UnitOfWork(session) as uow:
+        service = DealUnderwritingService(uow, pm_id=pm_id, fund_entity_id=fund_id)
+        try:
+            items = await service.initialize_checklist(deal_id, body.vehicle_type)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(exc),
+            ) from exc
+    return items
+
+
+@router.get(
+    "/{deal_id}/underwriting/checklist",
+    response_model=list[ChecklistItemResponse],
+    dependencies=[Depends(require_role("pm", "admin"))],
+)
+async def list_underwriting_checklist(
+    deal_id: str,
+    session: AsyncSession = Depends(get_async_session),
+    ctx: RequestContext = Depends(get_request_context),
+) -> list[UnderwritingChecklist]:
+    """List the underwriting checklist for a deal."""
+    pm_id, fund_id = _ensure_identity(ctx)
+    async with UnitOfWork(session) as uow:
+        service = DealUnderwritingService(uow, pm_id=pm_id, fund_entity_id=fund_id)
+        items = await service.list_checklist(deal_id)
+    return items
+
+
+@router.patch(
+    "/{deal_id}/underwriting/checklist/{item_id}",
+    response_model=ChecklistItemResponse,
+    dependencies=[Depends(require_role("pm", "admin"))],
+)
+async def update_underwriting_checklist_item(
+    deal_id: str,
+    item_id: str,
+    body: ChecklistItemUpdateRequest,
+    session: AsyncSession = Depends(get_async_session),
+    ctx: RequestContext = Depends(get_request_context),
+) -> UnderwritingChecklist:
+    """Update the status of a single checklist item."""
+    pm_id, fund_id = _ensure_identity(ctx)
+    async with UnitOfWork(session) as uow:
+        service = DealUnderwritingService(uow, pm_id=pm_id, fund_entity_id=fund_id)
+        try:
+            item = await service.update_checklist_item(
+                deal_id=deal_id,
+                checklist_item_id=item_id,
+                status=body.status,
+                evidence_url=body.evidence_url,
+                answered_by=body.answered_by,
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(exc),
+            ) from exc
+    return item
+
+
+@router.post(
+    "/{deal_id}/underwriting/scenarios",
+    response_model=ScenarioRunResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_role("pm", "admin"))],
+)
+async def run_underwriting_scenarios(
+    deal_id: str,
+    body: ScenarioRunRequest,
+    session: AsyncSession = Depends(get_async_session),
+    ctx: RequestContext = Depends(get_request_context),
+) -> ScenarioRunResponse:
+    """Generate and persist scenario analysis for a deal."""
+    pm_id, fund_id = _ensure_identity(ctx)
+    async with UnitOfWork(session) as uow:
+        service = DealUnderwritingService(uow, pm_id=pm_id, fund_entity_id=fund_id)
+        try:
+            output, persisted = await service.run_scenarios(
+                deal_id=deal_id,
+                thesis_text=body.thesis_text,
+                vehicle_type=body.vehicle_type,
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
+    return ScenarioRunResponse(
+        overall_confidence=output.confidence,
+        scenarios=[ScenarioResponse.model_validate(s) for s in persisted],
+    )
+
+
+@router.get(
+    "/{deal_id}/underwriting/scenarios",
+    response_model=list[ScenarioResponse],
+    dependencies=[Depends(require_role("pm", "admin"))],
+)
+async def list_underwriting_scenarios(
+    deal_id: str,
+    session: AsyncSession = Depends(get_async_session),
+    ctx: RequestContext = Depends(get_request_context),
+) -> list[UnderwritingScenario]:
+    """List persisted underwriting scenarios for a deal."""
+    pm_id, fund_id = _ensure_identity(ctx)
+    async with UnitOfWork(session) as uow:
+        service = DealUnderwritingService(uow, pm_id=pm_id, fund_entity_id=fund_id)
+        scenarios = await service.list_scenarios(deal_id)
+    return scenarios
 
 
 __all__ = ["router"]
