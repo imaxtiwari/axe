@@ -13,7 +13,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from axe.config import Settings
-from axe.db.models import AuditLog, DealDocument, FundEntity, PMUser
+from axe.db.models import (
+    AuditLog,
+    DealDocument,
+    FundEntity,
+    PMUser,
+    UnderwritingChecklist,
+    UnderwritingScenario,
+)
 from axe.db.session import get_async_session
 from axe.ingestion.hashing import content_hash
 from axe.main import create_app
@@ -430,3 +437,110 @@ async def test_admin_can_see_deals(client: TestClient, db_session: AsyncSession)
         headers=_headers(user.id, fund.id, role="admin"),
     )
     assert create_resp.status_code == 201
+
+
+# ---------------------------------------------------------------------------
+# Underwriting checklist + scenario loop
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_underwriting_checklist_and_scenario_loop(
+    client: TestClient,
+    db_session: AsyncSession,
+) -> None:
+    """Create a deal, generate checklist, finalize, run scenarios, audit state transitions."""
+    fund = await _fund_entity(db_session)
+    user = await _pm_user(db_session, fund.id)
+    await db_session.commit()
+
+    # 1. Create deal
+    create_resp = client.post(
+        "/api/v1/deals",
+        json={"name": "Underwrite Me", "asset_class": "private_equity"},
+        headers=_headers(user.id, fund.id),
+    )
+    assert create_resp.status_code == 201, create_resp.text
+    deal_id = create_resp.json()["id"]
+
+    # 2. Initialize checklist from equity template
+    init_resp = client.post(
+        f"/api/v1/deals/{deal_id}/underwriting/checklist",
+        json={"vehicle_type": "equity"},
+        headers=_headers(user.id, fund.id),
+    )
+    assert init_resp.status_code == 201, init_resp.text
+    checklist = init_resp.json()
+    assert len(checklist) == 5
+    assert {item["category"] for item in checklist} == {
+        "Business",
+        "Financials",
+        "Management",
+        "Risk",
+        "Valuation",
+    }
+    required_items = [item for item in checklist if item["required"]]
+    assert len(required_items) == 4
+
+    # 3. Scenarios cannot run before required items are checked
+    blocked_resp = client.post(
+        f"/api/v1/deals/{deal_id}/underwriting/scenarios",
+        json={"thesis_text": "We believe Acme will grow revenue 20% annually."},
+        headers=_headers(user.id, fund.id),
+    )
+    assert blocked_resp.status_code == 422
+
+    # 4. Check all required items
+    for item in required_items:
+        patch_resp = client.patch(
+            f"/api/v1/deals/{deal_id}/underwriting/checklist/{item['id']}",
+            json={"status": "checked", "answered_by": user.id},
+            headers=_headers(user.id, fund.id),
+        )
+        assert patch_resp.status_code == 200, patch_resp.text
+        assert patch_resp.json()["status"] == "checked"
+
+    # 5. Run scenarios
+    run_resp = client.post(
+        f"/api/v1/deals/{deal_id}/underwriting/scenarios",
+        json={"thesis_text": "We believe Acme will grow revenue 20% annually."},
+        headers=_headers(user.id, fund.id),
+    )
+    assert run_resp.status_code == 201, run_resp.text
+    run_body = run_resp.json()
+    assert "overall_confidence" in run_body
+    assert len(run_body["scenarios"]) == 3
+    scenario_names = {s["scenario_name"] for s in run_body["scenarios"]}
+    assert "Base case" in scenario_names
+
+    # 6. List persisted scenarios
+    list_resp = client.get(
+        f"/api/v1/deals/{deal_id}/underwriting/scenarios",
+        headers=_headers(user.id, fund.id),
+    )
+    assert list_resp.status_code == 200
+    assert len(list_resp.json()) == 3
+
+    scenario_ids = [s["id"] for s in run_body["scenarios"]]
+
+    # 7. Verify audit log state transitions
+    audit_result = await db_session.execute(
+        select(AuditLog)
+        .where(
+            AuditLog.object_id.in_(
+                [deal_id] + [item["id"] for item in required_items] + scenario_ids
+            ),
+        )
+        .order_by(AuditLog.server_timestamp)
+    )
+    audit_types = [entry.action_type for entry in audit_result.scalars().all()]
+    assert "deal_create" in audit_types
+    assert "underwriting_checklist_initialized" in audit_types
+    assert "underwriting_checklist_updated" in audit_types
+    assert "underwriting_scenarios_generated" in audit_types
+
+    # 8. Verify DB rows exist for non-required template too
+    db_checklist = await db_session.execute(select(UnderwritingChecklist).where(UnderwritingChecklist.deal_id == deal_id))
+    assert len(list(db_checklist.scalars().all())) == 5
+    db_scenarios = await db_session.execute(select(UnderwritingScenario).where(UnderwritingScenario.deal_id == deal_id))
+    assert len(list(db_scenarios.scalars().all())) == 3

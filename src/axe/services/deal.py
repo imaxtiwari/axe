@@ -7,7 +7,13 @@ from collections.abc import Callable, Coroutine
 from typing import Any, TypeVar
 
 from axe.agents.underwriting import ScenarioOutput, UnderwritingAgent
-from axe.db.models import AuditLog, DealDocument, DealRoom, UnderwritingChecklist, UnderwritingScenario
+from axe.db.models import (
+    AuditLog,
+    DealDocument,
+    DealRoom,
+    UnderwritingChecklist,
+    UnderwritingScenario,
+)
 from axe.db.uow import UnitOfWork
 from axe.ingestion.hashing import content_hash
 from axe.security.audit import _state_dict
