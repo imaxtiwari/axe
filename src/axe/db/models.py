@@ -591,6 +591,8 @@ class DealDocument(Base):
     extracted_entities: Mapped[dict] = mapped_column(JSON, default=dict)
     ingestion_status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False)
     content_hash: Mapped[str | None] = mapped_column(String(64))
+    file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    mime_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
 

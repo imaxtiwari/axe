@@ -1,0 +1,432 @@
+"""Tests for the deal room and deal document API."""
+
+from __future__ import annotations
+
+import base64
+import uuid
+from collections.abc import AsyncGenerator
+from typing import Any
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from axe.config import Settings
+from axe.db.models import AuditLog, DealDocument, FundEntity, PMUser
+from axe.db.session import get_async_session
+from axe.ingestion.hashing import content_hash
+from axe.main import create_app
+
+
+@pytest.fixture
+async def client(
+    db_session: AsyncSession,
+) -> AsyncGenerator[TestClient, None]:
+    """Return a TestClient whose DB dependency uses the test transaction."""
+
+    async def _override_get_async_session() -> AsyncGenerator[AsyncSession, None]:
+        yield db_session
+
+    settings = Settings(app_env="test", database_url="sqlite+aiosqlite:///:memory:")
+    app = create_app(settings=settings)
+    app.dependency_overrides[get_async_session] = _override_get_async_session
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
+
+
+async def _fund_entity(session: AsyncSession) -> FundEntity:
+    fund = FundEntity(
+        id=str(uuid.uuid4()),
+        legal_name=f"Test Fund {uuid.uuid4().hex[:8]}",
+        data_residency="US",
+    )
+    session.add(fund)
+    await session.flush()
+    return fund
+
+
+async def _pm_user(session: AsyncSession, fund_id: str) -> PMUser:
+    user = PMUser(
+        id=str(uuid.uuid4()),
+        fund_entity_id=fund_id,
+        email=f"test_{uuid.uuid4().hex[:8]}@example.com",
+    )
+    session.add(user)
+    await session.flush()
+    return user
+
+
+def _headers(pm_id: str, fund_id: str, role: str = "pm") -> dict[str, str]:
+    return {"X-PM-ID": pm_id, "X-Fund-ID": fund_id, "X-Role": role}
+
+
+# ---------------------------------------------------------------------------
+# Deal room CRUD and isolation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_create_and_get_deal(client: TestClient, db_session: AsyncSession) -> None:
+    fund = await _fund_entity(db_session)
+    user = await _pm_user(db_session, fund.id)
+    await db_session.commit()
+
+    response = client.post(
+        "/api/v1/deals",
+        json={"name": "Acme Buyout"},
+        headers=_headers(user.id, fund.id),
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["name"] == "Acme Buyout"
+    assert body["pm_id"] == user.id
+    assert body["fund_entity_id"] == fund.id
+    assert body["stage"] == "screening"
+    deal_id = body["id"]
+
+    get_resp = client.get(
+        f"/api/v1/deals/{deal_id}",
+        headers=_headers(user.id, fund.id),
+    )
+    assert get_resp.status_code == 200
+    assert get_resp.json()["id"] == deal_id
+
+
+@pytest.mark.asyncio
+async def test_list_deals_only_same_fund(
+    client: TestClient,
+    db_session: AsyncSession,
+) -> None:
+    fund_a = await _fund_entity(db_session)
+    user_a = await _pm_user(db_session, fund_a.id)
+    fund_b = await _fund_entity(db_session)
+    user_b = await _pm_user(db_session, fund_b.id)
+    await db_session.commit()
+
+    for name in ("Deal A1", "Deal A2"):
+        client.post(
+            "/api/v1/deals",
+            json={"name": name},
+            headers=_headers(user_a.id, fund_a.id),
+        )
+    client.post(
+        "/api/v1/deals",
+        json={"name": "Deal B1"},
+        headers=_headers(user_b.id, fund_b.id),
+    )
+
+    list_a = client.get("/api/v1/deals", headers=_headers(user_a.id, fund_a.id))
+    assert list_a.status_code == 200
+    names_a = {d["name"] for d in list_a.json()}
+    assert names_a == {"Deal A1", "Deal A2"}
+
+    list_b = client.get("/api/v1/deals", headers=_headers(user_b.id, fund_b.id))
+    assert list_b.status_code == 200
+    names_b = {d["name"] for d in list_b.json()}
+    assert names_b == {"Deal B1"}
+
+
+@pytest.mark.asyncio
+async def test_pm_cannot_see_other_fund_deal(
+    client: TestClient,
+    db_session: AsyncSession,
+) -> None:
+    fund_a = await _fund_entity(db_session)
+    user_a = await _pm_user(db_session, fund_a.id)
+    fund_b = await _fund_entity(db_session)
+    user_b = await _pm_user(db_session, fund_b.id)
+    await db_session.commit()
+
+    create_resp = client.post(
+        "/api/v1/deals",
+        json={"name": "Secret Deal"},
+        headers=_headers(user_a.id, fund_a.id),
+    )
+    deal_id = create_resp.json()["id"]
+
+    cross_get = client.get(
+        f"/api/v1/deals/{deal_id}",
+        headers=_headers(user_b.id, fund_b.id),
+    )
+    assert cross_get.status_code == 404
+
+    # Changing only fund_id (with attacker pm_id) should also fail because
+    # isolation filters by the active RequestContext, not by URL parameters.
+    cross_list = client.get("/api/v1/deals", headers=_headers(user_b.id, fund_a.id))
+    assert cross_list.status_code == 200
+    assert not any(d["id"] == deal_id for d in cross_list.json())
+
+
+@pytest.mark.asyncio
+async def test_update_and_delete_deal(client: TestClient, db_session: AsyncSession) -> None:
+    fund = await _fund_entity(db_session)
+    user = await _pm_user(db_session, fund.id)
+    await db_session.commit()
+
+    create_resp = client.post(
+        "/api/v1/deals",
+        json={"name": "Old Name"},
+        headers=_headers(user.id, fund.id),
+    )
+    deal_id = create_resp.json()["id"]
+
+    patch_resp = client.patch(
+        f"/api/v1/deals/{deal_id}",
+        json={"name": "New Name", "stage": "dd"},
+        headers=_headers(user.id, fund.id),
+    )
+    assert patch_resp.status_code == 200
+    patched = patch_resp.json()
+    assert patched["name"] == "New Name"
+    assert patched["stage"] == "dd"
+
+    delete_resp = client.delete(
+        f"/api/v1/deals/{deal_id}",
+        headers=_headers(user.id, fund.id),
+    )
+    assert delete_resp.status_code == 204
+
+    get_resp = client.get(
+        f"/api/v1/deals/{deal_id}",
+        headers=_headers(user.id, fund.id),
+    )
+    assert get_resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Document upload, metadata, idempotency, and audit
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_upload_document_records_metadata_and_audit(
+    client: TestClient,
+    db_session: AsyncSession,
+) -> None:
+    fund = await _fund_entity(db_session)
+    user = await _pm_user(db_session, fund.id)
+    await db_session.commit()
+
+    deal_resp = client.post(
+        "/api/v1/deals",
+        json={"name": "CIM Deal"},
+        headers=_headers(user.id, fund.id),
+    )
+    deal_id = deal_resp.json()["id"]
+
+    file_bytes = b"%PDF-1.4 fake pdf content"
+    payload: dict[str, Any] = {
+        "source_type": "cim",
+        "file_content_b64": base64.b64encode(file_bytes).decode("ascii"),
+        "file_path": "/uploads/fake.pdf",
+        "content_url": "https://example.com/fake.pdf",
+        "mime_type": "application/pdf",
+        "extracted_entities": {"issuer": "Acme"},
+    }
+
+    upload_resp = client.post(
+        f"/api/v1/deals/{deal_id}/documents",
+        json=payload,
+        headers=_headers(user.id, fund.id),
+    )
+    assert upload_resp.status_code == 201, upload_resp.text
+    body = upload_resp.json()
+    assert body["is_new"] is True
+    doc = body["document"]
+    assert doc["deal_id"] == deal_id
+    assert doc["source_type"] == "cim"
+    assert doc["file_path"] == "/uploads/fake.pdf"
+    assert doc["content_url"] == "https://example.com/fake.pdf"
+    assert doc["mime_type"] == "application/pdf"
+    assert doc["file_size"] == len(file_bytes)
+    expected_hash = content_hash(file_bytes.decode("utf-8", errors="replace"))
+    assert doc["content_hash"] == expected_hash
+    doc_id = doc["id"]
+
+    audit_result = await db_session.execute(
+        select(AuditLog)
+        .where(
+            AuditLog.object_type == "deal_document",
+            AuditLog.object_id == doc_id,
+        )
+        .order_by(AuditLog.server_timestamp)
+    )
+    audit_entries = list(audit_result.scalars().all())
+    assert len(audit_entries) == 1
+    assert audit_entries[0].action_type == "deal_document_create"
+    assert audit_entries[0].pm_id == user.id
+    assert audit_entries[0].fund_entity_id == fund.id
+
+
+@pytest.mark.asyncio
+async def test_duplicate_document_upload_is_idempotent(
+    client: TestClient,
+    db_session: AsyncSession,
+) -> None:
+    fund = await _fund_entity(db_session)
+    user = await _pm_user(db_session, fund.id)
+    await db_session.commit()
+
+    deal_resp = client.post(
+        "/api/v1/deals",
+        json={"name": "Dedup Deal"},
+        headers=_headers(user.id, fund.id),
+    )
+    deal_id = deal_resp.json()["id"]
+
+    file_bytes = b"duplicate content"
+    payload = {
+        "source_type": "lpa",
+        "file_content_b64": base64.b64encode(file_bytes).decode("ascii"),
+        "mime_type": "application/pdf",
+    }
+
+    first = client.post(
+        f"/api/v1/deals/{deal_id}/documents",
+        json=payload,
+        headers=_headers(user.id, fund.id),
+    )
+    assert first.status_code == 201
+    first_doc = first.json()["document"]
+    assert first.json()["is_new"] is True
+
+    second = client.post(
+        f"/api/v1/deals/{deal_id}/documents",
+        json=payload,
+        headers=_headers(user.id, fund.id),
+    )
+    assert second.status_code == 201
+    second_doc = second.json()["document"]
+    assert second.json()["is_new"] is False
+    assert second_doc["id"] == first_doc["id"]
+
+    # Only one DealDocument row should exist.
+    doc_rows = await db_session.execute(select(DealDocument).where(DealDocument.deal_id == deal_id))
+    assert len(list(doc_rows.scalars().all())) == 1
+
+
+@pytest.mark.asyncio
+async def test_list_and_get_documents(client: TestClient, db_session: AsyncSession) -> None:
+    fund = await _fund_entity(db_session)
+    user = await _pm_user(db_session, fund.id)
+    await db_session.commit()
+
+    deal_resp = client.post(
+        "/api/v1/deals",
+        json={"name": "Doc Deal"},
+        headers=_headers(user.id, fund.id),
+    )
+    deal_id = deal_resp.json()["id"]
+
+    payload = {
+        "source_type": "nda",
+        "file_content_b64": base64.b64encode(b"nda bytes").decode("ascii"),
+        "mime_type": "application/pdf",
+    }
+    upload_resp = client.post(
+        f"/api/v1/deals/{deal_id}/documents",
+        json=payload,
+        headers=_headers(user.id, fund.id),
+    )
+    doc_id = upload_resp.json()["document"]["id"]
+
+    list_resp = client.get(
+        f"/api/v1/deals/{deal_id}/documents",
+        headers=_headers(user.id, fund.id),
+    )
+    assert list_resp.status_code == 200
+    assert len(list_resp.json()) == 1
+
+    get_resp = client.get(
+        f"/api/v1/deals/{deal_id}/documents/{doc_id}",
+        headers=_headers(user.id, fund.id),
+    )
+    assert get_resp.status_code == 200
+    assert get_resp.json()["id"] == doc_id
+
+
+@pytest.mark.asyncio
+async def test_deal_create_requires_identity_headers(
+    client: TestClient,
+    db_session: AsyncSession,
+) -> None:
+    """Without X-PM-ID and X-Fund-ID the endpoint must fail."""
+    response = client.post(
+        "/api/v1/deals",
+        json={"name": "No Identity"},
+        headers={"X-Role": "pm"},
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_document_upload_for_missing_deal_is_404(
+    client: TestClient,
+    db_session: AsyncSession,
+) -> None:
+    fund = await _fund_entity(db_session)
+    user = await _pm_user(db_session, fund.id)
+    await db_session.commit()
+
+    payload = {
+        "source_type": "cim",
+        "file_content_b64": base64.b64encode(b"orphan").decode("ascii"),
+    }
+    response = client.post(
+        f"/api/v1/deals/{uuid.uuid4()}/documents",
+        json=payload,
+        headers=_headers(user.id, fund.id),
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_other_fund_pm_cannot_list_documents(
+    client: TestClient,
+    db_session: AsyncSession,
+) -> None:
+    fund_a = await _fund_entity(db_session)
+    user_a = await _pm_user(db_session, fund_a.id)
+    fund_b = await _fund_entity(db_session)
+    user_b = await _pm_user(db_session, fund_b.id)
+    await db_session.commit()
+
+    deal_resp = client.post(
+        "/api/v1/deals",
+        json={"name": "Protected Deal"},
+        headers=_headers(user_a.id, fund_a.id),
+    )
+    deal_id = deal_resp.json()["id"]
+
+    client.post(
+        f"/api/v1/deals/{deal_id}/documents",
+        json={
+            "source_type": "cim",
+            "file_content_b64": base64.b64encode(b"secret").decode("ascii"),
+        },
+        headers=_headers(user_a.id, fund_a.id),
+    )
+
+    list_resp = client.get(
+        f"/api/v1/deals/{deal_id}/documents",
+        headers=_headers(user_b.id, fund_b.id),
+    )
+    # Fund B cannot see fund A's documents; the scoped list returns empty.
+    assert list_resp.status_code == 200
+    assert list_resp.json() == []
+
+
+@pytest.mark.asyncio
+async def test_admin_can_see_deals(client: TestClient, db_session: AsyncSession) -> None:
+    fund = await _fund_entity(db_session)
+    user = await _pm_user(db_session, fund.id)
+    await db_session.commit()
+
+    create_resp = client.post(
+        "/api/v1/deals",
+        json={"name": "Admin View Deal"},
+        headers=_headers(user.id, fund.id, role="admin"),
+    )
+    assert create_resp.status_code == 201

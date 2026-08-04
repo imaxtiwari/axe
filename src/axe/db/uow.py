@@ -18,12 +18,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from axe.db.models import (
     AuditLog,
+    DealDocument,
     DealRoom,
     PMUser,
     ThesisVersion,
 )
 from axe.db.session import AsyncSessionLocal
+from axe.exceptions import IsolationError
+from axe.security.context import RequestContext
 from axe.security.isolation import IsolationService
+
+
+def _require_fund_id() -> str:
+    """Return the active fund_id or raise IsolationError."""
+    ctx = RequestContext.current_or_none()
+    if ctx is None or not ctx.fund_id:
+        raise IsolationError("fund_id is required for this scoped database read")
+    return ctx.fund_id
 
 
 class _BaseRepo:
@@ -114,13 +125,81 @@ class AuditRepository(_BaseRepo):
 
 
 class DealRepository(_BaseRepo):
-    """Read helpers for deal rooms."""
+    """CRUD helpers for deal rooms."""
 
     async def get_by_id(self, deal_id: str) -> DealRoom | None:
         result = await self.session.execute(
             IsolationService.select_for(DealRoom).where(DealRoom.id == deal_id)
         )
         return result.scalar_one_or_none()
+
+    async def list_deals(self) -> list[DealRoom]:
+        result = await self.session.execute(
+            IsolationService.select_for(DealRoom).order_by(DealRoom.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def list_deals_for_fund(self, fund_entity_id: str) -> list[DealRoom]:
+        result = await self.session.execute(
+            IsolationService.select_for(DealRoom)
+            .where(DealRoom.fund_entity_id == fund_entity_id)
+            .order_by(DealRoom.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    def create_deal(self, **kwargs: Any) -> DealRoom:
+        deal = DealRoom(**kwargs)
+        self.session.add(deal)
+        return deal
+
+    async def update_deal(self, deal: DealRoom, **changes: Any) -> DealRoom:
+        for key, value in changes.items():
+            if hasattr(deal, key):
+                setattr(deal, key, value)
+        await self.session.flush()
+        return deal
+
+
+class DealDocumentRepository(_BaseRepo):
+    """CRUD helpers for deal documents scoped through a deal room."""
+
+    @staticmethod
+    def _scoped_stmt():
+        """Return a select(DealDocument) joined to DealRoom and scoped by fund."""
+        from sqlalchemy import select
+
+        return (
+            select(DealDocument)
+            .join(DealRoom, DealDocument.deal_id == DealRoom.id)
+            .where(DealRoom.fund_entity_id == _require_fund_id())
+        )
+
+    async def get_by_id(self, document_id: str) -> DealDocument | None:
+        stmt = self._scoped_stmt().where(DealDocument.id == document_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def list_for_deal(self, deal_id: str) -> list[DealDocument]:
+        stmt = (
+            self._scoped_stmt()
+            .where(DealDocument.deal_id == deal_id)
+            .order_by(DealDocument.created_at.desc())
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def find_by_content_hash(self, deal_id: str, content_hash: str) -> DealDocument | None:
+        stmt = self._scoped_stmt().where(
+            DealDocument.deal_id == deal_id,
+            DealDocument.content_hash == content_hash,
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    def create_document(self, **kwargs: Any) -> DealDocument:
+        doc = DealDocument(**kwargs)
+        self.session.add(doc)
+        return doc
 
 
 class UnitOfWork:
@@ -139,7 +218,8 @@ class UnitOfWork:
         - ``uow.theses``    -> ``ThesisRepository``
         - ``uow.pm_users``  -> ``PMUserRepository``
         - ``uow.audit``     -> ``AuditRepository``
-        - ``uow.deals``     -> ``DealRepository``
+        - ``uow.deals``           -> ``DealRepository``
+        - ``uow.deal_documents``  -> ``DealDocumentRepository``
     """
 
     session: AsyncSession
@@ -152,6 +232,7 @@ class UnitOfWork:
         self.pm_users = PMUserRepository(self.session)
         self.audit = AuditRepository(self.session)
         self.deals = DealRepository(self.session)
+        self.deal_documents = DealDocumentRepository(self.session)
 
     async def __aenter__(self) -> UnitOfWork:
         if self._owns_session:
@@ -160,6 +241,7 @@ class UnitOfWork:
             self.pm_users = PMUserRepository(self.session)
             self.audit = AuditRepository(self.session)
             self.deals = DealRepository(self.session)
+            self.deal_documents = DealDocumentRepository(self.session)
         if self.session is None:  # pragma: no cover - type guard
             raise RuntimeError("UnitOfWork has no active session")
         return self
