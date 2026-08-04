@@ -12,6 +12,7 @@ regressions in security/compliance code cannot cross the merge gate.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import itertools
 import json
 import uuid
@@ -1038,10 +1039,8 @@ async def test_audit_log_non_blocking_creates_task(db_session: AsyncSession) -> 
     assert len(created_coro_wrappers) == 1
     assert captured_task is not None
     captured_task.cancel()
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await captured_task
-    except asyncio.CancelledError:
-        pass
 
 
 @pytest.mark.asyncio
