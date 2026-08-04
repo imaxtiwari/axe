@@ -1120,6 +1120,7 @@ async def test_mnpi_service_decide_already_processed_rejected(
         alert_payloads=[{"message": "alert"}],
     )
     review = outcome.review
+    assert review is not None
     await service.decide(review.id, "rejected", "rev_1")
     with pytest.raises(ValueError, match="already been rejected"):
         await service.decide(review.id, "rejected", "rev_1")
@@ -1366,7 +1367,7 @@ async def test_mnpi_review_uses_llm_when_parsed_response_valid(
             response_schema: type[BaseModel] | None = None,
         ) -> LLMResponse:
             return LLMResponse(
-                text='{"mnpi_score": 0.9, "materiality_score": 0.8, "flagged": false, "reasoning": "llm"}',
+                content='{"mnpi_score": 0.9, "materiality_score": 0.8, "flagged": false, "reasoning": "llm"}',
                 parsed={
                     "mnpi_score": 0.9,
                     "materiality_score": 0.8,
@@ -1394,7 +1395,7 @@ async def test_mnpi_review_uses_llm_then_heuristic_on_parsing_error(
             temperature: float = 0.0,
             response_schema: type[BaseModel] | None = None,
         ) -> LLMResponse:
-            return LLMResponse(text="invalid json", parsed={"bad": "data"})
+            return LLMResponse(content="invalid json", parsed={"bad": "data"})
 
     agent = MNPIReviewAgent(provider=_BadProvider(), threshold=0.99)
     result = await agent.review("weather is nice", ticker="SPY")
