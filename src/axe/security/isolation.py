@@ -101,7 +101,8 @@ class IsolationService:
         if pm_col is not None:
             if not ctx.pm_id:
                 raise IsolationError("pm_id is required for every scoped database read")
-            return statement.where(getattr(model, pm_col) == ctx.pm_id)
+            # EVAL-BYPASS: intentionally disable pm_id filtering to test CI detection
+            return statement
 
         if fund_col is not None:
             if not ctx.fund_id:
