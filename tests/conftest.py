@@ -1,7 +1,14 @@
 """Shared pytest fixtures for AXE tests."""
 
+import os
 from collections.abc import AsyncGenerator
 from pathlib import Path
+
+from cryptography.fernet import Fernet
+
+# Set a valid encryption key *before* any AXE module builds a cached Settings
+# instance from the checked-in .env placeholder.
+os.environ.setdefault("ENCRYPTION_KEY", Fernet.generate_key().decode("utf-8"))
 
 import pytest
 import pytest_asyncio
@@ -13,8 +20,13 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from axe.config import get_settings
 from axe.db.base import Base
 from axe.security.encryption import EncryptedJSON, generate_fernet_key
+
+# If something already created a cached Settings instance with the placeholder,
+# drop it so the env var above takes effect.
+get_settings.cache_clear()
 
 
 @pytest.fixture(scope="session")
@@ -89,3 +101,17 @@ async def db_session_factory(connection: AsyncConnection) -> async_sessionmaker[
         autoflush=False,
         autocommit=False,
     )
+
+
+@pytest.fixture(autouse=True)
+def _restore_encrypted_json_key(encryption_key: str):
+    """Keep EncryptedJSON configured with the session key across tests.
+
+    Some compliance tests intentionally mutate ``EncryptedJSON._key`` to
+    exercise the env-var fallback; this fixture prevents that pollution from
+    leaking into schema/integration tests.
+    """
+    previous = EncryptedJSON._key
+    EncryptedJSON.configure(encryption_key)
+    yield
+    EncryptedJSON._key = previous

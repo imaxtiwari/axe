@@ -865,12 +865,16 @@ def test_encrypted_json_uses_env_key_when_not_configured(monkeypatch: pytest.Mon
     monkeypatch.delenv("ENCRYPTION_KEY", raising=False)
     monkeypatch.setenv("ENCRYPTION_KEY", key)
     settings = _settings_without_key()
+    previous_key = EncryptedJSON._key
     EncryptedJSON._key = None
-    column_type = EncryptedJSON()
-    with mock.patch("axe.security.encryption.get_settings", return_value=settings):
-        value = {"answer": 42}
-        token = column_type.process_bind_param(value, None)
-        assert column_type.process_result_value(token, None) == value
+    try:
+        column_type = EncryptedJSON()
+        with mock.patch("axe.security.encryption.get_settings", return_value=settings):
+            value = {"answer": 42}
+            token = column_type.process_bind_param(value, None)
+            assert column_type.process_result_value(token, None) == value
+    finally:
+        EncryptedJSON._key = previous_key
 
 
 # ---------------------------------------------------------------------------
@@ -1013,11 +1017,15 @@ def test_install_middleware_rejects_non_fastapi_app() -> None:
 async def test_audit_log_non_blocking_creates_task(db_session: AsyncSession) -> None:
     """Non-blocking audit log creates an asyncio task."""
     audit = AuditService(db_session)
-    created_tasks: list[asyncio.Task[Any]] = []
+    created_coro_wrappers: list[Any] = []
+    real_create_task = asyncio.create_task
+    captured_task: asyncio.Task[Any] | None = None
 
-    def _capture(task: asyncio.Task[Any]) -> asyncio.Task[Any]:
-        created_tasks.append(task)
-        return task
+    def _capture(coro: Any) -> asyncio.Task[Any]:
+        nonlocal captured_task
+        created_coro_wrappers.append(coro)
+        captured_task = real_create_task(coro)
+        return captured_task
 
     with mock.patch("asyncio.create_task", side_effect=_capture):
         await audit.log(
@@ -1027,7 +1035,13 @@ async def test_audit_log_non_blocking_creates_task(db_session: AsyncSession) -> 
             non_blocking=True,
         )
 
-    assert len(created_tasks) == 1
+    assert len(created_coro_wrappers) == 1
+    assert captured_task is not None
+    captured_task.cancel()
+    try:
+        await captured_task
+    except asyncio.CancelledError:
+        pass
 
 
 @pytest.mark.asyncio
@@ -1119,6 +1133,7 @@ async def test_mnpi_service_decide_already_processed_rejected(
         alert_payloads=[{"message": "alert"}],
     )
     review = outcome.review
+    assert review is not None
     await service.decide(review.id, "rejected", "rev_1")
     with pytest.raises(ValueError, match="already been rejected"):
         await service.decide(review.id, "rejected", "rev_1")
