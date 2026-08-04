@@ -21,23 +21,22 @@ from unittest import mock
 
 import pytest
 from cryptography.fernet import InvalidToken
-from fastapi import Depends, FastAPI, HTTPException, Request as FastAPIRequest, status
+from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Request as FastAPIRequest
 from pydantic import BaseModel
-from sqlalchemy import literal, select, text
+from sqlalchemy import literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from axe.agents.llm import LLMProvider, LLMResponse
-from axe.config import Settings, get_settings
+from axe.config import Settings
 from axe.db.models import (
     AuditLog,
     FundEntity,
-    MNPIReviewQueue,
     PMUser,
     RetryQueue,
     SignalLog,
     ThesisVersion,
     TickerRegistry,
-    utc_now,
 )
 from axe.exceptions import IsolationError
 from axe.security.audit import AuditService, audit_action
@@ -46,9 +45,8 @@ from axe.security.context import (
     RequestContext,
     get_request_context,
     install_middleware,
-    require_identity,
     request_context_dependency,
-    request_context_middleware,
+    require_identity,
 )
 from axe.security.encryption import (
     EncryptedJSON,
@@ -63,7 +61,6 @@ from axe.security.isolation import IsolationService
 from axe.services.export import ExportService
 from axe.services.mnpi import MNPIReviewAgent, MNPIService
 from axe.services.retention import RetentionService
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -178,7 +175,7 @@ async def test_select_for_never_returns_foreign_rows(
         rows = result.scalars().all()
 
     assert len(rows) == 1
-    assert getattr(rows[0], "pm_id") == pm_a.id
+    assert rows[0].pm_id == pm_a.id
 
 
 @pytest.mark.parametrize(
@@ -285,7 +282,7 @@ def test_global_models_remain_unfiltered_without_context(global_model: Any) -> N
 async def test_isolation_fund_entity_id_model(db_session: AsyncSession) -> None:
     """Models with only fund_entity_id are filtered by fund_id context."""
     fund_a = await _fund_entity(db_session)
-    fund_b = await _fund_entity(db_session)
+    await _fund_entity(db_session)
 
     user_a = await _pm_user(db_session, fund_a.id)
     # PMUser itself uses fund_entity_id isolation.
@@ -295,9 +292,11 @@ async def test_isolation_fund_entity_id_model(db_session: AsyncSession) -> None:
         assert "fund_entity_id" in compiled
         assert fund_a.id in compiled
 
-    with RequestContext.bind(pm_id="pm_z"):
-        with pytest.raises(IsolationError, match="fund_id is required"):
-            IsolationService.select_for(PMUser)
+    with (
+        RequestContext.bind(pm_id="pm_z"),
+        pytest.raises(IsolationError, match="fund_id is required"),
+    ):
+        IsolationService.select_for(PMUser)
 
 
 # ---------------------------------------------------------------------------
@@ -409,9 +408,7 @@ async def test_audit_action_decorator_emits_identities(db_session: AsyncSession)
     thesis_id = str(uuid.uuid4())
     await repo.update(thesis_id, pm_id=user.id, fund_entity_id=fund.id, session=db_session)
 
-    log = await db_session.execute(
-        select(AuditLog).where(AuditLog.object_id == thesis_id)
-    )
+    log = await db_session.execute(select(AuditLog).where(AuditLog.object_id == thesis_id))
     entry = log.scalar_one_or_none()
     assert entry is not None
     assert entry.pm_id == user.id
@@ -552,7 +549,9 @@ async def test_mnpi_rejected_signal_stays_blocked(db_session: AsyncSession) -> N
         ({"admin"}, "pm", 403),
     ],
 )
-def test_require_role_property(allowed_roles: set[str], request_role: str, expected_status: int) -> None:
+def test_require_role_property(
+    allowed_roles: set[str], request_role: str, expected_status: int
+) -> None:
     """require_role rejects any role outside the allow-list."""
     app = FastAPI()
 
@@ -573,9 +572,7 @@ def test_require_role_property(allowed_roles: set[str], request_role: str, expec
 def test_rbac_forbidden_detail_does_not_leak() -> None:
     """403 responses expose allowed roles but not internal state."""
     dep = require_role("admin")
-    from fastapi import Request
 
-    req = Request({"type": "http", "headers": [], "method": "GET", "path": "/"})
     ctx = RequestContext(pm_id="pm_1", role="pm")
     token = RequestContext.set_current(ctx)
     try:
@@ -838,7 +835,9 @@ def _settings_without_key(monkeypatch: pytest.MonkeyPatch | None = None) -> Sett
     return Settings(app_env="test", encryption_key=None, export_encryption_key=None)
 
 
-def test_get_fernet_uses_env_encryption_key_when_unconfigured(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_fernet_uses_env_encryption_key_when_unconfigured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """``get_fernet`` falls back to the ENCRYPTION_KEY env var."""
     key = generate_fernet_key()
     monkeypatch.delenv("ENCRYPTION_KEY", raising=False)
@@ -856,9 +855,9 @@ def test_derive_key_raises_when_no_key_available(monkeypatch: pytest.MonkeyPatch
     with (
         mock.patch("axe.security.encryption.get_settings", return_value=settings),
         mock.patch("axe.config.get_settings", return_value=settings),
+        pytest.raises(RuntimeError, match="ENCRYPTION_KEY is not configured"),
     ):
-        with pytest.raises(RuntimeError, match="ENCRYPTION_KEY is not configured"):
-            _derive_key(None)
+        _derive_key(None)
 
 
 def test_encrypted_json_uses_env_key_when_not_configured(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -946,7 +945,7 @@ async def test_request_context_dependency_yields_ctx() -> None:
             "http_version": "1.1",
         }
     )
-    async for ctx in request_context_dependency(request):
+    async for _ctx in request_context_dependency(request):
         assert RequestContext.current().pm_id == "pm_dep"
     # After the generator returns the context should be reset.
     # We cannot assert current() raises in auto mode, but the API surface is exercised.
@@ -1035,6 +1034,7 @@ async def test_audit_log_non_blocking_creates_task(db_session: AsyncSession) -> 
 @pytest.mark.asyncio
 async def test_audit_log_uses_session_in_signature(db_session: AsyncSession) -> None:
     """The decorator records after_state when the method signature has session."""
+
     class _Repo:
         async def get(self, oid: str, *, session: AsyncSession) -> Any | None:
             return None
@@ -1224,18 +1224,22 @@ async def test_isolation_scope_for_context_fund_only_model(
     db_session: AsyncSession,
 ) -> None:
     """scope_for_context for fund-only models raises when fund_id missing."""
+
     class _FundOnly:
         isolation_scope = "pm"
         fund_entity_id = "fund_only"
 
-    with RequestContext.bind(pm_id="pm_1"):
-        with pytest.raises(IsolationError, match="fund_id is required"):
-            IsolationService.scope_for_context(select(literal(1)), _FundOnly)
+    with (
+        RequestContext.bind(pm_id="pm_1"),
+        pytest.raises(IsolationError, match="fund_id is required"),
+    ):
+        IsolationService.scope_for_context(select(literal(1)), _FundOnly)
 
 
 @pytest.mark.asyncio
 async def test_isolation_ensure_model_isolated_property() -> None:
     """ensure_model_isolated rejects a model row owned by another PM."""
+
     class _Row:
         pm_id = "pm_other"
 
@@ -1246,6 +1250,7 @@ async def test_isolation_ensure_model_isolated_property() -> None:
 @pytest.mark.asyncio
 async def test_audit_action_without_repository_get(db_session: AsyncSession) -> None:
     """Decorator still emits audit when repository has no get method."""
+
     class _RepoWithoutGet:
         @audit_action("custom_action", "custom_obj")
         async def create(
@@ -1304,9 +1309,11 @@ async def test_isolation_require_isolated_fund_mismatch(
         isolation_scope = "pm"
         fund_entity_id = fund_b.id
 
-    with RequestContext.bind(pm_id="pm_any", fund_id=fund_a.id):
-        with pytest.raises(IsolationError, match="Cross-fund isolation violation"):
-            IsolationService.require_isolated(_FundOnly())
+    with (
+        RequestContext.bind(pm_id="pm_any", fund_id=fund_a.id),
+        pytest.raises(IsolationError, match="Cross-fund isolation violation"),
+    ):
+        IsolationService.require_isolated(_FundOnly())
 
 
 @pytest.mark.asyncio
