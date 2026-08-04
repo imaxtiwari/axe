@@ -1,5 +1,6 @@
 """Shared pytest fixtures for AXE tests."""
 
+import os
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from axe.config import get_settings
 from axe.db.base import Base
 from axe.security.encryption import EncryptedJSON, generate_fernet_key
 
@@ -37,6 +39,11 @@ def encryption_key() -> str:
 @pytest_asyncio.fixture(scope="session")
 async def engine(db_url: str, encryption_key: str):
     """Create an async engine with WAL + FK pragmas and encrypted columns configured."""
+    # Ensure the encryption fallback used by EncryptedJSON columns is set in CI
+    # environments that do not have a real ENCRYPTION_KEY env var.
+    os.environ.setdefault("ENCRYPTION_KEY", encryption_key)
+    if hasattr(get_settings, "cache_clear"):
+        get_settings.cache_clear()
     EncryptedJSON.configure(encryption_key)
     engine = create_async_engine(db_url, future=True)
 
