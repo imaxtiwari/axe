@@ -4,18 +4,23 @@ This document is the source of truth for how the AXE codebase is organized, how 
 
 ## Table of Contents
 
-1. [Getting Started](#getting-started)
-2. [Project Layout](#project-layout)
-3. [Conventions](#conventions)
-4. [Exceptions & Error Handling](#exceptions--error-handling)
-5. [Agents](#agents)
-6. [Database & Migrations](#database--migrations)
-7. [Ingestion Pipeline](#ingestion-pipeline)
-8. [MNPI Review Gate](#mnpi-review-gate)
-9. [Alerting](#alerting)
-10. [Testing](#testing)
-11. [Common Tasks](#common-tasks)
-12. [Production Notes](#production-notes)
+1. [Guide Map](#guide-map)
+2. [Getting Started](#getting-started)
+3. [Project Layout](#project-layout)
+4. [Conventions](#conventions)
+5. [Exceptions & Error Handling](#exceptions--error-handling)
+6. [Agents](#agents)
+7. [Database & Migrations](#database--migrations)
+8. [Ingestion Pipeline](#ingestion-pipeline)
+9. [MNPI Review Gate](#mnpi-review-gate)
+10. [Alerting](#alerting)
+11. [Testing](#testing)
+12. [Common Tasks](#common-tasks)
+13. [Production Notes](#production-notes)
+
+## Guide Map
+
+This is the developer-facing source of truth. For a step-by-step install and first-use walkthrough, see [`GETTING_STARTED.md`](GETTING_STARTED.md). Product requirements live in [`docs/AXE_PRD_v2.1_Delta.md`](docs/AXE_PRD_v2.1_Delta.md).
 
 ## Getting Started
 
@@ -23,9 +28,11 @@ Prerequisites: Python 3.12+
 
 ```bash
 cd axe
+git clone https://github.com/imaxtiwari/axe.git .  # if not already cloned
 cp .env.example .env
-# Fill in: DATABASE_URL, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, AZURE_OPENAI_MODEL,
-#          SLACK_BOT_TOKEN, SLACK_DEFAULT_CHANNEL, SMTP_* (optional for local dev)
+# Fill in: DATABASE_URL, AZURE_FOUNDRY_ENDPOINT, AZURE_FOUNDRY_API_KEY, AZURE_FOUNDRY_MODEL,
+#          SLACK_BOT_TOKEN, SLACK_SIGNING_SECRET, RESEND_API_KEY, AXE_EMAIL_DOMAIN,
+#          POLYGON_API_KEY, GOOGLE_CLIENT_ID/SECRET (optional for local dev)
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev,ocr]"
@@ -36,6 +43,13 @@ uvicorn axe.main:app --reload
 Health check: `curl http://localhost:8000/healthz`
 
 Run tests: `pytest`
+
+Docker alternative:
+
+```bash
+docker compose up --build
+docker compose exec axe alembic upgrade head
+```
 
 ## Project Layout
 
