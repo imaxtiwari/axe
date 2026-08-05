@@ -166,10 +166,7 @@ class ICMemoRepository(_BaseRepo):
 
     async def get_latest_for_deal(self, deal_id: str) -> ICMemo | None:
         result = await self.session.execute(
-            select(ICMemo)
-            .where(ICMemo.deal_id == deal_id)
-            .order_by(desc(ICMemo.version))
-            .limit(1)
+            select(ICMemo).where(ICMemo.deal_id == deal_id).order_by(desc(ICMemo.version)).limit(1)
         )
         return result.scalar_one_or_none()
 
@@ -180,9 +177,7 @@ class ICMemoRepository(_BaseRepo):
 
     async def list_for_deal(self, deal_id: str) -> list[ICMemo]:
         result = await self.session.execute(
-            select(ICMemo)
-            .where(ICMemo.deal_id == deal_id)
-            .order_by(desc(ICMemo.version))
+            select(ICMemo).where(ICMemo.deal_id == deal_id).order_by(desc(ICMemo.version))
         )
         return list(result.scalars().all())
 
@@ -191,16 +186,12 @@ class ICSignOffRepository(_BaseRepo):
     """CRUD helpers for IC memo sign-offs."""
 
     async def get_by_id(self, signoff_id: str) -> ICSignOff | None:
-        result = await self.session.execute(
-            select(ICSignOff).where(ICSignOff.id == signoff_id)
-        )
+        result = await self.session.execute(select(ICSignOff).where(ICSignOff.id == signoff_id))
         return result.scalar_one_or_none()
 
     async def list_for_memo(self, memo_id: str) -> list[ICSignOff]:
         result = await self.session.execute(
-            select(ICSignOff)
-            .where(ICSignOff.memo_id == memo_id)
-            .order_by(ICSignOff.created_at)
+            select(ICSignOff).where(ICSignOff.memo_id == memo_id).order_by(ICSignOff.created_at)
         )
         return list(result.scalars().all())
 
@@ -214,9 +205,7 @@ class DeckOutputRepository(_BaseRepo):
     """CRUD helpers for generated deck outputs."""
 
     async def get_by_id(self, deck_id: str) -> DeckOutput | None:
-        result = await self.session.execute(
-            select(DeckOutput).where(DeckOutput.id == deck_id)
-        )
+        result = await self.session.execute(select(DeckOutput).where(DeckOutput.id == deck_id))
         return result.scalar_one_or_none()
 
     def create_output(self, **kwargs: Any) -> DeckOutput:

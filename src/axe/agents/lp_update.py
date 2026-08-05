@@ -11,18 +11,17 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from axe.agents.llm import LLMProvider, get_default_provider
 from axe.db.models import (
-    CommunicationArchive,
     DealRoom,
     DealThesisVersion,
     InvestmentVehicle,
-    LPUpdate,
     LPRelationship,
+    LPUpdate,
     TickerRegistry,
     utc_now,
 )
@@ -89,11 +88,7 @@ class LPUpdateAgent:
         )
         lps = list(result.scalars().all())
 
-        recipient_emails = [
-            lp.contact_email
-            for lp in lps
-            if lp.contact_email
-        ]
+        recipient_emails = [lp.contact_email for lp in lps if lp.contact_email]
 
         return {
             "vehicle_id": vehicle.id,
@@ -152,9 +147,7 @@ class LPUpdateAgent:
                     "status": deal.status,
                     "target": deal.target_ticker_or_private_name,
                     "thesis_stage": latest_thesis.stage if latest_thesis else None,
-                    "key_assumptions": (
-                        latest_thesis.key_assumptions if latest_thesis else []
-                    ),
+                    "key_assumptions": (latest_thesis.key_assumptions if latest_thesis else []),
                     "risks": latest_thesis.risks if latest_thesis else [],
                 }
             )
@@ -193,9 +186,7 @@ class LPUpdateAgent:
             year = int(year_str)
             q = int(q_str.replace("Q", ""))
         except (ValueError, AttributeError) as exc:
-            raise ValueError(
-                f"Quarter must be in YYYY-QN format, got {quarter}"
-            ) from exc
+            raise ValueError(f"Quarter must be in YYYY-QN format, got {quarter}") from exc
 
         if not 1 <= q <= 4:
             raise ValueError(f"Quarter must be 1-4, got {q}")
@@ -244,8 +235,7 @@ class LPUpdateAgent:
         version_date = utc_now().strftime("%Y-%m-%d")
         sources = activity.get("sources") or ["Internal records"]
         footer_body = (
-            f"Version {version_date} | Sources: {', '.join(sources)} | "
-            "Draft — internal only."
+            f"Version {version_date} | Sources: {', '.join(sources)} | Draft — internal only."
         )
 
         sections = [
@@ -412,8 +402,7 @@ class LPUpdateAgent:
         new_deals_body: str
         if new_deals:
             new_deals_body = "\n".join(
-                f"- {getattr(d, 'name', 'Unnamed deal')} "
-                f"({getattr(d, 'stage', 'unknown stage')})"
+                f"- {getattr(d, 'name', 'Unnamed deal')} ({getattr(d, 'stage', 'unknown stage')})"
                 for d in new_deals[:10]
             )
         else:
@@ -431,32 +420,25 @@ class LPUpdateAgent:
             "follow-ons, realisations, management changes, and key milestones."
         )
 
-        risks_body = "\n".join(
-            f"- {risk}"
-            for d in deal_summaries[:5]
-            for risk in (d.get("risks") or [])
-        ) or "No material risks flagged in current theses."
+        risks_body = (
+            "\n".join(f"- {risk}" for d in deal_summaries[:5] for risk in (d.get("risks") or []))
+            or "No material risks flagged in current theses."
+        )
 
         outlook_body = (
             f"Forward-looking commentary for {vehicle_name}: "
             "market outlook, capital deployment plans, and strategic priorities."
         )
 
-        appendices_body = (
-            "Supplementary tables, capital account statements, and disclosures."
-        )
+        appendices_body = "Supplementary tables, capital account statements, and disclosures."
 
         return LPUpdateContent(
             title=f"{vehicle_name} - {quarter} LP Update",
             quarter=quarter,
             vehicle_name=vehicle_name,
-            performance_summary=LPUpdateSection(
-                heading="Performance Summary", body=perf_body
-            ),
+            performance_summary=LPUpdateSection(heading="Performance Summary", body=perf_body),
             top_holdings=LPUpdateSection(heading="Top Holdings", body=top_holdings_body),
-            new_deals=LPUpdateSection(
-                heading="New & Deep-Dive Deals", body=new_deals_body
-            ),
+            new_deals=LPUpdateSection(heading="New & Deep-Dive Deals", body=new_deals_body),
             portfolio_news=LPUpdateSection(heading="Portfolio News", body=news_body),
             key_risks=LPUpdateSection(heading="Key Risks", body=risks_body),
             outlook=LPUpdateSection(heading="Outlook", body=outlook_body),
@@ -509,14 +491,10 @@ class LPUpdateAgent:
         ]
         for section in sections:
             body_parts.append(f"<h2>{_esc(section['heading'])}</h2>")
-            body_parts.append(
-                f"<p>{_esc(section['body']).replace(chr(10), '<br>')}</p>"
-            )
+            body_parts.append(f"<p>{_esc(section['body']).replace(chr(10), '<br>')}</p>")
         if sources:
             body_parts.append(
-                "<p><strong>Sources:</strong> "
-                + ", ".join(_esc(s) for s in sources)
-                + "</p>"
+                "<p><strong>Sources:</strong> " + ", ".join(_esc(s) for s in sources) + "</p>"
             )
         body_parts.append(f"<p><em>{_esc(footer)}</em></p>")
         body = "\n".join(body_parts)

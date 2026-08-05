@@ -10,7 +10,7 @@ from typing import Any, TypeVar
 from pydantic import BaseModel, Field
 
 from axe.agents.llm import LLMProvider, get_default_provider
-from axe.db.models import AuditLog, DealThesisVersion, ICMemo, ICSignOff
+from axe.db.models import AuditLog, DealThesisVersion, ICMemo
 from axe.db.uow import UnitOfWork
 from axe.security.audit import _state_dict
 from axe.security.context import RequestContext
@@ -61,7 +61,9 @@ class ICMemoService:
         with self._context:
             pass
 
-    def _with_context(self, coro_factory: Callable[[], Coroutine[Any, Any, T]]) -> Coroutine[Any, Any, T]:
+    def _with_context(
+        self, coro_factory: Callable[[], Coroutine[Any, Any, T]]
+    ) -> Coroutine[Any, Any, T]:
         with self._context:
             return coro_factory()
 
@@ -226,9 +228,7 @@ class ICMemoService:
         from axe.agents.llm import MockProvider
 
         if isinstance(self.provider, MockProvider):
-            return self._fallback_content(
-                deal_name, thesis, checklist_summary, scenario_summary
-            )
+            return self._fallback_content(deal_name, thesis, checklist_summary, scenario_summary)
 
         messages = [
             {
@@ -318,7 +318,11 @@ class ICMemoService:
         recommendation = "Invest"
         if thesis is None or [line for line in checklist_summary.splitlines() if "[open]" in line]:
             recommendation = "Hold"
-        investment_thesis = thesis.bull_case if thesis is not None and thesis.bull_case is not None else "No thesis on file."
+        investment_thesis = (
+            thesis.bull_case
+            if thesis is not None and thesis.bull_case is not None
+            else "No thesis on file."
+        )
         return ICMemoContent(
             recommendation=recommendation,
             recommendation_summary=f"{recommendation} in {deal_name} based on current underwriting.",
@@ -336,19 +340,13 @@ class ICMemoService:
             f"## Recommendation: {content.recommendation}\n\n"
             f"{content.recommendation_summary}\n\n"
             f"## Investment Thesis\n\n{content.investment_thesis}\n\n"
-            "## Key Assumptions\n\n"
-            + "\n".join(f"- {a}" for a in content.key_assumptions)
-            + "\n\n"
+            "## Key Assumptions\n\n" + "\n".join(f"- {a}" for a in content.key_assumptions) + "\n\n"
             "## Underwriting Checklist\n\n"
             f"{content.underwriting_checklist_status}\n\n"
             "## Scenario Analysis\n\n"
             f"{content.scenario_analysis_summary}\n\n"
-            "## Risks\n\n"
-            + "\n".join(f"- {r}" for r in content.risks)
-            + "\n\n"
-            "## Open Questions\n\n"
-            + "\n".join(f"- {q}" for q in content.open_questions)
-            + "\n"
+            "## Risks\n\n" + "\n".join(f"- {r}" for r in content.risks) + "\n\n"
+            "## Open Questions\n\n" + "\n".join(f"- {q}" for q in content.open_questions) + "\n"
         )
 
     async def _audit(
@@ -383,7 +381,7 @@ class _ContextHelper:
         self.fund_entity_id = fund_entity_id
         self._token: Any | None = None
 
-    def __enter__(self) -> "_ContextHelper":
+    def __enter__(self) -> _ContextHelper:
         if RequestContext.current_or_none() is None:
             self._token = RequestContext.set_current(
                 RequestContext(pm_id=self.pm_id, fund_id=self.fund_entity_id)

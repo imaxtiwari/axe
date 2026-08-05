@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from axe.agents.deck import DeckBuilderAgent
-from axe.db.models import AuditLog, DealThesisVersion, DeckOutput
+from axe.db.models import AuditLog, DeckOutput
 from axe.db.uow import UnitOfWork
 from axe.security.audit import _state_dict
 from axe.security.context import RequestContext
@@ -122,7 +122,7 @@ class _ContextHelper:
         self.fund_entity_id = fund_entity_id
         self._token: Any | None = None
 
-    def __enter__(self) -> "_ContextHelper":
+    def __enter__(self) -> _ContextHelper:
         if RequestContext.current_or_none() is None:
             self._token = RequestContext.set_current(
                 RequestContext(pm_id=self.pm_id, fund_id=self.fund_entity_id)

@@ -13,8 +13,8 @@ from axe.agents.lp_update import ComplianceGateError, LPUpdateAgent, send_lp_upd
 from axe.db.models import (
     CommunicationArchive,
     InvestmentVehicle,
-    LPUpdate,
     LPRelationship,
+    LPUpdate,
 )
 from axe.db.uow import UnitOfWork
 from axe.security.audit import _state_dict
@@ -29,7 +29,7 @@ class _ContextHelper:
         self.fund_entity_id = fund_entity_id
         self._token: Any | None = None
 
-    def __enter__(self) -> "_ContextHelper":
+    def __enter__(self) -> _ContextHelper:
         if RequestContext.current_or_none() is None:
             self._token = RequestContext.set_current(
                 RequestContext(pm_id=self.pm_id, fund_id=self.fund_entity_id)
@@ -173,7 +173,7 @@ class LPCommsService:
                 LPRelationship.contact_email.is_not(None),
             )
         )
-        recipient_emails = [row for row in result.scalars().all()]
+        recipient_emails = list(result.scalars().all())
 
         archive = CommunicationArchive(
             pm_id=self.pm_id,

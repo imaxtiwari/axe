@@ -8,7 +8,16 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from axe.db.models import DealDocument, DealRoom, DealThesisVersion, DeckOutput, ICMemo, ICSignOff, UnderwritingChecklist, UnderwritingScenario
+from axe.db.models import (
+    DealDocument,
+    DealRoom,
+    DealThesisVersion,
+    DeckOutput,
+    ICMemo,
+    ICSignOff,
+    UnderwritingChecklist,
+    UnderwritingScenario,
+)
 from axe.db.session import get_async_session
 from axe.db.uow import UnitOfWork
 from axe.security.authz import require_role

@@ -21,8 +21,8 @@ from axe.db.models import (
     DeckTemplate,
     FundEntity,
     InvestmentVehicle,
-    LPUpdate,
     LPRelationship,
+    LPUpdate,
     PMUser,
 )
 from axe.db.uow import UnitOfWork

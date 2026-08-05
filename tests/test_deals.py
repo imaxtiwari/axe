@@ -28,7 +28,6 @@ from axe.db.models import (
 from axe.db.session import get_async_session
 from axe.ingestion.hashing import content_hash
 from axe.main import create_app
-from axe.services.ic_memo import get_default_provider
 
 
 def _mock_provider():
@@ -682,13 +681,9 @@ async def test_ic_memo_generation_sign_off_and_immutability(
     assert "ic_memo_attempted_edit_after_final_signoff" in audit_types
 
     # 10. Verify DB rows
-    db_memos = await db_session.execute(
-        select(ICMemo).where(ICMemo.deal_id == deal_id)
-    )
+    db_memos = await db_session.execute(select(ICMemo).where(ICMemo.deal_id == deal_id))
     assert len(list(db_memos.scalars().all())) == 1
-    db_signoffs = await db_session.execute(
-        select(ICSignOff).where(ICSignOff.memo_id == memo_id)
-    )
+    db_signoffs = await db_session.execute(select(ICSignOff).where(ICSignOff.memo_id == memo_id))
     signoffs = list(db_signoffs.scalars().all())
     assert len(signoffs) == 2
     assert {so.pm_id for so in signoffs} == {user_a.id, user_b.id}
@@ -771,9 +766,7 @@ async def test_generate_deal_deck_from_thesis(
     assert deck_2["content"] == deck["content"]
 
     # Persisted row exists with source linkage.
-    db_output = await db_session.execute(
-        select(DeckOutput).where(DeckOutput.type == "deal_deck")
-    )
+    db_output = await db_session.execute(select(DeckOutput).where(DeckOutput.type == "deal_deck"))
     outputs = list(db_output.scalars().all())
     assert len(outputs) == 2
     assert all(thesis_id in o.source_ids for o in outputs)
@@ -787,4 +780,3 @@ async def test_generate_deal_deck_from_thesis(
     )
     audit_types = [a.action_type for a in audit_result.scalars().all()]
     assert audit_types.count("deck_output_created") == 2
-

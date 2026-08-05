@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from axe.agents.llm import LLMProvider, get_default_provider
 from axe.db.models import DeckOutput, DeckTemplate
 
-
 # Default deck template structures keyed by vehicle type.
 # These are also seeded into the DB by `seed_deck_templates` in models.py.
 DEFAULT_DECK_TEMPLATES: dict[str, dict[str, Any]] = {
@@ -350,9 +349,7 @@ class DeckBuilderAgent:
         slides: list[dict[str, Any]] = []
         for index, item in enumerate(structure, start=1):
             if isinstance(item, dict):
-                slide: dict[str, Any] = self._map_thesis_to_slide(
-                    item, thesis, title, vehicle_type
-                )
+                slide: dict[str, Any] = self._map_thesis_to_slide(item, thesis, title, vehicle_type)
             else:
                 slide = {
                     "title": str(item),
