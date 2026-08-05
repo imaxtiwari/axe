@@ -20,6 +20,9 @@ from axe.db.models import (
     AuditLog,
     DealDocument,
     DealRoom,
+    DealThesisVersion,
+    ICMemo,
+    ICSignOff,
     PMUser,
     ThesisVersion,
     UnderwritingChecklist,
@@ -44,6 +47,33 @@ class _BaseRepo:
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+
+
+class DealThesisRepository(_BaseRepo):
+    """Read helpers for deal thesis versions."""
+
+    async def get_by_id(self, thesis_id: str) -> DealThesisVersion | None:
+        result = await self.session.execute(
+            select(DealThesisVersion).where(DealThesisVersion.id == thesis_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_latest_for_deal(self, deal_id: str) -> DealThesisVersion | None:
+        result = await self.session.execute(
+            select(DealThesisVersion)
+            .where(DealThesisVersion.deal_id == deal_id)
+            .order_by(desc(DealThesisVersion.version))
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    async def list_for_deal(self, deal_id: str) -> list[DealThesisVersion]:
+        result = await self.session.execute(
+            select(DealThesisVersion)
+            .where(DealThesisVersion.deal_id == deal_id)
+            .order_by(desc(DealThesisVersion.version))
+        )
+        return list(result.scalars().all())
 
 
 class ThesisRepository(_BaseRepo):
@@ -124,6 +154,59 @@ class AuditRepository(_BaseRepo):
         self.session.add(entry)
         await self.session.flush()
         return entry
+
+
+class ICMemoRepository(_BaseRepo):
+    """CRUD helpers for IC memos."""
+
+    async def get_by_id(self, memo_id: str) -> ICMemo | None:
+        result = await self.session.execute(select(ICMemo).where(ICMemo.id == memo_id))
+        return result.scalar_one_or_none()
+
+    async def get_latest_for_deal(self, deal_id: str) -> ICMemo | None:
+        result = await self.session.execute(
+            select(ICMemo)
+            .where(ICMemo.deal_id == deal_id)
+            .order_by(desc(ICMemo.version))
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    def create_memo(self, **kwargs: Any) -> ICMemo:
+        memo = ICMemo(**kwargs)
+        self.session.add(memo)
+        return memo
+
+    async def list_for_deal(self, deal_id: str) -> list[ICMemo]:
+        result = await self.session.execute(
+            select(ICMemo)
+            .where(ICMemo.deal_id == deal_id)
+            .order_by(desc(ICMemo.version))
+        )
+        return list(result.scalars().all())
+
+
+class ICSignOffRepository(_BaseRepo):
+    """CRUD helpers for IC memo sign-offs."""
+
+    async def get_by_id(self, signoff_id: str) -> ICSignOff | None:
+        result = await self.session.execute(
+            select(ICSignOff).where(ICSignOff.id == signoff_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def list_for_memo(self, memo_id: str) -> list[ICSignOff]:
+        result = await self.session.execute(
+            select(ICSignOff)
+            .where(ICSignOff.memo_id == memo_id)
+            .order_by(ICSignOff.created_at)
+        )
+        return list(result.scalars().all())
+
+    def create_signoff(self, **kwargs: Any) -> ICSignOff:
+        signoff = ICSignOff(**kwargs)
+        self.session.add(signoff)
+        return signoff
 
 
 class DealRepository(_BaseRepo):
@@ -264,12 +347,15 @@ class UnitOfWork:
 
     Repositories:
         - ``uow.theses``                 -> ``ThesisRepository``
+        - ``uow.deal_theses``            -> ``DealThesisRepository``
         - ``uow.pm_users``               -> ``PMUserRepository``
         - ``uow.audit``                  -> ``AuditRepository``
         - ``uow.deals``                  -> ``DealRepository``
         - ``uow.deal_documents``         -> ``DealDocumentRepository``
         - ``uow.underwriting_checklists`` -> ``UnderwritingChecklistRepository``
         - ``uow.underwriting_scenarios``  -> ``UnderwritingScenarioRepository``
+        - ``uow.ic_memos``                -> ``ICMemoRepository``
+        - ``uow.ic_signoffs``             -> ``ICSignOffRepository``
     """
 
     session: AsyncSession
@@ -279,23 +365,29 @@ class UnitOfWork:
         self._owns_session = session is None
         self._committed = False
         self.theses = ThesisRepository(self.session)
+        self.deal_theses = DealThesisRepository(self.session)
         self.pm_users = PMUserRepository(self.session)
         self.audit = AuditRepository(self.session)
         self.deals = DealRepository(self.session)
         self.deal_documents = DealDocumentRepository(self.session)
         self.underwriting_checklists = UnderwritingChecklistRepository(self.session)
         self.underwriting_scenarios = UnderwritingScenarioRepository(self.session)
+        self.ic_memos = ICMemoRepository(self.session)
+        self.ic_signoffs = ICSignOffRepository(self.session)
 
     async def __aenter__(self) -> UnitOfWork:
         if self._owns_session:
             self.session = AsyncSessionLocal()
             self.theses = ThesisRepository(self.session)
+            self.deal_theses = DealThesisRepository(self.session)
             self.pm_users = PMUserRepository(self.session)
             self.audit = AuditRepository(self.session)
             self.deals = DealRepository(self.session)
             self.deal_documents = DealDocumentRepository(self.session)
             self.underwriting_checklists = UnderwritingChecklistRepository(self.session)
             self.underwriting_scenarios = UnderwritingScenarioRepository(self.session)
+            self.ic_memos = ICMemoRepository(self.session)
+            self.ic_signoffs = ICSignOffRepository(self.session)
         if self.session is None:  # pragma: no cover - type guard
             raise RuntimeError("UnitOfWork has no active session")
         return self

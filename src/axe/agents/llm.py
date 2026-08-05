@@ -150,10 +150,9 @@ class MockProvider(LLMProvider):
 def get_default_provider() -> LLMProvider:
     """Return a provider based on environment configuration."""
     settings = get_settings()
-    if (
-        settings.is_testing
-        or not settings.azure_foundry_endpoint
-        or not settings.azure_foundry_api_key
-    ):
+    # Tests always use the deterministic mock provider unless explicitly overridden.
+    if settings.is_testing:
+        return MockProvider()
+    if not settings.azure_foundry_endpoint or not settings.azure_foundry_api_key:
         return MockProvider()
     return AzureFoundryProvider()

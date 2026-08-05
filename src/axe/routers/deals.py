@@ -8,12 +8,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from axe.db.models import DealDocument, DealRoom, UnderwritingChecklist, UnderwritingScenario
+from axe.db.models import DealDocument, DealRoom, DealThesisVersion, ICMemo, ICSignOff, UnderwritingChecklist, UnderwritingScenario
 from axe.db.session import get_async_session
 from axe.db.uow import UnitOfWork
 from axe.security.authz import require_role
 from axe.security.context import RequestContext, get_request_context
 from axe.services.deal import DealDocumentService, DealRoomService, DealUnderwritingService
+from axe.services.ic_memo import ICMemoService
 
 router = APIRouter(prefix="/api/v1/deals", tags=["deals"])
 
@@ -156,6 +157,72 @@ class ScenarioRunRequest(BaseModel):
 
     thesis_text: str = Field(..., min_length=1)
     vehicle_type: str | None = Field(default=None, max_length=64)
+
+
+class DealThesisCreateRequest(BaseModel):
+    """Create a versioned deal thesis for a deal room."""
+
+    stage: str = Field(..., max_length=64)
+    bull_case: str | None = Field(default=None)
+    bear_case: str | None = Field(default=None)
+    key_assumptions: list[str] = Field(default_factory=list)
+    risks: list[str] | None = Field(default=None)
+
+
+class DealThesisResponse(BaseModel):
+    """Versioned deal thesis record."""
+
+    id: str
+    deal_id: str
+    pm_id: str
+    version: int
+    stage: str
+    bull_case: str | None
+    bear_case: str | None
+    key_assumptions: list[Any]
+    risks: list[Any]
+    created_at: Any
+
+    model_config = {"from_attributes": True}
+
+
+class MemoResponse(BaseModel):
+    """IC memo returned by the API."""
+
+    id: str
+    deal_id: str
+    pm_id: str
+    fund_entity_id: str
+    version: int
+    status: str
+    content_json: dict[str, Any]
+    content_md: str | None
+    final_signoff_at: Any | None
+    created_at: Any
+
+    model_config = {"from_attributes": True}
+
+
+class MemoSignOffRequest(BaseModel):
+    """Request body for signing an IC memo."""
+
+    signer_pm_id: str = Field(..., max_length=36)
+    role: str = Field(default="pm", max_length=64)
+    signature_note: str | None = Field(default=None)
+
+
+class MemoSignOffResponse(BaseModel):
+    """An IC memo sign-off record."""
+
+    id: str
+    memo_id: str
+    pm_id: str
+    fund_entity_id: str
+    role: str
+    signature_note: str | None
+    created_at: Any
+
+    model_config = {"from_attributes": True}
 
 
 # ---------------------------------------------------------------------------
@@ -521,6 +588,265 @@ async def list_underwriting_scenarios(
         service = DealUnderwritingService(uow, pm_id=pm_id, fund_entity_id=fund_id)
         scenarios = await service.list_scenarios(deal_id)
     return scenarios
+
+
+# ---------------------------------------------------------------------------
+# Deal thesis endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/{deal_id}/thesis",
+    response_model=DealThesisResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_role("pm", "admin"))],
+)
+async def create_deal_thesis(
+    deal_id: str,
+    body: DealThesisCreateRequest,
+    session: AsyncSession = Depends(get_async_session),
+    ctx: RequestContext = Depends(get_request_context),
+) -> DealThesisVersion:
+    """Create the next version of a deal thesis."""
+    pm_id, fund_id = _ensure_identity(ctx)
+    async with UnitOfWork(session) as uow:
+        deal = await uow.deals.get_by_id(deal_id)
+        if deal is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Deal {deal_id} not found",
+            )
+        latest = await uow.deal_theses.get_latest_for_deal(deal_id)
+        version = (latest.version + 1) if latest else 1
+        thesis = DealThesisVersion(
+            deal_id=deal_id,
+            pm_id=pm_id,
+            version=version,
+            stage=body.stage,
+            bull_case=body.bull_case,
+            bear_case=body.bear_case,
+            key_assumptions=body.key_assumptions,
+            risks=body.risks or [],
+        )
+        session.add(thesis)
+        await session.flush()
+        await uow.commit()
+    return thesis
+
+
+@router.get(
+    "/{deal_id}/thesis",
+    response_model=list[DealThesisResponse],
+    dependencies=[Depends(require_role("pm", "admin"))],
+)
+async def list_deal_theses(
+    deal_id: str,
+    session: AsyncSession = Depends(get_async_session),
+    ctx: RequestContext = Depends(get_request_context),
+) -> list[DealThesisVersion]:
+    """List deal thesis versions."""
+    pm_id, fund_id = _ensure_identity(ctx)
+    async with UnitOfWork(session) as uow:
+        deal = await uow.deals.get_by_id(deal_id)
+        if deal is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Deal {deal_id} not found",
+            )
+        theses = await uow.deal_theses.list_for_deal(deal_id)
+    return theses
+
+
+# ---------------------------------------------------------------------------
+# IC memo endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/{deal_id}/ic-memos",
+    response_model=MemoResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_role("pm", "admin"))],
+)
+async def generate_ic_memo(
+    deal_id: str,
+    session: AsyncSession = Depends(get_async_session),
+    ctx: RequestContext = Depends(get_request_context),
+) -> ICMemo:
+    """Generate or regenerate the IC memo for a deal."""
+    pm_id, fund_id = _ensure_identity(ctx)
+    async with UnitOfWork(session) as uow:
+        service = ICMemoService(uow, pm_id=pm_id, fund_entity_id=fund_id)
+        try:
+            memo = await service.generate_memo(deal_id)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
+    return memo
+
+
+@router.get(
+    "/{deal_id}/ic-memos",
+    response_model=list[MemoResponse],
+    dependencies=[Depends(require_role("pm", "admin"))],
+)
+async def list_ic_memos(
+    deal_id: str,
+    session: AsyncSession = Depends(get_async_session),
+    ctx: RequestContext = Depends(get_request_context),
+) -> list[ICMemo]:
+    """List all versions of IC memos for a deal."""
+    pm_id, fund_id = _ensure_identity(ctx)
+    async with UnitOfWork(session) as uow:
+        service = ICMemoService(uow, pm_id=pm_id, fund_entity_id=fund_id)
+        memos = await service.list_memos_for_deal(deal_id)
+    return memos
+
+
+@router.get(
+    "/{deal_id}/ic-memos/latest",
+    response_model=MemoResponse,
+    dependencies=[Depends(require_role("pm", "admin"))],
+)
+async def get_latest_ic_memo(
+    deal_id: str,
+    session: AsyncSession = Depends(get_async_session),
+    ctx: RequestContext = Depends(get_request_context),
+) -> ICMemo:
+    """Return the latest IC memo version for a deal."""
+    pm_id, fund_id = _ensure_identity(ctx)
+    async with UnitOfWork(session) as uow:
+        memo = await uow.ic_memos.get_latest_for_deal(deal_id)
+    if memo is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No IC memo found for deal {deal_id}",
+        )
+    return memo
+
+
+@router.get(
+    "/{deal_id}/ic-memos/{memo_id}",
+    response_model=MemoResponse,
+    dependencies=[Depends(require_role("pm", "admin"))],
+)
+async def get_ic_memo(
+    deal_id: str,
+    memo_id: str,
+    session: AsyncSession = Depends(get_async_session),
+    ctx: RequestContext = Depends(get_request_context),
+) -> ICMemo:
+    """Fetch a specific IC memo."""
+    pm_id, fund_id = _ensure_identity(ctx)
+    async with UnitOfWork(session) as uow:
+        memo = await uow.ic_memos.get_by_id(memo_id)
+    if memo is None or memo.deal_id != deal_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Memo {memo_id} not found",
+        )
+    return memo
+
+
+@router.post(
+    "/{deal_id}/ic-memos/{memo_id}/signoffs",
+    response_model=MemoResponse,
+    dependencies=[Depends(require_role("pm", "admin"))],
+)
+async def sign_ic_memo(
+    deal_id: str,
+    memo_id: str,
+    body: MemoSignOffRequest,
+    session: AsyncSession = Depends(get_async_session),
+    ctx: RequestContext = Depends(get_request_context),
+) -> ICMemo:
+    """Record a sign-off on an IC memo."""
+    pm_id, fund_id = _ensure_identity(ctx)
+    async with UnitOfWork(session) as uow:
+        memo = await uow.ic_memos.get_by_id(memo_id)
+        if memo is None or memo.deal_id != deal_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Memo {memo_id} not found",
+            )
+        signer = await uow.pm_users.get_by_id(body.signer_pm_id)
+        if signer is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Signer {body.signer_pm_id} not found",
+            )
+        service = ICMemoService(uow, pm_id=pm_id, fund_entity_id=fund_id)
+        try:
+            memo = await service.sign_memo(
+                memo_id,
+                body.signer_pm_id,
+                role=body.role,
+                signature_note=body.signature_note,
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
+    return memo
+
+
+@router.get(
+    "/{deal_id}/ic-memos/{memo_id}/signoffs",
+    response_model=list[MemoSignOffResponse],
+    dependencies=[Depends(require_role("pm", "admin"))],
+)
+async def list_ic_memo_signoffs(
+    deal_id: str,
+    memo_id: str,
+    session: AsyncSession = Depends(get_async_session),
+    ctx: RequestContext = Depends(get_request_context),
+) -> list[ICSignOff]:
+    """List sign-offs for an IC memo."""
+    pm_id, fund_id = _ensure_identity(ctx)
+    async with UnitOfWork(session) as uow:
+        memo = await uow.ic_memos.get_by_id(memo_id)
+        if memo is None or memo.deal_id != deal_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Memo {memo_id} not found",
+            )
+        signoffs = await uow.ic_signoffs.list_for_memo(memo_id)
+    return signoffs
+
+
+@router.patch(
+    "/{deal_id}/ic-memos/{memo_id}",
+    response_model=MemoResponse,
+    dependencies=[Depends(require_role("pm", "admin"))],
+)
+async def update_ic_memo(
+    deal_id: str,
+    memo_id: str,
+    body: dict[str, Any],
+    session: AsyncSession = Depends(get_async_session),
+    ctx: RequestContext = Depends(get_request_context),
+) -> ICMemo:
+    """Update draft memo content; blocked after final sign-off."""
+    pm_id, fund_id = _ensure_identity(ctx)
+    async with UnitOfWork(session) as uow:
+        memo = await uow.ic_memos.get_by_id(memo_id)
+        if memo is None or memo.deal_id != deal_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Memo {memo_id} not found",
+            )
+        service = ICMemoService(uow, pm_id=pm_id, fund_entity_id=fund_id)
+        try:
+            memo = await service.update_memo(memo_id, **body)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
+    return memo
 
 
 __all__ = ["router"]

@@ -16,7 +16,10 @@ from axe.config import Settings
 from axe.db.models import (
     AuditLog,
     DealDocument,
+    DealThesisVersion,
     FundEntity,
+    ICMemo,
+    ICSignOff,
     PMUser,
     UnderwritingChecklist,
     UnderwritingScenario,
@@ -24,6 +27,14 @@ from axe.db.models import (
 from axe.db.session import get_async_session
 from axe.ingestion.hashing import content_hash
 from axe.main import create_app
+from axe.services.ic_memo import get_default_provider
+
+
+def _mock_provider():
+    """Return a deterministic mock provider for IC memo tests."""
+    from axe.agents.llm import MockProvider
+
+    return MockProvider()
 
 
 @pytest.fixture
@@ -548,3 +559,140 @@ async def test_underwriting_checklist_and_scenario_loop(
         select(UnderwritingScenario).where(UnderwritingScenario.deal_id == deal_id)
     )
     assert len(list(db_scenarios.scalars().all())) == 3
+
+
+# ---------------------------------------------------------------------------
+# IC memo generation, sign-off, and immutability
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_ic_memo_generation_sign_off_and_immutability(
+    client: TestClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Generate memo, sign by two users, attempt edit, assert immutable and audit trail."""
+    monkeypatch.setattr("axe.services.ic_memo.get_default_provider", _mock_provider)
+    fund = await _fund_entity(db_session)
+    user_a = await _pm_user(db_session, fund.id)
+    user_b = await _pm_user(db_session, fund.id)
+    await db_session.commit()
+
+    # 1. Create deal
+    create_resp = client.post(
+        "/api/v1/deals",
+        json={"name": "IC Memo Deal", "asset_class": "private_equity"},
+        headers=_headers(user_a.id, fund.id),
+    )
+    assert create_resp.status_code == 201, create_resp.text
+    deal_id = create_resp.json()["id"]
+
+    # 2. Initialize checklist and complete required items
+    init_resp = client.post(
+        f"/api/v1/deals/{deal_id}/underwriting/checklist",
+        json={"vehicle_type": "equity"},
+        headers=_headers(user_a.id, fund.id),
+    )
+    assert init_resp.status_code == 201, init_resp.text
+    checklist = init_resp.json()
+    required_items = [item for item in checklist if item["required"]]
+    for item in required_items:
+        patch_resp = client.patch(
+            f"/api/v1/deals/{deal_id}/underwriting/checklist/{item['id']}",
+            json={"status": "checked", "answered_by": user_a.id},
+            headers=_headers(user_a.id, fund.id),
+        )
+        assert patch_resp.status_code == 200, patch_resp.text
+
+    # 3. Generate scenarios
+    run_resp = client.post(
+        f"/api/v1/deals/{deal_id}/underwriting/scenarios",
+        json={"thesis_text": "Acme will compound revenue at 20% annually."},
+        headers=_headers(user_a.id, fund.id),
+    )
+    assert run_resp.status_code == 201, run_resp.text
+
+    # 4. Create a deal thesis
+    thesis_resp = client.post(
+        f"/api/v1/deals/{deal_id}/thesis",
+        json={
+            "stage": "ic_review",
+            "bull_case": " strong revenue growth and margin expansion",
+            "bear_case": "Macro slowdown compresses multiples.",
+            "key_assumptions": ["Revenue growth >15%", "Stable margins"],
+            "risks": ["Competition", "Regulation"],
+        },
+        headers=_headers(user_a.id, fund.id),
+    )
+    assert thesis_resp.status_code == 201, thesis_resp.text
+
+    # 5. Generate IC memo
+    memo_resp = client.post(
+        f"/api/v1/deals/{deal_id}/ic-memos",
+        headers=_headers(user_a.id, fund.id),
+    )
+    assert memo_resp.status_code == 201, memo_resp.text
+    memo = memo_resp.json()
+    memo_id = memo["id"]
+    assert memo["deal_id"] == deal_id
+    assert memo["status"] == "draft"
+    assert isinstance(memo["content_json"], dict)
+    assert "recommendation" in memo["content_json"]
+    assert isinstance(memo["content_md"], str)
+    assert "# IC Memo" in memo["content_md"]
+
+    # 6. Sign by two different users
+    for signer in (user_a, user_b):
+        sign_resp = client.post(
+            f"/api/v1/deals/{deal_id}/ic-memos/{memo_id}/signoffs",
+            json={"signer_pm_id": signer.id},
+            headers=_headers(user_a.id, fund.id),
+        )
+        assert sign_resp.status_code == 200, sign_resp.text
+        signed = sign_resp.json()
+        assert signed["status"] == ("final_signed" if signer is user_b else "draft")
+
+    # 7. Verify final signed state
+    get_resp = client.get(
+        f"/api/v1/deals/{deal_id}/ic-memos/{memo_id}",
+        headers=_headers(user_a.id, fund.id),
+    )
+    assert get_resp.status_code == 200
+    assert get_resp.json()["status"] == "final_signed"
+
+    # 8. Attempted edit after final sign-off is blocked
+    edit_resp = client.patch(
+        f"/api/v1/deals/{deal_id}/ic-memos/{memo_id}",
+        json={"content_md": "tampered"},
+        headers=_headers(user_a.id, fund.id),
+    )
+    assert edit_resp.status_code == 422, edit_resp.text
+
+    # 9. Verify audit log contains create, sign, and attempted-edit events
+    audit_result = await db_session.execute(
+        select(AuditLog)
+        .where(AuditLog.object_type == "ic_memo", AuditLog.object_id == memo_id)
+        .order_by(AuditLog.server_timestamp)
+    )
+    audit_types = [entry.action_type for entry in audit_result.scalars().all()]
+    assert "ic_memo_created" in audit_types
+    assert audit_types.count("ic_memo_signed") == 2
+    assert "ic_memo_attempted_edit_after_final_signoff" in audit_types
+
+    # 10. Verify DB rows
+    db_memos = await db_session.execute(
+        select(ICMemo).where(ICMemo.deal_id == deal_id)
+    )
+    assert len(list(db_memos.scalars().all())) == 1
+    db_signoffs = await db_session.execute(
+        select(ICSignOff).where(ICSignOff.memo_id == memo_id)
+    )
+    signoffs = list(db_signoffs.scalars().all())
+    assert len(signoffs) == 2
+    assert {so.pm_id for so in signoffs} == {user_a.id, user_b.id}
+
+    db_thesis = await db_session.execute(
+        select(DealThesisVersion).where(DealThesisVersion.deal_id == deal_id)
+    )
+    assert len(list(db_thesis.scalars().all())) == 1

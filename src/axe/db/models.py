@@ -577,6 +577,11 @@ class DealRoom(Base):
 
     __table_args__ = (Index("ix_deal_rooms_pm_created", "pm_id", "created_at"),)
 
+    thesis_versions: Mapped[list["DealThesisVersion"]] = relationship(
+        "DealThesisVersion", back_populates="deal", lazy="selectin"
+    )
+    ic_memos: Mapped[list["ICMemo"]] = relationship("ICMemo", back_populates="deal")
+
 
 class DealDocument(Base):
     """Documents attached to a deal room."""
@@ -618,6 +623,8 @@ class DealThesisVersion(Base):
         Index("ix_deal_thesis_versions_pm_created", "pm_id", "created_at"),
     )
 
+    deal: Mapped["DealRoom"] = relationship("DealRoom", back_populates="thesis_versions")
+
 
 class UnderwritingChecklist(Base):
     """Deal-specific underwriting checklist items."""
@@ -649,6 +656,56 @@ class UnderwritingScenario(Base):
     probability_weight: Mapped[float | None] = mapped_column(Float)
     confidence: Mapped[float | None] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+
+class ICMemo(Base):
+    """Investment Committee memo with versioned content and sign-off status."""
+
+    __tablename__ = "ic_memos"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    deal_id: Mapped[str] = mapped_column(ForeignKey("deal_rooms.id"), nullable=False, index=True)
+    pm_id: Mapped[str] = mapped_column(ForeignKey("pm_users.id"), nullable=False)
+    fund_entity_id: Mapped[str] = mapped_column(ForeignKey("fund_entities.id"), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    status: Mapped[str] = mapped_column(String(32), default="draft", nullable=False)
+    # Structured JSON payload from the LLM (recommendation, rationale, risks, etc.)
+    content_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Human-readable markdown rendering of the memo
+    content_md: Mapped[str | None] = mapped_column(Text)
+    final_signoff_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("deal_id", "version", name="uq_ic_memos_deal_version"),
+        Index("ix_ic_memos_pm_created", "pm_id", "created_at"),
+    )
+
+    deal: Mapped["DealRoom"] = relationship("DealRoom", back_populates="ic_memos")
+    signoffs: Mapped[list["ICSignOff"]] = relationship(
+        "ICSignOff", back_populates="memo", lazy="selectin"
+    )
+
+
+class ICSignOff(Base):
+    """A single sign-off on an IC memo by an authenticated PM user."""
+
+    __tablename__ = "ic_signoffs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    memo_id: Mapped[str] = mapped_column(ForeignKey("ic_memos.id"), nullable=False, index=True)
+    pm_id: Mapped[str] = mapped_column(ForeignKey("pm_users.id"), nullable=False)
+    fund_entity_id: Mapped[str] = mapped_column(ForeignKey("fund_entities.id"), nullable=False)
+    role: Mapped[str] = mapped_column(String(64), nullable=False)
+    signature_note: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("memo_id", "pm_id", name="uq_ic_signoffs_memo_pm"),
+        Index("ix_ic_signoffs_memo_created", "memo_id", "created_at"),
+    )
+
+    memo: Mapped["ICMemo"] = relationship("ICMemo", back_populates="signoffs")
 
 
 class DeckTemplate(Base):
