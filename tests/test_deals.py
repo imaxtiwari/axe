@@ -17,6 +17,7 @@ from axe.db.models import (
     AuditLog,
     DealDocument,
     DealThesisVersion,
+    DeckOutput,
     FundEntity,
     ICMemo,
     ICSignOff,
@@ -696,3 +697,94 @@ async def test_ic_memo_generation_sign_off_and_immutability(
         select(DealThesisVersion).where(DealThesisVersion.deal_id == deal_id)
     )
     assert len(list(db_thesis.scalars().all())) == 1
+
+
+# ---------------------------------------------------------------------------
+# Deal deck generation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_generate_deal_deck_from_thesis(
+    client: TestClient,
+    db_session: AsyncSession,
+) -> None:
+    """Generate a deal deck from a thesis: slides persisted, source linked, deterministic."""
+    fund = await _fund_entity(db_session)
+    user = await _pm_user(db_session, fund.id)
+    await db_session.commit()
+
+    create_resp = client.post(
+        "/api/v1/deals",
+        json={"name": "Deck Deal", "asset_class": "private_equity"},
+        headers=_headers(user.id, fund.id),
+    )
+    assert create_resp.status_code == 201, create_resp.text
+    deal_id = create_resp.json()["id"]
+
+    thesis_resp = client.post(
+        f"/api/v1/deals/{deal_id}/thesis",
+        json={
+            "stage": "ic_review",
+            "bull_case": "Revenue will grow 25% annually.",
+            "bear_case": "Macro weakness compresses multiples.",
+            "key_assumptions": ["SaaS retention >120%", "Market expansion"],
+            "risks": ["Competition", "Interest rates"],
+        },
+        headers=_headers(user.id, fund.id),
+    )
+    assert thesis_resp.status_code == 201, thesis_resp.text
+    thesis_id = thesis_resp.json()["id"]
+
+    deck_resp = client.post(
+        f"/api/v1/deals/{deal_id}/decks",
+        json={"vehicle_type": "equity", "title": "Acme Equity Deck"},
+        headers=_headers(user.id, fund.id),
+    )
+    assert deck_resp.status_code == 201, deck_resp.text
+    deck = deck_resp.json()
+    assert deck["pm_id"] == user.id
+    assert deck["type"] == "deal_deck"
+    content = deck["content"]
+    assert content["title"] == "Acme Equity Deck"
+    assert content["vehicle_type"] == "equity"
+    assert content["source_thesis_version_id"] == thesis_id
+    assert "template_id" in content
+    slides = content["slides"]
+    assert len(slides) == 8
+    titles = [s["title"] for s in slides]
+    assert "Cover" in titles
+    assert "Executive Summary" in titles
+    assert "Investment Thesis" in titles
+    assert "markdown" in content
+    assert "## Investment Thesis" in content["markdown"]
+
+    # Determinism: a second generation for the same deal yields identical content.
+    deck_resp_2 = client.post(
+        f"/api/v1/deals/{deal_id}/decks",
+        json={"vehicle_type": "equity", "title": "Acme Equity Deck"},
+        headers=_headers(user.id, fund.id),
+    )
+    assert deck_resp_2.status_code == 201, deck_resp_2.text
+    deck_2 = deck_resp_2.json()
+    assert deck_2["id"] != deck["id"]
+    assert deck_2["content"] == deck["content"]
+
+    # Persisted row exists with source linkage.
+    db_output = await db_session.execute(
+        select(DeckOutput).where(DeckOutput.type == "deal_deck")
+    )
+    outputs = list(db_output.scalars().all())
+    assert len(outputs) == 2
+    assert all(thesis_id in o.source_ids for o in outputs)
+    assert all(o.pm_id == user.id for o in outputs)
+
+    # Audit log recorded both outputs.
+    audit_result = await db_session.execute(
+        select(AuditLog)
+        .where(AuditLog.object_type == "deck_output")
+        .order_by(AuditLog.server_timestamp)
+    )
+    audit_types = [a.action_type for a in audit_result.scalars().all()]
+    assert audit_types.count("deck_output_created") == 2
+

@@ -30,6 +30,41 @@ def utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+async def seed_deck_templates(session: Any) -> list["DeckTemplate"]:
+    """Insert default deck templates if they do not already exist.
+
+    Uses asset_class + audience as the unique key so repeated calls are
+    idempotent. Returns the created or existing template rows.
+    """
+    from sqlalchemy import select
+
+    from axe.agents.deck import DEFAULT_DECK_TEMPLATES
+
+    created: list[DeckTemplate] = []
+    for vehicle_type, spec in DEFAULT_DECK_TEMPLATES.items():
+        result = await session.execute(
+            select(DeckTemplate).where(
+                DeckTemplate.asset_class == vehicle_type,
+                DeckTemplate.audience == "ic_committee",
+            )
+        )
+        existing = result.scalar_one_or_none()
+        if existing is not None:
+            created.append(existing)
+            continue
+        template = DeckTemplate(
+            id=str(uuid.uuid4()),
+            name=spec["name"],
+            asset_class=vehicle_type,
+            audience="ic_committee",
+            structure=spec["structure"],
+        )
+        session.add(template)
+        created.append(template)
+    await session.flush()
+    return created
+
+
 class FundEntity(Base):
     """A legal fund or advisor entity for compliance isolation."""
 

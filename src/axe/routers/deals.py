@@ -8,12 +8,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from axe.db.models import DealDocument, DealRoom, DealThesisVersion, ICMemo, ICSignOff, UnderwritingChecklist, UnderwritingScenario
+from axe.db.models import DealDocument, DealRoom, DealThesisVersion, DeckOutput, ICMemo, ICSignOff, UnderwritingChecklist, UnderwritingScenario
 from axe.db.session import get_async_session
 from axe.db.uow import UnitOfWork
 from axe.security.authz import require_role
 from axe.security.context import RequestContext, get_request_context
 from axe.services.deal import DealDocumentService, DealRoomService, DealUnderwritingService
+from axe.services.deck import DealDeckService
 from axe.services.ic_memo import ICMemoService
 
 router = APIRouter(prefix="/api/v1/deals", tags=["deals"])
@@ -220,6 +221,35 @@ class MemoSignOffResponse(BaseModel):
     fund_entity_id: str
     role: str
     signature_note: str | None
+    created_at: Any
+
+    model_config = {"from_attributes": True}
+
+
+class DeckSlideResponse(BaseModel):
+    """A single generated deck slide."""
+
+    slide_number: int
+    title: str
+    bullets: list[str]
+    chart_spec: dict[str, Any] | None = None
+
+
+class DeckGenerationRequest(BaseModel):
+    """Request body for generating a deal deck."""
+
+    vehicle_type: str | None = Field(default=None, max_length=64)
+    title: str | None = Field(default=None, max_length=255)
+    source_data: dict[str, Any] | None = Field(default=None)
+
+
+class DeckGenerationResponse(BaseModel):
+    """Generated deal deck output."""
+
+    id: str
+    pm_id: str
+    type: str
+    content: dict[str, Any]
     created_at: Any
 
     model_config = {"from_attributes": True}
@@ -847,6 +877,42 @@ async def update_ic_memo(
                 detail=str(exc),
             ) from exc
     return memo
+
+
+# ---------------------------------------------------------------------------
+# Deal deck endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/{deal_id}/decks",
+    response_model=DeckGenerationResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_role("pm", "admin"))],
+)
+async def generate_deal_deck(
+    deal_id: str,
+    body: DeckGenerationRequest,
+    session: AsyncSession = Depends(get_async_session),
+    ctx: RequestContext = Depends(get_request_context),
+) -> DeckOutput:
+    """Generate a deterministic deal deck from the latest deal thesis version."""
+    pm_id, fund_id = _ensure_identity(ctx)
+    async with UnitOfWork(session) as uow:
+        service = DealDeckService(uow, pm_id=pm_id, fund_entity_id=fund_id)
+        try:
+            output = await service.generate_deck(
+                deal_id=deal_id,
+                vehicle_type=body.vehicle_type,
+                title=body.title,
+                source_data=body.source_data,
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(exc),
+            ) from exc
+    return output
 
 
 __all__ = ["router"]

@@ -21,6 +21,7 @@ from axe.db.models import (
     DealDocument,
     DealRoom,
     DealThesisVersion,
+    DeckOutput,
     ICMemo,
     ICSignOff,
     PMUser,
@@ -209,6 +210,21 @@ class ICSignOffRepository(_BaseRepo):
         return signoff
 
 
+class DeckOutputRepository(_BaseRepo):
+    """CRUD helpers for generated deck outputs."""
+
+    async def get_by_id(self, deck_id: str) -> DeckOutput | None:
+        result = await self.session.execute(
+            select(DeckOutput).where(DeckOutput.id == deck_id)
+        )
+        return result.scalar_one_or_none()
+
+    def create_output(self, **kwargs: Any) -> DeckOutput:
+        output = DeckOutput(**kwargs)
+        self.session.add(output)
+        return output
+
+
 class DealRepository(_BaseRepo):
     """CRUD helpers for deal rooms."""
 
@@ -356,6 +372,7 @@ class UnitOfWork:
         - ``uow.underwriting_scenarios``  -> ``UnderwritingScenarioRepository``
         - ``uow.ic_memos``                -> ``ICMemoRepository``
         - ``uow.ic_signoffs``             -> ``ICSignOffRepository``
+        - ``uow.deck_outputs``            -> ``DeckOutputRepository``
     """
 
     session: AsyncSession
@@ -374,6 +391,7 @@ class UnitOfWork:
         self.underwriting_scenarios = UnderwritingScenarioRepository(self.session)
         self.ic_memos = ICMemoRepository(self.session)
         self.ic_signoffs = ICSignOffRepository(self.session)
+        self.deck_outputs = DeckOutputRepository(self.session)
 
     async def __aenter__(self) -> UnitOfWork:
         if self._owns_session:
@@ -388,6 +406,7 @@ class UnitOfWork:
             self.underwriting_scenarios = UnderwritingScenarioRepository(self.session)
             self.ic_memos = ICMemoRepository(self.session)
             self.ic_signoffs = ICSignOffRepository(self.session)
+            self.deck_outputs = DeckOutputRepository(self.session)
         if self.session is None:  # pragma: no cover - type guard
             raise RuntimeError("UnitOfWork has no active session")
         return self
