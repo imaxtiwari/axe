@@ -3,18 +3,26 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from axe.agents.llm import LLMProvider, get_default_provider
-from axe.db.models import DeckOutput, DeckTemplate, InvestmentVehicle, LPUpdate, utc_now
+from axe.agents.lp_update import (  # noqa: F401
+    ComplianceGateError,
+    LPUpdateAgent,
+    send_lp_update,
+)
+from axe.db.models import DeckOutput, DeckTemplate, utc_now
 
 
-class ComplianceGateError(RuntimeError):
-    """Raised when an external communication is attempted without human approval."""
+__all__ = [
+    "ComplianceGateError",
+    "DeckBuilderAgent",
+    "LPUpdateAgent",
+    "send_lp_update",
+]
 
 
 class DeckBuilderAgent:
@@ -126,127 +134,3 @@ class DeckBuilderAgent:
         self.session.add(output)
         await self.session.flush()
         return output
-
-
-class LPUpdateAgent:
-    """Gather vehicle activity and draft versioned LP update letters."""
-
-    REQUIRED_SECTIONS = [
-        "Executive Summary",
-        "Portfolio Update",
-        "Performance Commentary",
-        "Outlook",
-        "Appendices",
-    ]
-
-    def __init__(
-        self,
-        session: AsyncSession,
-        provider: LLMProvider | None = None,
-    ) -> None:
-        self.session = session
-        self.provider = provider or get_default_provider()
-
-    async def gather_vehicle_activity(
-        self,
-        vehicle_id: str,
-    ) -> dict[str, Any]:
-        """Collect baseline vehicle and LP relationship data for an update."""
-        vehicle = await self.session.get(InvestmentVehicle, vehicle_id)
-        if vehicle is None:
-            raise ValueError(f"Vehicle {vehicle_id} not found")
-        return {
-            "vehicle_id": vehicle.id,
-            "vehicle_name": vehicle.name,
-            "legal_entity": vehicle.legal_entity,
-            "strategy": vehicle.strategy,
-            "vintage": vehicle.vintage,
-            "currency": vehicle.currency,
-            "as_of": utc_now().strftime("%Y-%m-%d"),
-        }
-
-    @staticmethod
-    def _section(heading: str, body: str) -> dict[str, str]:
-        return {"heading": heading, "body": body}
-
-    async def draft_update(
-        self,
-        vehicle_id: str,
-        quarter: str,
-        activity: dict[str, Any] | None = None,
-    ) -> LPUpdate:
-        """Create a draft LP update with all required sections and footer."""
-        vehicle = await self.session.get(InvestmentVehicle, vehicle_id)
-        if vehicle is None:
-            raise ValueError(f"Vehicle {vehicle_id} not found")
-
-        data = activity or await self.gather_vehicle_activity(vehicle_id)
-        version_date = utc_now().strftime("%Y-%m-%d")
-        sources = data.get("sources") or ["Internal records"]
-        footer = f"Version {version_date} | Sources: {', '.join(sources)} | Draft — internal only."
-
-        sections = [
-            self._section(
-                "Executive Summary",
-                f"Quarterly update for {vehicle.name} for {quarter}. "
-                "This section summarises the key messages for Limited Partners.",
-            ),
-            self._section(
-                "Portfolio Update",
-                f"Portfolio-level activity for {vehicle.name} as of {data.get('as_of', version_date)}. "
-                "Includes new investments, follow-ons, realisations, and reserves.",
-            ),
-            self._section(
-                "Performance Commentary",
-                f"Performance commentary for {vehicle.name}, including NAV, IRR, multiples and "
-                "benchmark context where available.",
-            ),
-            self._section(
-                "Outlook",
-                f"Forward-looking commentary and strategic priorities for {vehicle.name}.",
-            ),
-            self._section(
-                "Appendices",
-                "Supplementary tables, capital account statements, and disclosures.",
-            ),
-            self._section("Footer", footer),
-        ]
-
-        update = LPUpdate(
-            id=str(uuid.uuid4()),
-            vehicle_id=vehicle_id,
-            quarter=quarter,
-            sections=sections,
-            status="draft",
-        )
-        self.session.add(update)
-        await self.session.flush()
-        return update
-
-
-async def send_lp_update(
-    update: LPUpdate,
-    approved_by: str | None = None,
-    sent_at: datetime | None = None,
-) -> LPUpdate:
-    """Compliance gate: external LP updates require human approval before they may be sent.
-
-    This function intentionally does *not* deliver email; it only updates the
-    record status after verifying that a human has approved the draft.
-    """
-    if update.status != "approved" or not approved_by:
-        raise ComplianceGateError(
-            "LP update must be approved and include approved_by before it can be sent."
-        )
-    update.approved_by = approved_by
-    update.sent_at = sent_at or utc_now()
-    update.status = "sent"
-    return update
-
-
-__all__ = [
-    "ComplianceGateError",
-    "DeckBuilderAgent",
-    "LPUpdateAgent",
-    "send_lp_update",
-]

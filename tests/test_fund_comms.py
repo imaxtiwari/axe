@@ -15,7 +15,18 @@ from axe.agents.fund_comms import (
     LPUpdateAgent,
     send_lp_update,
 )
-from axe.db.models import DeckOutput, DeckTemplate, FundEntity, InvestmentVehicle, LPUpdate, PMUser
+from axe.db.models import (
+    CommunicationArchive,
+    DeckOutput,
+    DeckTemplate,
+    FundEntity,
+    InvestmentVehicle,
+    LPUpdate,
+    LPRelationship,
+    PMUser,
+)
+from axe.db.uow import UnitOfWork
+from axe.services.lp_comms import LPCommsService
 
 
 @pytest_asyncio.fixture
@@ -166,3 +177,96 @@ async def test_lp_update_blocks_auto_send(
     assert approved.status == "sent"
     assert approved.approved_by == "compliance_officer_1"
     assert approved.sent_at is not None
+
+
+@pytest_asyncio.fixture
+async def lp_relationship(db_session: AsyncSession, pm_and_vehicle):
+    """Create an LP relationship with a contact email attached to the vehicle."""
+    _pm, vehicle = pm_and_vehicle
+    lp = LPRelationship(
+        id=str(uuid.uuid4()),
+        vehicle_id=vehicle.id,
+        lp_name="Limited Partner One",
+        contact_email="lp-one@example.com",
+    )
+    db_session.add(lp)
+    await db_session.flush()
+    return lp
+
+
+async def test_lpcomms_service_draft_and_send(
+    db_session: AsyncSession,
+    pm_and_vehicle,
+    lp_relationship,
+) -> None:
+    """LPCommsService can draft an update, then approve and archive it on send."""
+    pm, vehicle = pm_and_vehicle
+    uow = UnitOfWork(db_session)
+    service = LPCommsService(
+        uow=uow,
+        pm_id=pm.id,
+        fund_entity_id=vehicle.fund_entity_id,
+    )
+
+    update = await service.draft_update(
+        vehicle_id=vehicle.id,
+        quarter="2026-Q2",
+        activity={"sources": ["Fund admin report", "Portfolio dashboard"]},
+    )
+
+    assert isinstance(update, LPUpdate)
+    assert update.vehicle_id == vehicle.id
+    assert update.quarter == "2026-Q2"
+    assert update.status == "draft"
+    assert update.content_md is not None and "#" in update.content_md
+    assert update.content_html is not None and "<html>" in update.content_html
+
+    result = await db_session.execute(select(LPUpdate).where(LPUpdate.id == update.id))
+    stored = result.scalar_one()
+    assert stored.content_md is not None
+    assert "Performance Summary" in stored.content_md
+    assert stored.content_html is not None
+
+    await service.approve_update(update.id, approved_by="compliance_officer_1")
+    sent = await service.send_update(
+        update.id,
+        approved_by="compliance_officer_1",
+        sent_at=stored.created_at,
+    )
+
+    assert sent.status == "sent"
+    assert sent.approved_by == "compliance_officer_1"
+    assert sent.sent_at is not None
+
+    archived = await db_session.execute(
+        select(CommunicationArchive).where(
+            CommunicationArchive.pm_id == pm.id,
+            CommunicationArchive.channel == "lp_update",
+            CommunicationArchive.message_type == "quarterly_letter",
+        )
+    )
+    archive = archived.scalar_one()
+    assert archive.content_hash is not None and archive.content_hash != ""
+    assert archive.raw_content is not None
+    assert archive.archive_metadata["recipients"] == ["lp-one@example.com"]
+    assert archive.archive_metadata["lp_update_id"] == update.id
+    assert archive.archive_metadata["vehicle_id"] == vehicle.id
+    assert archive.archive_metadata["quarter"] == "2026-Q2"
+
+
+async def test_lpcomms_service_send_requires_approval(
+    db_session: AsyncSession,
+    pm_and_vehicle,
+) -> None:
+    """LPCommsService blocks sending until the update is explicitly approved."""
+    pm, vehicle = pm_and_vehicle
+    service = LPCommsService(
+        uow=UnitOfWork(db_session),
+        pm_id=pm.id,
+        fund_entity_id=vehicle.fund_entity_id,
+    )
+
+    update = await service.draft_update(vehicle_id=vehicle.id, quarter="2026-Q2")
+
+    with pytest.raises(ComplianceGateError):
+        await service.send_update(update.id, approved_by="compliance_officer_1")

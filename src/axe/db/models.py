@@ -782,6 +782,9 @@ class LPUpdate(Base):
     status: Mapped[str] = mapped_column(String(32), default="draft", nullable=False)
     approved_by: Mapped[str | None] = mapped_column(String(36))
     sent_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Rendered outputs for the LP letter
+    content_md: Mapped[str | None] = mapped_column(Text)
+    content_html: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
 
@@ -796,6 +799,8 @@ class CommunicationArchive(Base):
     message_type: Mapped[str] = mapped_column(String(64), nullable=False)
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     raw_content: Mapped[str | None] = mapped_column(Text)
+    # Recipient list, LP update reference, vehicle/quarter etc.
+    archive_metadata: Mapped[dict] = mapped_column(JSON, default=dict)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime)
     retention_exempt: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

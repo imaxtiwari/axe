@@ -17,6 +17,7 @@ from axe.observability import (
 )
 from axe.routers.audit import router as audit_router
 from axe.routers.deals import router as deals_router
+from axe.routers.lp import router as lp_router
 from axe.routers.mnpi import router as mnpi_router
 from axe.routers.onboarding import router as onboarding_router
 from axe.routers.transcripts import router as transcripts_router
@@ -81,6 +82,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(mnpi_router)
     app.include_router(audit_router)
     app.include_router(deals_router)
+    app.include_router(lp_router)
 
     return app
 
