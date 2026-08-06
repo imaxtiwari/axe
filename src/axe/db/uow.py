@@ -153,6 +153,7 @@ class AuditRepository(_BaseRepo):
         fund_entity_id: str | None = None,
         before_state: dict[str, Any] | None = None,
         after_state: dict[str, Any] | None = None,
+        trace_id: str | None = None,
     ) -> AuditLog:
         entry = AuditLog(
             pm_id=pm_id,
@@ -162,6 +163,7 @@ class AuditRepository(_BaseRepo):
             object_id=object_id,
             before_state=before_state or {},
             after_state=after_state or {},
+            trace_id=trace_id,
         )
         self.session.add(entry)
         await self.session.flush()

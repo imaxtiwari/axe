@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -11,8 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from axe.agents.drift_detect import EarningsAlertService
 from axe.db.models import PMUser, RetryQueue, utc_now
 from axe.db.uow import UnitOfWork
+from axe.ingestion.dedup import DedupService
 from axe.services.alert import AlertDelivery, dispatch_earnings_alert
+from axe.services.connector import normalize_payload_to_raw_ingest
 from axe.services.mnpi import MNPIService
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_iso(ts: Any | None) -> datetime:
@@ -119,6 +124,90 @@ async def process_transcript_handler(
     return True
 
 
+async def process_connector_payload_handler(
+    session: AsyncSession,
+    payload: dict[str, Any],
+) -> bool:
+    """Normalize a pushed payload, persist it as RawIngest, and enqueue specialist work.
+
+    Expected payload keys:
+      - pm_id (str)
+      - source_type (str)
+      - external_id (str, optional)
+      - raw_payload (dict, optional)
+      - extracted_signal (dict, optional)
+      - ticker (str, optional)
+    """
+    pm_id = payload.get("pm_id")
+    source_type = payload.get("source_type")
+
+    if not pm_id or not source_type:
+        logger.error("process_connector_payload missing pm_id or source_type")
+        return True
+
+    raw_payload = payload.get("raw_payload") or {}
+    extracted_signal = payload.get("extracted_signal") or {}
+    ticker = payload.get("ticker")
+    external_id = payload.get("external_id")
+
+    raw = await normalize_payload_to_raw_ingest(
+        pm_id=pm_id,
+        source_type=source_type,
+        external_id=external_id,
+        raw_payload=raw_payload,
+        extracted_signal=extracted_signal,
+        ticker=ticker,
+    )
+
+    dedup = DedupService(session)
+    if await dedup.is_duplicate(raw.content_hash, source_id=raw.dedup_key):
+        logger.info(
+            "Duplicate connector payload dropped: source_type=%s pm_id=%s",
+            source_type,
+            pm_id,
+        )
+        return True
+
+    async with UnitOfWork(session) as uow:
+        existing = await uow.raw_ingests.get_by_content_hash(raw.content_hash)
+        if existing is not None:
+            logger.info(
+                "Duplicate raw_ingest found by content_hash: source_type=%s pm_id=%s",
+                source_type,
+                pm_id,
+            )
+            return True
+
+        session.add(raw)
+        await session.flush()
+
+        task = RetryQueue(
+            pm_id=pm_id,
+            task_type="specialize_signal",
+            payload={
+                "pm_id": pm_id,
+                "raw_ingest_id": raw.id,
+                "source_type": source_type,
+                "_content_hash": raw.content_hash,
+                "_idempotency_key": raw.dedup_key,
+            },
+        )
+        session.add(task)
+        await dedup.mark_seen(
+            raw.content_hash,
+            source_type=source_type,
+            source_id=raw.dedup_key,
+        )
+
+    logger.info(
+        "Connector payload persisted: raw_ingest_id=%s source_type=%s pm_id=%s",
+        raw.id,
+        source_type,
+        pm_id,
+    )
+    return True
+
+
 async def send_alert_handler(
     session: AsyncSession,
     payload: dict[str, Any],
@@ -164,6 +253,7 @@ async def send_alert_handler(
 
 __all__ = [
     "process_transcript_handler",
+    "process_connector_payload_handler",
     "send_alert_handler",
     "_parse_iso",
 ]

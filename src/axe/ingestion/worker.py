@@ -10,9 +10,14 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from axe.db.uow import UnitOfWork
 from axe.ingestion.dedup import DedupService
-from axe.ingestion.handlers import process_transcript_handler, send_alert_handler
+from axe.ingestion.handlers import (
+    process_transcript_handler,
+    send_alert_handler,
+)
 from axe.ingestion.retry import RetryQueue
+from axe.services.connector import ConnectorService
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +54,8 @@ def default_registry() -> TaskRegistry:
         registry.register(name, _no_op_handler)
     registry.register("process_transcript", process_transcript_handler)
     registry.register("send_alert", send_alert_handler)
+    registry.register("run_connector", run_connector_handler)
+    registry.register("specialize_signal", specialize_signal_handler)
     return registry
 
 
@@ -155,6 +162,68 @@ class RetryWorker:
             pass
         finally:
             self._task = None
+
+
+async def run_connector_handler(
+    session: AsyncSession,
+    payload: dict[str, Any],
+) -> bool:
+    """Run a connector by source_type for a PM and persist new raw ingests.
+
+    Expected payload keys:
+      - source_type (str)
+      - pm_id (str)
+      - limit (int, optional)
+    """
+    source_type = payload.get("source_type")
+    pm_id = payload.get("pm_id")
+    limit = payload.get("limit")
+
+    if not source_type or not pm_id:
+        logger.error("run_connector payload missing source_type or pm_id")
+        return True
+
+    async with UnitOfWork(session) as uow:
+        service = ConnectorService(uow)
+        result = await service.run(
+            source_type=source_type,
+            pm_id=pm_id,
+            limit=limit,
+        )
+        logger.info("Connector run %s completed: %s", source_type, result)
+        await uow.commit()
+    return True
+
+
+async def specialize_signal_handler(
+    session: AsyncSession,
+    payload: dict[str, Any],
+) -> bool:
+    """Dispatch a raw ingest to the appropriate specialist agent.
+
+    Currently a no-op placeholder; specialist registry dispatch will be
+    implemented in Prompt 3.
+
+    Expected payload keys:
+      - raw_ingest_id (str)
+      - source_type (str)
+      - pm_id (str)
+    """
+    raw_ingest_id = payload.get("raw_ingest_id")
+    source_type = payload.get("source_type")
+    pm_id = payload.get("pm_id")
+
+    if not raw_ingest_id or not source_type or not pm_id:
+        logger.error("specialize_signal payload missing required fields")
+        return True
+
+    logger.info(
+        "specialize_signal placeholder: raw_ingest_id=%s source_type=%s pm_id=%s",
+        raw_ingest_id,
+        source_type,
+        pm_id,
+    )
+    return True
 
 
 __all__ = ["TaskHandler", "TaskRegistry", "RetryWorker", "default_registry"]
