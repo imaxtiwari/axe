@@ -1,7 +1,9 @@
 """FastAPI application entry point for AXE."""
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse, Response
@@ -25,7 +27,7 @@ from axe.security.context import install_middleware
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan events."""
     Path("./data").mkdir(parents=True, exist_ok=True)
     yield
@@ -52,7 +54,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_exception_handlers(app)
 
     @app.get("/healthz", tags=["health"])
-    async def health_check() -> dict:
+    async def health_check() -> dict[str, Any]:
         """Liveness probe."""
         return {"status": "ok", "env": settings.app_env}
 
@@ -74,7 +76,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return Response(content=data, media_type=content_type)
 
     @app.get("/", tags=["root"])
-    async def root() -> dict:
+    async def root() -> dict[str, Any]:
         return {"app": "AXE", "version": "0.1.0"}
 
     app.include_router(onboarding_router)

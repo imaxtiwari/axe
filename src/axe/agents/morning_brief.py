@@ -226,9 +226,9 @@ class MorningBriefAgent:
         theses: list[ThesisVersion],
         tickers: list[TickerRegistry],
         memory: PMMemory | None,
-    ) -> list[tuple[SignalLog, ThesisVersion, dict, float]]:
+    ) -> list[tuple[SignalLog, ThesisVersion, dict[str, Any], float]]:
         """Return scored tuples: (signal, thesis, assumption, relevance_score)."""
-        scored: list[tuple[SignalLog, ThesisVersion, dict, float]] = []
+        scored: list[tuple[SignalLog, ThesisVersion, dict[str, Any], float]] = []
         ticker_set = {t.ticker for t in tickers}
 
         for signal in signals:
@@ -269,7 +269,7 @@ class MorningBriefAgent:
                         signal,
                         thesis,
                         {"id": assumption_id, "text": assumption_text},
-                        score_meta["relevance_score"],
+                        float(score_meta["relevance_score"]),
                     )
                 )
 
@@ -343,7 +343,7 @@ class MorningBriefAgent:
 
     def _build_sections(
         self,
-        scored: list[tuple[SignalLog, ThesisVersion, dict, float]],
+        scored: list[tuple[SignalLog, ThesisVersion, dict[str, Any], float]],
         theses: list[ThesisVersion],
     ) -> list[BriefSection]:
         sections_by_assumption: dict[str, BriefSection] = {}

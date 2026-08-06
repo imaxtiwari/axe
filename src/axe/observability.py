@@ -9,35 +9,33 @@ from typing import Any
 # Optional third-party observability libraries. Code falls back gracefully if they
 # are not installed (e.g. in lightweight test environments).
 try:
-    from pythonjsonlogger.json import JsonFormatter  # type: ignore[import-untyped]
+    from pythonjsonlogger.json import JsonFormatter
 except ImportError:  # pragma: no cover
-    JsonFormatter = None  # type: ignore[misc,assignment]
+    JsonFormatter = None  # type: ignore
 
 try:
-    import sentry_sdk  # type: ignore[import-untyped]
-    from sentry_sdk.integrations.fastapi import FastApiIntegration  # type: ignore[import-untyped]
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
 except ImportError:  # pragma: no cover
-    sentry_sdk = None  # type: ignore[assignment]
-    FastApiIntegration = None  # type: ignore[assignment,misc]
+    sentry_sdk = None  # type: ignore
+    FastApiIntegration = None  # type: ignore
 
 try:
-    from opentelemetry import trace  # type: ignore[import-untyped]
-    from opentelemetry.sdk.resources import Resource  # type: ignore[import-untyped]
-    from opentelemetry.sdk.trace import TracerProvider  # type: ignore[import-untyped]
+    from opentelemetry import trace
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.trace import TracerProvider
 except ImportError:  # pragma: no cover
-    trace = None  # type: ignore[assignment]
-    Resource = None  # type: ignore[assignment,misc]
-    TracerProvider = None  # type: ignore[assignment,misc]
+    trace = None  # type: ignore
+    Resource = None  # type: ignore
+    TracerProvider = None  # type: ignore
 
 try:
-    from opentelemetry.instrumentation.fastapi import (
-        FastAPIInstrumentor,  # type: ignore[import-untyped]
-    )
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 except ImportError:  # pragma: no cover
-    FastAPIInstrumentor = None  # type: ignore[assignment,misc]
+    FastAPIInstrumentor = None  # type: ignore
 
 try:
-    from prometheus_client import (  # type: ignore[import-untyped]
+    from prometheus_client import (
         CONTENT_TYPE_LATEST,
         Counter,
         Histogram,
@@ -45,9 +43,9 @@ try:
     )
 except ImportError:  # pragma: no cover
     CONTENT_TYPE_LATEST = "text/plain; version=0.0.4; charset=utf-8"
-    Counter = None  # type: ignore[assignment,misc]
-    Histogram = None  # type: ignore[assignment,misc]
-    generate_latest = None  # type: ignore[assignment]
+    Counter = None  # type: ignore
+    Histogram = None  # type: ignore
+    generate_latest = None  # type: ignore
 
 
 class _NoOpCounter:
@@ -114,7 +112,7 @@ def configure_logging(level: str = "INFO") -> None:
 
     if JsonFormatter is not None:
         handler.setFormatter(
-            JsonFormatter(  # type: ignore[operator]
+            JsonFormatter(
                 "%(asctime)s %(levelname)s %(name)s %(message)s",
                 rename_fields={"levelname": "level", "asctime": "timestamp"},
             )
@@ -146,7 +144,7 @@ def init_tracing(service_name: str) -> Any:
     """Initialise OpenTelemetry tracing if available."""
     if trace is None or TracerProvider is None:
         return None
-    resource = Resource({"service.name": service_name}) if Resource else None
+    resource = Resource({"service.name": service_name}) if Resource is not None else None
     provider = TracerProvider(resource=resource) if resource else TracerProvider()
     trace.set_tracer_provider(provider)
     return provider
@@ -161,7 +159,7 @@ def instrument_fastapi(app: Any) -> None:
 def render_metrics() -> tuple[bytes, str]:
     """Render Prometheus metrics or a simple fallback payload."""
     if generate_latest is not None:
-        return generate_latest(), CONTENT_TYPE_LATEST  # type: ignore[arg-type]
+        return generate_latest(), CONTENT_TYPE_LATEST
 
     lines: list[str] = []
     for name, value in _METRICS_REGISTRY._counters.items():

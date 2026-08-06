@@ -6,6 +6,7 @@ import logging
 from datetime import UTC, date, datetime
 from typing import Any
 
+from apscheduler.schedulers.base import BaseScheduler
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -16,7 +17,7 @@ from axe.services.brief_delivery import deliver_brief
 logger = logging.getLogger(__name__)
 
 
-def create_scheduler():
+def create_scheduler() -> BaseScheduler:
     """Return an APScheduler AsyncIOScheduler instance."""
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -75,7 +76,7 @@ async def deliver_briefs_to_all_active_pms(
 
 
 def schedule_brief_jobs(
-    scheduler,
+    scheduler: BaseScheduler,
     session_maker: async_sessionmaker[AsyncSession],
 ) -> None:
     """Register the 07:00 UTC Mon-Fri morning-brief cron job."""

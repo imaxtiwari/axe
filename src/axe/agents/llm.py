@@ -18,6 +18,7 @@ class LLMResponse(BaseModel):
     parsed: dict[str, Any] | None = None
     model: str | None = None
     usage: dict[str, int] | None = None
+    trace_id: str | None = None
 
     def get_text(self) -> str:
         return (self.content or "").strip()

@@ -95,6 +95,73 @@ class Settings(BaseSettings):
     google_client_id: str | None = Field(default=None)
     google_client_secret: str | None = Field(default=None)
 
+    # Connectors / ingestion feature flags
+    connectors_enabled: list[str] = Field(
+        default_factory=lambda: [
+            "polygon",
+            "gmail",
+            "slack",
+            "broker_feed",
+            "pdf_deck",
+            "crm",
+            "expert_network",
+            "research_edge",
+            "transcript",
+            "manual",
+        ],
+        description="Source types enabled for ingestion connectors",
+    )
+    connector_default_schedule: str = Field(
+        default="0 */6 * * *", description="Default cron schedule for connector runs"
+    )
+    connector_batch_size: int = Field(default=100, description="Default connector fetch batch size")
+    connector_dedup_window_days: int = Field(
+        default=90, description="Days to look back for connector deduplication"
+    )
+
+    # Memory / persona mining
+    memory_mining_default_days: int = Field(
+        default=90, description="Default email/Slack lookback for memory mining"
+    )
+    memory_mining_include_dms: bool = Field(
+        default=False, description="Include direct messages in memory mining"
+    )
+    persona_refresh_cron: str = Field(
+        default="0 2 * * 0", description="Weekly cron schedule for persona refresh (Sunday 2am)"
+    )
+
+    # Guardrails / anti-hallucination
+    hallucination_score_threshold: float = Field(
+        default=0.3, description="Score above which output requires human review"
+    )
+    hallucination_auto_reject_threshold: float = Field(
+        default=0.7, description="Score above which output is auto-rejected"
+    )
+    citation_coverage_threshold: float = Field(
+        default=0.8, description="Minimum citation coverage for generated claims"
+    )
+    guardrail_policy_check_enabled: bool = Field(default=True)
+    guardrail_mnpi_check_enabled: bool = Field(default=True)
+    guardrail_self_consistency_enabled: bool = Field(default=True)
+    human_review_required_score: float = Field(
+        default=0.5, description="Human review trigger threshold for overall risk score"
+    )
+
+    # Model trace retention
+    model_trace_retention_days: int = Field(default=90, description="Retention for model traces")
+    model_trace_capture_enabled: bool = Field(default=True, description="Capture every LLM call")
+    model_trace_store_prompts: bool = Field(
+        default=False, description="Store prompt text; otherwise only store hashes"
+    )
+
+    # Compliance escalation
+    compliance_auto_escalation_severity: str = Field(
+        default="high", description="Minimum severity for auto-escalation"
+    )
+    compliance_reviewer_role: str = Field(
+        default="compliance_officer", description="Role to assign compliance escalations"
+    )
+
     @field_validator("chroma_persist_dir", mode="before")
     @classmethod
     def ensure_data_dir(cls, value: str) -> str:

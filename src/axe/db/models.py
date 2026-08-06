@@ -146,12 +146,13 @@ class ThesisVersion(Base):
     key_assumptions: Mapped[list[Any]] = mapped_column(JSON, default=list)
     catalysts: Mapped[list[Any]] = mapped_column(JSON, default=list)
     conviction: Mapped[int | None] = mapped_column(Integer)
-    unresolved_risks: Mapped[list] = mapped_column(JSON, default=list)
+    unresolved_risks: Mapped[list[Any]] = mapped_column(JSON, default=list)
     fund_entity_id: Mapped[str] = mapped_column(ForeignKey("fund_entities.id"), nullable=False)
     mnpi_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     retention_exempt: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+    pm_persona_snapshot_id: Mapped[str | None] = mapped_column(String(36))
 
     __table_args__ = (
         UniqueConstraint("pm_id", "ticker", "version", name="uq_thesis_versions_pm_ticker_version"),
@@ -171,8 +172,12 @@ class SignalLog(Base):
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     idempotency_key: Mapped[str | None] = mapped_column(String(255))
     raw_content: Mapped[str | None] = mapped_column(Text)
-    extracted_signal: Mapped[dict] = mapped_column(JSON, default=dict)
-    citation: Mapped[dict] = mapped_column(JSON, default=dict)
+    extracted_signal: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    citation: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    source_id: Mapped[str | None] = mapped_column(String(255))
+    specialist_signal_id: Mapped[str | None] = mapped_column(String(36))
+    parent_signal_id: Mapped[str | None] = mapped_column(String(36))
+    chain_id: Mapped[str | None] = mapped_column(String(36))
     relevance_score: Mapped[float | None] = mapped_column(Float)
     thesis_assumption_id: Mapped[str | None] = mapped_column(String(64))
     stance: Mapped[str | None] = mapped_column(String(32))
@@ -229,7 +234,7 @@ class MNPIReviewQueue(Base):
     mnpi_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     materiality_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     reasoning: Mapped[str | None] = mapped_column(Text)
-    alert_payloads: Mapped[list] = mapped_column(JSON, default=list)
+    alert_payloads: Mapped[list[Any]] = mapped_column(JSON, default=list)
     reviewer_id: Mapped[str | None] = mapped_column(String(36))
     decision_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
@@ -248,12 +253,12 @@ class SparringSession(Base):
     deal_id: Mapped[str | None] = mapped_column(ForeignKey("deal_rooms.id"))
     thesis_version_id: Mapped[str | None] = mapped_column(ForeignKey("thesis_versions.id"))
     input_thesis: Mapped[str | None] = mapped_column(Text)
-    bear_case: Mapped[list] = mapped_column(JSON, default=list)
-    contradicting_signals: Mapped[list] = mapped_column(JSON, default=list)
-    break_conditions: Mapped[list] = mapped_column(JSON, default=list)
-    citation_list: Mapped[list] = mapped_column(JSON, default=list)
+    bear_case: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    contradicting_signals: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    break_conditions: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    citation_list: Mapped[list[Any]] = mapped_column(JSON, default=list)
     pm_response: Mapped[str | None] = mapped_column(Text)
-    accepted_challenges: Mapped[list] = mapped_column(JSON, default=list)
+    accepted_challenges: Mapped[list[Any]] = mapped_column(JSON, default=list)
     output_format: Mapped[str] = mapped_column(String(32), default="structured", nullable=False)
     retention_exempt: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -270,11 +275,14 @@ class MorningBrief(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     pm_id: Mapped[str] = mapped_column(ForeignKey("pm_users.id"), nullable=False)
     date: Mapped[dt.date] = mapped_column(Date, nullable=False)
-    sections: Mapped[list] = mapped_column(JSON, default=list)
-    focus_one: Mapped[dict] = mapped_column(JSON, default=dict)
-    catalyst_week: Mapped[list] = mapped_column(JSON, default=list)
+    sections: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    focus_one: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    catalyst_week: Mapped[list[Any]] = mapped_column(JSON, default=list)
     delivered_slack: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     delivered_email: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    decision_prompts_json: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    actions_json: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    citation_links_json: Mapped[list[Any]] = mapped_column(JSON, default=list)
     retention_exempt: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
@@ -296,15 +304,15 @@ class MeetingSummary(Base):
     deal_id: Mapped[str | None] = mapped_column(ForeignKey("deal_rooms.id"))
     source_url: Mapped[str | None] = mapped_column(String(2048))
     transcript: Mapped[str | None] = mapped_column(Text)
-    guidance_changes: Mapped[list] = mapped_column(JSON, default=list)
-    commitments: Mapped[list] = mapped_column(JSON, default=list)
-    tone_signals: Mapped[list] = mapped_column(JSON, default=list)
-    thesis_conflicts: Mapped[list] = mapped_column(JSON, default=list)
+    guidance_changes: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    commitments: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    tone_signals: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    thesis_conflicts: Mapped[list[Any]] = mapped_column(JSON, default=list)
     mnpi_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     retention_exempt: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    speaker_roles: Mapped[list] = mapped_column(JSON, default=list)
-    citation_timestamps: Mapped[list] = mapped_column(JSON, default=list)
+    speaker_roles: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    citation_timestamps: Mapped[list[Any]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
     __table_args__ = (Index("ix_meeting_summaries_pm_created", "pm_id", "created_at"),)
@@ -318,13 +326,13 @@ class PMMemory(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     pm_id: Mapped[str] = mapped_column(ForeignKey("pm_users.id"), nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
-    profile: Mapped[dict] = mapped_column(JSON, default=dict)
-    ticker_memories: Mapped[dict] = mapped_column(JSON, default=dict)
-    interaction_patterns: Mapped[dict] = mapped_column(JSON, default=dict)
-    fund_context: Mapped[dict] = mapped_column(JSON, default=dict)
-    asset_class_memories: Mapped[dict] = mapped_column(JSON, default=dict)
-    deal_memories: Mapped[dict] = mapped_column(JSON, default=dict)
-    uncertainty_labels: Mapped[dict] = mapped_column(JSON, default=dict)
+    profile: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    ticker_memories: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    interaction_patterns: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    fund_context: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    asset_class_memories: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    deal_memories: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    uncertainty_labels: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     last_synthesized_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
     synthesis_trigger: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
@@ -376,9 +384,11 @@ class PMOAuthToken(Base):
     pm_id: Mapped[str] = mapped_column(ForeignKey("pm_users.id"), nullable=False)
     provider: Mapped[str] = mapped_column(String(64), nullable=False)
     # EncryptedJSON stores a dict with transparent Python-level encryption.
-    token_payload: Mapped[dict] = mapped_column(EncryptedJSON, nullable=False, default=dict)
+    token_payload: Mapped[dict[str, Any]] = mapped_column(
+        EncryptedJSON, nullable=False, default=dict
+    )
     token_expiry: Mapped[datetime | None] = mapped_column(DateTime)
-    scopes: Mapped[list] = mapped_column(JSON, default=list)
+    scopes: Mapped[list[Any]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=utc_now, onupdate=utc_now, nullable=False
@@ -398,7 +408,7 @@ class RetryQueue(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     pm_id: Mapped[str | None] = mapped_column(ForeignKey("pm_users.id"))
     task_type: Mapped[str] = mapped_column(String(128), nullable=False)
-    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     last_attempted_at: Mapped[datetime | None] = mapped_column(DateTime)
     status: Mapped[str] = mapped_column(
@@ -422,13 +432,14 @@ class AuditLog(Base):
     action_type: Mapped[str] = mapped_column(String(64), nullable=False)
     object_type: Mapped[str] = mapped_column(String(64), nullable=False)
     object_id: Mapped[str | None] = mapped_column(String(36))
-    before_state: Mapped[dict] = mapped_column(JSON, default=dict)
-    after_state: Mapped[dict] = mapped_column(JSON, default=dict)
+    before_state: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    after_state: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     source_ip: Mapped[str | None] = mapped_column(String(45))
     session_id: Mapped[str | None] = mapped_column(String(255))
     client_timestamp: Mapped[datetime | None] = mapped_column(DateTime)
     server_timestamp: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
     retention_class: Mapped[str] = mapped_column(String(32), default="standard", nullable=False)
+    trace_id: Mapped[str | None] = mapped_column(String(36))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
     __table_args__ = (Index("ix_audit_log_pm_created", "pm_id", "created_at"),)
@@ -483,7 +494,7 @@ class PMQuietHours(Base):
     start_time: Mapped[str] = mapped_column(String(8), nullable=False)  # HH:MM
     end_time: Mapped[str] = mapped_column(String(8), nullable=False)  # HH:MM
     timezone: Mapped[str] = mapped_column(String(64), nullable=False)
-    override_keywords: Mapped[list] = mapped_column(JSON, default=list)
+    override_keywords: Mapped[list[Any]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
 
@@ -503,7 +514,7 @@ class CatalystEvent(Base):
     event_time: Mapped[str | None] = mapped_column(String(16))  # e.g. "07:00 UTC"
     description: Mapped[str | None] = mapped_column(Text)
     source_url: Mapped[str | None] = mapped_column(String(2048))
-    relevance_tags: Mapped[list] = mapped_column(JSON, default=list)
+    relevance_tags: Mapped[list[Any]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
     __table_args__ = (Index("ix_catalyst_events_ticker_date", "ticker", "event_date"),)
@@ -525,7 +536,7 @@ class BriefReply(Base):
         String(32)
     )  # update_thesis, ask_followup, dismiss_signal
     action_taken: Mapped[str | None] = mapped_column(Text)
-    action_payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    action_payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
     __table_args__ = (Index("ix_brief_replies_brief_created", "brief_id", "created_at"),)
@@ -590,7 +601,7 @@ class CorporateAction(Base):
     ticker: Mapped[str] = mapped_column(String(32), nullable=False)
     action_type: Mapped[str] = mapped_column(String(64), nullable=False)
     effective_date: Mapped[dt.date | None] = mapped_column(Date)
-    details: Mapped[dict] = mapped_column(JSON, default=dict)
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
 
@@ -628,7 +639,7 @@ class DealDocument(Base):
     source_type: Mapped[str] = mapped_column(String(64), nullable=False)
     file_path: Mapped[str | None] = mapped_column(String(2048))
     content_url: Mapped[str | None] = mapped_column(String(2048))
-    extracted_entities: Mapped[dict] = mapped_column(JSON, default=dict)
+    extracted_entities: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     ingestion_status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False)
     content_hash: Mapped[str | None] = mapped_column(String(64))
     file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -646,7 +657,7 @@ class DealThesisVersion(Base):
     pm_id: Mapped[str] = mapped_column(ForeignKey("pm_users.id"), nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     stage: Mapped[str] = mapped_column(String(64), nullable=False)
-    checkpoints: Mapped[list] = mapped_column(JSON, default=list)
+    checkpoints: Mapped[list[Any]] = mapped_column(JSON, default=list)
     bull_case: Mapped[str | None] = mapped_column(Text)
     bear_case: Mapped[str | None] = mapped_column(Text)
     key_assumptions: Mapped[list[Any]] = mapped_column(JSON, default=list)
@@ -686,8 +697,8 @@ class UnderwritingScenario(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     deal_id: Mapped[str] = mapped_column(ForeignKey("deal_rooms.id"), nullable=False)
     scenario_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    assumptions: Mapped[dict] = mapped_column(JSON, default=dict)
-    output_metrics: Mapped[dict] = mapped_column(JSON, default=dict)
+    assumptions: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    output_metrics: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     probability_weight: Mapped[float | None] = mapped_column(Float)
     confidence: Mapped[float | None] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
@@ -705,7 +716,7 @@ class ICMemo(Base):
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     status: Mapped[str] = mapped_column(String(32), default="draft", nullable=False)
     # Structured JSON payload from the LLM (recommendation, rationale, risks, etc.)
-    content_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    content_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     # Human-readable markdown rendering of the memo
     content_md: Mapped[str | None] = mapped_column(Text)
     final_signoff_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -754,7 +765,7 @@ class DeckTemplate(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     asset_class: Mapped[str] = mapped_column(String(64), nullable=False)
     audience: Mapped[str] = mapped_column(String(64), nullable=False)
-    structure: Mapped[list] = mapped_column(JSON, default=list)
+    structure: Mapped[list[Any]] = mapped_column(JSON, default=list)
 
 
 class DeckOutput(Base):
@@ -765,8 +776,8 @@ class DeckOutput(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     pm_id: Mapped[str] = mapped_column(ForeignKey("pm_users.id"), nullable=False)
     type: Mapped[str] = mapped_column(String(64), nullable=False)
-    source_ids: Mapped[list] = mapped_column(JSON, default=list)
-    content: Mapped[dict] = mapped_column(JSON, default=dict)
+    source_ids: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    content: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     export_url: Mapped[str | None] = mapped_column(String(2048))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
@@ -800,8 +811,8 @@ class LPRelationship(Base):
     vehicle_id: Mapped[str] = mapped_column(ForeignKey("investment_vehicles.id"), nullable=False)
     lp_name: Mapped[str] = mapped_column(String(255), nullable=False)
     contact_email: Mapped[str | None] = mapped_column(String(255))
-    side_letter_flags: Mapped[dict] = mapped_column(JSON, default=dict)
-    preferences: Mapped[dict] = mapped_column(JSON, default=dict)
+    side_letter_flags: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    preferences: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
 
@@ -813,13 +824,15 @@ class LPUpdate(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     vehicle_id: Mapped[str] = mapped_column(ForeignKey("investment_vehicles.id"), nullable=False)
     quarter: Mapped[str] = mapped_column(String(16), nullable=False)
-    sections: Mapped[list] = mapped_column(JSON, default=list)
+    sections: Mapped[list[Any]] = mapped_column(JSON, default=list)
     status: Mapped[str] = mapped_column(String(32), default="draft", nullable=False)
     approved_by: Mapped[str | None] = mapped_column(String(36))
     sent_at: Mapped[datetime | None] = mapped_column(DateTime)
     # Rendered outputs for the LP letter
     content_md: Mapped[str | None] = mapped_column(Text)
     content_html: Mapped[str | None] = mapped_column(Text)
+    feedback_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    read_receipts_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
 
@@ -835,10 +848,261 @@ class CommunicationArchive(Base):
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     raw_content: Mapped[str | None] = mapped_column(Text)
     # Recipient list, LP update reference, vehicle/quarter etc.
-    archive_metadata: Mapped[dict] = mapped_column(JSON, default=dict)
+    archive_metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime)
     retention_exempt: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
     __table_args__ = (Index("ix_communication_archive_pm_created", "pm_id", "created_at"),)
+
+
+class ConnectorConfig(Base):
+    """Inbound source connector configuration per PM."""
+
+    __tablename__ = "connector_config"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    pm_id: Mapped[str] = mapped_column(ForeignKey("pm_users.id"), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Encrypted credentials dict (OAuth token, API key, connection string, etc.)
+    credentials_encrypted: Mapped[dict[str, Any]] = mapped_column(EncryptedJSON, default=dict)
+    schedule: Mapped[str | None] = mapped_column(String(64))  # cron or interval label
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    last_cursor: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint("pm_id", "source_type", name="uq_connector_config_pm_source"),
+        Index("ix_connector_config_pm_created", "pm_id", "created_at"),
+    )
+
+
+class RawIngest(Base):
+    """Raw payload and extraction result from a connector run."""
+
+    __tablename__ = "raw_ingest"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    pm_id: Mapped[str] = mapped_column(ForeignKey("pm_users.id"), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    external_id: Mapped[str | None] = mapped_column(String(255))
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    dedup_key: Mapped[str | None] = mapped_column(String(255))
+    raw_payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    extracted_signal_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    extracted_at: Mapped[datetime | None] = mapped_column(DateTime)
+    status: Mapped[str] = mapped_column(
+        String(32), default="pending", nullable=False
+    )  # pending|processed|failed
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+    __table_args__ = (
+        Index("ix_raw_ingest_content_hash", "content_hash"),
+        Index("ix_raw_ingest_pm_created", "pm_id", "created_at"),
+    )
+
+
+class PMPersona(Base):
+    """Synthesized PM writing style, decision triggers, and trusted sources."""
+
+    __tablename__ = "pm_persona"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    pm_id: Mapped[str] = mapped_column(ForeignKey("pm_users.id"), nullable=False)
+    writing_style_summary: Mapped[str | None] = mapped_column(Text)
+    decision_triggers: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    peer_relationships_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    trusted_sources: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    confidence_language: Mapped[str | None] = mapped_column(Text)
+    last_refreshed_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("pm_id", name="uq_pm_persona_pm"),
+        Index("ix_pm_persona_pm_created", "pm_id", "created_at"),
+    )
+
+
+class MemoryCitation(Base):
+    """Cited snippet mined from email/Slack history linked to a ticker or deal."""
+
+    __tablename__ = "memory_citation"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    pm_id: Mapped[str] = mapped_column(ForeignKey("pm_users.id"), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(64), nullable=False)  # gmail|slack|crm|...
+    source_id: Mapped[str | None] = mapped_column(String(255))
+    snippet: Mapped[str | None] = mapped_column(Text)
+    linked_ticker: Mapped[str | None] = mapped_column(String(32))
+    linked_deal_id: Mapped[str | None] = mapped_column(String(36))
+    sentiment: Mapped[str | None] = mapped_column(String(32))
+    extracted_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+    __table_args__ = (Index("ix_memory_citation_pm_created", "pm_id", "created_at"),)
+
+
+class PMPeerMap(Base):
+    """Trusted peer relationships mined from communications history."""
+
+    __tablename__ = "pm_peer_map"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    pm_id: Mapped[str] = mapped_column(ForeignKey("pm_users.id"), nullable=False)
+    peer_email_or_slack_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    peer_name: Mapped[str | None] = mapped_column(String(255))
+    relationship_type: Mapped[str | None] = mapped_column(
+        String(64)
+    )  # colleague, expert, lp, management
+    interaction_frequency: Mapped[str | None] = mapped_column(String(32))  # daily, weekly, monthly
+    topics: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    trust_level: Mapped[str | None] = mapped_column(String(32))  # high, medium, low
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("pm_id", "peer_email_or_slack_id", name="uq_pm_peer_map_pm_peer"),
+        Index("ix_pm_peer_map_pm_created", "pm_id", "created_at"),
+    )
+
+
+class SpecialistSignal(Base):
+    """Structured signal produced by a specialist agent from raw ingestion."""
+
+    __tablename__ = "specialist_signal"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    pm_id: Mapped[str] = mapped_column(ForeignKey("pm_users.id"), nullable=False)
+    raw_ingest_id: Mapped[str | None] = mapped_column(String(36))
+    ticker: Mapped[str | None] = mapped_column(String(32))
+    source_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    specialist_agent: Mapped[str] = mapped_column(String(64), nullable=False)
+    signal_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    summary: Mapped[str | None] = mapped_column(Text)
+    stance: Mapped[str | None] = mapped_column(String(32))
+    confidence: Mapped[float | None] = mapped_column(Float)
+    evidence_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    assumptions_touched: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+    __table_args__ = (
+        Index("ix_specialist_signal_pm_created", "pm_id", "created_at"),
+        Index("ix_specialist_signal_raw_ingest", "raw_ingest_id"),
+    )
+
+
+class ArtifactAction(Base):
+    """Action generated from an artifact and optionally executed by the PM."""
+
+    __tablename__ = "artifact_action"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    artifact_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    artifact_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    pm_id: Mapped[str] = mapped_column(ForeignKey("pm_users.id"), nullable=False)
+    action_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(
+        String(32), default="pending", nullable=False
+    )  # pending|executed|dismissed
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+    executed_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    __table_args__ = (
+        Index("ix_artifact_action_artifact", "artifact_type", "artifact_id"),
+        Index("ix_artifact_action_pm_created", "pm_id", "created_at"),
+    )
+
+
+class DecisionPrompt(Base):
+    """Decision prompt attached to an artifact awaiting PM response."""
+
+    __tablename__ = "decision_prompt"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    pm_id: Mapped[str] = mapped_column(ForeignKey("pm_users.id"), nullable=False)
+    artifact_id: Mapped[str | None] = mapped_column(String(36))
+    prompt_text: Mapped[str | None] = mapped_column(Text)
+    options_json: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    response: Mapped[str | None] = mapped_column(Text)
+    deadline_at: Mapped[datetime | None] = mapped_column(DateTime)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+    __table_args__ = (Index("ix_decision_prompt_pm_created", "pm_id", "created_at"),)
+
+
+class ModelTrace(Base):
+    """Trace record for every LLM completion for guardrails and audit."""
+
+    __tablename__ = "model_trace"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    pm_id: Mapped[str | None] = mapped_column(ForeignKey("pm_users.id"))
+    agent: Mapped[str] = mapped_column(String(128), nullable=False)
+    prompt_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    model: Mapped[str] = mapped_column(String(128), nullable=False)
+    response_schema: Mapped[str | None] = mapped_column(String(128))
+    latency_ms: Mapped[int | None] = mapped_column(Integer)
+    token_usage: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    citations_json: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    hallucination_score: Mapped[float | None] = mapped_column(Float)
+    human_review_status: Mapped[str] = mapped_column(
+        String(32), default="not_required", nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+    __table_args__ = (
+        Index("ix_model_trace_pm_created", "pm_id", "created_at"),
+        Index("ix_model_trace_prompt_hash", "prompt_hash"),
+    )
+
+
+class PolicyRule(Base):
+    """Fund-scoped policy rule for guardrails and compliance automation."""
+
+    __tablename__ = "policy_rule"
+
+    isolation_scope = "global"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    fund_entity_id: Mapped[str] = mapped_column(ForeignKey("fund_entities.id"), nullable=False)
+    rule_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    scope: Mapped[str] = mapped_column(String(32), nullable=False)  # pm|fund|global
+    conditions_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    priority: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+    __table_args__ = (
+        Index("ix_policy_rule_fund", "fund_entity_id"),
+        Index("ix_policy_rule_scope", "scope"),
+    )
+
+
+class ComplianceEscalation(Base):
+    """Compliance escalation opened by guardrails, MNPI, or hallucination review."""
+
+    __tablename__ = "compliance_escalation"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    pm_id: Mapped[str | None] = mapped_column(ForeignKey("pm_users.id"))
+    fund_entity_id: Mapped[str] = mapped_column(ForeignKey("fund_entities.id"), nullable=False)
+    trigger_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    severity: Mapped[str] = mapped_column(String(32), nullable=False)  # low|medium|high|critical
+    status: Mapped[str] = mapped_column(
+        String(32), default="open", nullable=False
+    )  # open|assigned|resolved|dismissed
+    reviewer_id: Mapped[str | None] = mapped_column(String(36))
+    opened_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+    __table_args__ = (
+        Index("ix_compliance_escalation_fund_status", "fund_entity_id", "status"),
+        Index("ix_compliance_escalation_pm_created", "pm_id", "created_at"),
+    )

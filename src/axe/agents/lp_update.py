@@ -275,8 +275,8 @@ class LPUpdateAgent:
         )
         self.session.add(update)
         await self.session.flush()
-        update.content_md = markdown  # type: ignore[attr-defined]
-        update.content_html = html  # type: ignore[attr-defined]
+        update.content_md = markdown
+        update.content_html = html
         return update
 
     async def _build_content(

@@ -5,6 +5,7 @@ Revises: 13213e1afcdc
 Create Date: 2026-07-30 12:14:18.219951
 
 """
+
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -12,8 +13,8 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = 'be01ebb59012'
-down_revision: str | None = '13213e1afcdc'
+revision: str = "be01ebb59012"
+down_revision: str | None = "13213e1afcdc"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -17,14 +17,25 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from axe.db.models import (
+    ArtifactAction,
     AuditLog,
+    ComplianceEscalation,
+    ConnectorConfig,
     DealDocument,
     DealRoom,
     DealThesisVersion,
+    DecisionPrompt,
     DeckOutput,
     ICMemo,
     ICSignOff,
+    MemoryCitation,
+    ModelTrace,
+    PMPeerMap,
+    PMPersona,
     PMUser,
+    PolicyRule,
+    RawIngest,
+    SpecialistSignal,
     ThesisVersion,
     UnderwritingChecklist,
     UnderwritingScenario,
@@ -254,7 +265,7 @@ class DealDocumentRepository(_BaseRepo):
     """CRUD helpers for deal documents scoped through a deal room."""
 
     @staticmethod
-    def _scoped_stmt():
+    def _scoped_stmt() -> Any:
         """Return a select(DealDocument) joined to DealRoom and scoped by fund."""
         from sqlalchemy import select
 
@@ -338,6 +349,320 @@ class UnderwritingScenarioRepository(_BaseRepo):
         return scenario
 
 
+class ConnectorConfigRepository(_BaseRepo):
+    """CRUD helpers for connector configurations."""
+
+    async def get_by_id(self, config_id: str) -> ConnectorConfig | None:
+        result = await self.session.execute(
+            IsolationService.select_for(ConnectorConfig).where(ConnectorConfig.id == config_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_source(self, source_type: str) -> ConnectorConfig | None:
+        result = await self.session.execute(
+            IsolationService.select_for(ConnectorConfig).where(
+                ConnectorConfig.source_type == source_type
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def list_for_pm(self) -> list[ConnectorConfig]:
+        result = await self.session.execute(
+            IsolationService.select_for(ConnectorConfig).order_by(
+                ConnectorConfig.source_type, ConnectorConfig.created_at.desc()
+            )
+        )
+        return list(result.scalars().all())
+
+    def create_config(self, **kwargs: Any) -> ConnectorConfig:
+        config = ConnectorConfig(**kwargs)
+        self.session.add(config)
+        return config
+
+
+class RawIngestRepository(_BaseRepo):
+    """CRUD helpers for raw ingestion records."""
+
+    async def get_by_id(self, ingest_id: str) -> RawIngest | None:
+        result = await self.session.execute(
+            IsolationService.select_for(RawIngest).where(RawIngest.id == ingest_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_content_hash(self, content_hash: str) -> RawIngest | None:
+        result = await self.session.execute(
+            IsolationService.select_for(RawIngest).where(RawIngest.content_hash == content_hash)
+        )
+        return result.scalar_one_or_none()
+
+    async def list_for_pm(self, *, limit: int | None = None) -> list[RawIngest]:
+        stmt = IsolationService.select_for(RawIngest).order_by(RawIngest.created_at.desc())
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    def create_ingest(self, **kwargs: Any) -> RawIngest:
+        ingest = RawIngest(**kwargs)
+        self.session.add(ingest)
+        return ingest
+
+
+class PMPersonaRepository(_BaseRepo):
+    """CRUD helpers for PM persona snapshots."""
+
+    async def get_by_id(self, persona_id: str) -> PMPersona | None:
+        result = await self.session.execute(
+            IsolationService.select_for(PMPersona).where(PMPersona.id == persona_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_current(self) -> PMPersona | None:
+        """Return the most recently created persona for the current PM."""
+        result = await self.session.execute(
+            IsolationService.select_for(PMPersona).order_by(PMPersona.created_at.desc()).limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    def create_persona(self, **kwargs: Any) -> PMPersona:
+        persona = PMPersona(**kwargs)
+        self.session.add(persona)
+        return persona
+
+
+class MemoryCitationRepository(_BaseRepo):
+    """CRUD helpers for memory citations."""
+
+    async def get_by_id(self, citation_id: str) -> MemoryCitation | None:
+        result = await self.session.execute(
+            IsolationService.select_for(MemoryCitation).where(MemoryCitation.id == citation_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def list_for_pm(self, *, limit: int | None = None) -> list[MemoryCitation]:
+        stmt = IsolationService.select_for(MemoryCitation).order_by(
+            MemoryCitation.extracted_at.desc()
+        )
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def list_by_ticker(self, ticker: str) -> list[MemoryCitation]:
+        result = await self.session.execute(
+            IsolationService.select_for(MemoryCitation).where(
+                MemoryCitation.linked_ticker == ticker
+            )
+        )
+        return list(result.scalars().all())
+
+    def create_citation(self, **kwargs: Any) -> MemoryCitation:
+        citation = MemoryCitation(**kwargs)
+        self.session.add(citation)
+        return citation
+
+
+class PMPeerMapRepository(_BaseRepo):
+    """CRUD helpers for PM peer maps."""
+
+    async def get_by_id(self, peer_id: str) -> PMPeerMap | None:
+        result = await self.session.execute(
+            IsolationService.select_for(PMPeerMap).where(PMPeerMap.id == peer_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_peer_id(self, peer_email_or_slack_id: str) -> PMPeerMap | None:
+        result = await self.session.execute(
+            IsolationService.select_for(PMPeerMap).where(
+                PMPeerMap.peer_email_or_slack_id == peer_email_or_slack_id
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def list_for_pm(self) -> list[PMPeerMap]:
+        result = await self.session.execute(
+            IsolationService.select_for(PMPeerMap).order_by(PMPeerMap.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    def create_peer(self, **kwargs: Any) -> PMPeerMap:
+        peer = PMPeerMap(**kwargs)
+        self.session.add(peer)
+        return peer
+
+
+class SpecialistSignalRepository(_BaseRepo):
+    """CRUD helpers for specialist signals."""
+
+    async def get_by_id(self, signal_id: str) -> SpecialistSignal | None:
+        result = await self.session.execute(
+            IsolationService.select_for(SpecialistSignal).where(SpecialistSignal.id == signal_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def list_for_pm(self, *, limit: int | None = None) -> list[SpecialistSignal]:
+        stmt = IsolationService.select_for(SpecialistSignal).order_by(
+            SpecialistSignal.created_at.desc()
+        )
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def list_by_raw_ingest(self, raw_ingest_id: str) -> list[SpecialistSignal]:
+        result = await self.session.execute(
+            IsolationService.select_for(SpecialistSignal).where(
+                SpecialistSignal.raw_ingest_id == raw_ingest_id
+            )
+        )
+        return list(result.scalars().all())
+
+    def create_signal(self, **kwargs: Any) -> SpecialistSignal:
+        signal = SpecialistSignal(**kwargs)
+        self.session.add(signal)
+        return signal
+
+
+class ArtifactActionRepository(_BaseRepo):
+    """CRUD helpers for artifact actions."""
+
+    async def get_by_id(self, action_id: str) -> ArtifactAction | None:
+        result = await self.session.execute(
+            IsolationService.select_for(ArtifactAction).where(ArtifactAction.id == action_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def list_for_artifact(self, artifact_type: str, artifact_id: str) -> list[ArtifactAction]:
+        result = await self.session.execute(
+            IsolationService.select_for(ArtifactAction).where(
+                ArtifactAction.artifact_type == artifact_type,
+                ArtifactAction.artifact_id == artifact_id,
+            )
+        )
+        return list(result.scalars().all())
+
+    def create_action(self, **kwargs: Any) -> ArtifactAction:
+        action = ArtifactAction(**kwargs)
+        self.session.add(action)
+        return action
+
+
+class DecisionPromptRepository(_BaseRepo):
+    """CRUD helpers for decision prompts."""
+
+    async def get_by_id(self, prompt_id: str) -> DecisionPrompt | None:
+        result = await self.session.execute(
+            IsolationService.select_for(DecisionPrompt).where(DecisionPrompt.id == prompt_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def list_open(self) -> list[DecisionPrompt]:
+        result = await self.session.execute(
+            IsolationService.select_for(DecisionPrompt)
+            .where(DecisionPrompt.resolved_at.is_(None))
+            .order_by(DecisionPrompt.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    def create_prompt(self, **kwargs: Any) -> DecisionPrompt:
+        prompt = DecisionPrompt(**kwargs)
+        self.session.add(prompt)
+        return prompt
+
+
+class ModelTraceRepository(_BaseRepo):
+    """CRUD helpers for model trace records."""
+
+    async def get_by_id(self, trace_id: str) -> ModelTrace | None:
+        result = await self.session.execute(
+            IsolationService.select_for(ModelTrace).where(ModelTrace.id == trace_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_prompt_hash(self, prompt_hash: str) -> list[ModelTrace]:
+        result = await self.session.execute(
+            IsolationService.select_for(ModelTrace)
+            .where(ModelTrace.prompt_hash == prompt_hash)
+            .order_by(ModelTrace.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def list_for_pm(self, *, limit: int | None = None) -> list[ModelTrace]:
+        stmt = IsolationService.select_for(ModelTrace).order_by(ModelTrace.created_at.desc())
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    def create_trace(self, **kwargs: Any) -> ModelTrace:
+        trace = ModelTrace(**kwargs)
+        self.session.add(trace)
+        return trace
+
+
+class PolicyRuleRepository(_BaseRepo):
+    """CRUD helpers for policy rules.
+
+    PolicyRule is globally scoped by fund_entity_id, so reads are filtered by
+    the active request context's fund_id rather than pm_id.
+    """
+
+    async def get_by_id(self, rule_id: str) -> PolicyRule | None:
+        result = await self.session.execute(
+            IsolationService.select_for(PolicyRule).where(PolicyRule.id == rule_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def list_for_fund(self) -> list[PolicyRule]:
+        result = await self.session.execute(
+            IsolationService.select_for(PolicyRule).order_by(
+                PolicyRule.priority.desc(), PolicyRule.created_at.desc()
+            )
+        )
+        return list(result.scalars().all())
+
+    async def list_enabled(self) -> list[PolicyRule]:
+        result = await self.session.execute(
+            IsolationService.select_for(PolicyRule)
+            .where(PolicyRule.enabled.is_(True))
+            .order_by(PolicyRule.priority.desc())
+        )
+        return list(result.scalars().all())
+
+    def create_rule(self, **kwargs: Any) -> PolicyRule:
+        rule = PolicyRule(**kwargs)
+        self.session.add(rule)
+        return rule
+
+
+class ComplianceEscalationRepository(_BaseRepo):
+    """CRUD helpers for compliance escalations."""
+
+    async def get_by_id(self, escalation_id: str) -> ComplianceEscalation | None:
+        result = await self.session.execute(
+            IsolationService.select_for(ComplianceEscalation).where(
+                ComplianceEscalation.id == escalation_id
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def list_open_for_fund(self) -> list[ComplianceEscalation]:
+        result = await self.session.execute(
+            IsolationService.select_for(ComplianceEscalation)
+            .where(ComplianceEscalation.status.in_(["open", "assigned"]))
+            .order_by(
+                ComplianceEscalation.opened_at.desc(),
+                ComplianceEscalation.created_at.desc(),
+            )
+        )
+        return list(result.scalars().all())
+
+    def create_escalation(self, **kwargs: Any) -> ComplianceEscalation:
+        escalation = ComplianceEscalation(**kwargs)
+        self.session.add(escalation)
+        return escalation
+
+
 class UnitOfWork:
     """Async Unit of Work context manager.
 
@@ -362,6 +687,17 @@ class UnitOfWork:
         - ``uow.ic_memos``                -> ``ICMemoRepository``
         - ``uow.ic_signoffs``             -> ``ICSignOffRepository``
         - ``uow.deck_outputs``            -> ``DeckOutputRepository``
+        - ``uow.connector_configs``       -> ``ConnectorConfigRepository``
+        - ``uow.raw_ingests``             -> ``RawIngestRepository``
+        - ``uow.pm_personas``             -> ``PMPersonaRepository``
+        - ``uow.memory_citations``        -> ``MemoryCitationRepository``
+        - ``uow.pm_peer_maps``            -> ``PMPeerMapRepository``
+        - ``uow.specialist_signals``      -> ``SpecialistSignalRepository``
+        - ``uow.artifact_actions``        -> ``ArtifactActionRepository``
+        - ``uow.decision_prompts``        -> ``DecisionPromptRepository``
+        - ``uow.model_traces``            -> ``ModelTraceRepository``
+        - ``uow.policy_rules``            -> ``PolicyRuleRepository``
+        - ``uow.compliance_escalations``  -> ``ComplianceEscalationRepository``
     """
 
     session: AsyncSession
@@ -381,6 +717,17 @@ class UnitOfWork:
         self.ic_memos = ICMemoRepository(self.session)
         self.ic_signoffs = ICSignOffRepository(self.session)
         self.deck_outputs = DeckOutputRepository(self.session)
+        self.connector_configs = ConnectorConfigRepository(self.session)
+        self.raw_ingests = RawIngestRepository(self.session)
+        self.pm_personas = PMPersonaRepository(self.session)
+        self.memory_citations = MemoryCitationRepository(self.session)
+        self.pm_peer_maps = PMPeerMapRepository(self.session)
+        self.specialist_signals = SpecialistSignalRepository(self.session)
+        self.artifact_actions = ArtifactActionRepository(self.session)
+        self.decision_prompts = DecisionPromptRepository(self.session)
+        self.model_traces = ModelTraceRepository(self.session)
+        self.policy_rules = PolicyRuleRepository(self.session)
+        self.compliance_escalations = ComplianceEscalationRepository(self.session)
 
     async def __aenter__(self) -> UnitOfWork:
         if self._owns_session:
@@ -396,6 +743,17 @@ class UnitOfWork:
             self.ic_memos = ICMemoRepository(self.session)
             self.ic_signoffs = ICSignOffRepository(self.session)
             self.deck_outputs = DeckOutputRepository(self.session)
+            self.connector_configs = ConnectorConfigRepository(self.session)
+            self.raw_ingests = RawIngestRepository(self.session)
+            self.pm_personas = PMPersonaRepository(self.session)
+            self.memory_citations = MemoryCitationRepository(self.session)
+            self.pm_peer_maps = PMPeerMapRepository(self.session)
+            self.specialist_signals = SpecialistSignalRepository(self.session)
+            self.artifact_actions = ArtifactActionRepository(self.session)
+            self.decision_prompts = DecisionPromptRepository(self.session)
+            self.model_traces = ModelTraceRepository(self.session)
+            self.policy_rules = PolicyRuleRepository(self.session)
+            self.compliance_escalations = ComplianceEscalationRepository(self.session)
         if self.session is None:  # pragma: no cover - type guard
             raise RuntimeError("UnitOfWork has no active session")
         return self

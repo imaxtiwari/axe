@@ -1045,9 +1045,10 @@ def test_transcripts_allows_pm_and_admin(app_client: TestClient):
             json=_transcript_payload("pm_007"),
             headers=_headers("pm_007", role),
         )
-        assert response.status_code not in {401, 403}, (
-            f"role={role} should reach downstream validation, got {response.status_code}"
-        )
+        assert response.status_code not in {
+            401,
+            403,
+        }, f"role={role} should reach downstream validation, got {response.status_code}"
 
 
 def test_transcripts_blocks_compliance(app_client: TestClient):
@@ -1082,9 +1083,10 @@ def test_mnpi_decision_allows_compliance_and_admin(app_client: TestClient):
             json={"decision": "approved", "reviewer_id": "reviewer_x"},
             headers=_headers("pm_007", role),
         )
-        assert response.status_code in {200, 404}, (
-            f"role={role} should not be blocked by RBAC, got {response.status_code}"
-        )
+        assert response.status_code in {
+            200,
+            404,
+        }, f"role={role} should not be blocked by RBAC, got {response.status_code}"
 
 
 def test_mnpi_decision_blocks_pm(app_client: TestClient):

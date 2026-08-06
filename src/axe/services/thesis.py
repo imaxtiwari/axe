@@ -7,7 +7,7 @@ import json
 from collections.abc import Callable, Coroutine
 from typing import Any, TypeVar, cast
 
-from sqlalchemy import Result, desc, func, select
+from sqlalchemy import desc, func, select
 
 from axe.db.models import AuditLog, ThesisVersion, TickerRegistry
 from axe.db.uow import UnitOfWork
@@ -215,18 +215,15 @@ class ThesisRepo:
     async def list_thesis_versions(self, ticker: str) -> list[ThesisVersion]:
         """Return all thesis versions for a ticker, oldest first."""
 
-        async def _build() -> Result[Any]:
-            return cast(
-                Result[Any],
-                await self.session.execute(
-                    IsolationService.select_for(ThesisVersion)
-                    .where(ThesisVersion.ticker == ticker)
-                    .order_by(ThesisVersion.version)
-                ),
+        async def _build() -> list[ThesisVersion]:
+            result = await self.session.execute(
+                IsolationService.select_for(ThesisVersion)
+                .where(ThesisVersion.ticker == ticker)
+                .order_by(ThesisVersion.version)
             )
+            return list(result.scalars().all())
 
-        result = await self._with_context(_build)
-        return list(result.scalars().all())
+        return await self._with_context(_build)
 
     async def get_version_diff(
         self,

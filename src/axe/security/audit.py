@@ -39,6 +39,7 @@ class AuditService:
         source_ip: str | None = None,
         session_id: str | None = None,
         retention_class: str = "standard",
+        trace_id: str | None = None,
         non_blocking: bool = False,
     ) -> None:
         """Write an audit log entry.
@@ -58,10 +59,11 @@ class AuditService:
             source_ip=source_ip,
             session_id=session_id,
             retention_class=retention_class,
+            trace_id=trace_id,
         )
 
         async def _persist() -> None:
-            async with AsyncSession(self.session.bind) as audit_session:  # type: ignore[arg-type]
+            async with AsyncSession(self.session.bind) as audit_session:
                 audit_session.add(entry)
                 await audit_session.commit()
 
@@ -113,6 +115,10 @@ def audit_action(action_type: str, object_type: str) -> Callable[[F], F]:
             if after_id is None and result is not None and hasattr(result, "id"):
                 after_id = result.id
 
+            trace_id = bound.arguments.get("trace_id")
+            if trace_id is None and result is not None and hasattr(result, "trace_id"):
+                trace_id = result.trace_id
+
             audit_service = AuditService(session) if isinstance(session, AsyncSession) else None
             if audit_service is not None and after_id is not None:
                 after_state = _state_dict(result) if result is not None else None
@@ -124,6 +130,7 @@ def audit_action(action_type: str, object_type: str) -> Callable[[F], F]:
                     after_state=after_state,
                     pm_id=pm_id,
                     fund_entity_id=fund_entity_id,
+                    trace_id=trace_id,
                     non_blocking=False,
                 )
 

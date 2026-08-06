@@ -31,7 +31,7 @@ from axe.security.audit import AuditService
 logger = logging.getLogger(__name__)
 
 # Mapping from configured entity type names to model classes.
-_RETENTION_MODELS: dict[str, type] = {
+_RETENTION_MODELS: dict[str, type[Any]] = {
     "signal_log": SignalLog,
     "meeting_summary": MeetingSummary,
     "morning_brief": MorningBrief,
@@ -93,7 +93,7 @@ class RetentionService:
                 logger.warning("Unknown retention entity type: %s", name)
                 continue
 
-            stmt = select(model).where(
+            stmt: Any = select(model).where(
                 and_(
                     model.created_at < self._cutoff,
                     model.retention_exempt.is_(False),
