@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from axe.agents.llm import LLMProvider, LLMResponse
 from axe.config import Settings, get_settings
+from axe.db.models import ModelTrace
 from axe.db.uow import UnitOfWork
 
 
@@ -39,6 +40,7 @@ class TraceableProvider(LLMProvider):
         self.agent = agent
         self.uow = uow
         self.settings = settings or get_settings()
+        self.last_trace: ModelTrace | None = None
 
     def _prompt_hash(self, messages: list[dict[str, str]]) -> str:
         """Return a deterministic SHA-256 hash of the serialized messages."""
@@ -101,7 +103,7 @@ class TraceableProvider(LLMProvider):
         citations: list[Any] = []
         hallucination_score: float | None = None
 
-        self.uow.model_traces.create_trace(
+        self.last_trace = self.uow.model_traces.create_trace(
             id=trace_id,
             pm_id=pm_id,
             agent=self.agent,

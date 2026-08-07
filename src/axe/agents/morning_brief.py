@@ -19,6 +19,7 @@ from axe.db.models import (
     PMMemory,
     PMUser,
     SignalLog,
+    SpecialistSignal,
     ThesisVersion,
     TickerRegistry,
 )
@@ -57,10 +58,25 @@ class CatalystItem(BaseModel):
     source_url: str | None
 
 
+class SpecialistSignalItem(BaseModel):
+    """One curated specialist signal surfaced in the morning brief."""
+
+    id: str
+    ticker: str
+    source_type: str
+    specialist_agent: str
+    signal_type: str
+    summary: str
+    stance: str
+    confidence: float
+    evidence_json: dict[str, Any] = Field(default_factory=dict)
+
+
 class MorningBriefOutput(BaseModel):
     """Structured morning brief."""
 
     sections: list[BriefSection] = Field(default_factory=list)
+    specialist_signals: list[SpecialistSignalItem] = Field(default_factory=list)
     focus_one: FocusOne | None = None
     catalyst_week: list[CatalystItem] = Field(default_factory=list)
 
@@ -108,6 +124,7 @@ class MorningBriefAgent:
         theses = await self._get_theses(pm_id)
         memory = await self._get_memory(pm_id)
         signals = await self._get_recent_signals(pm_id, window_start, as_of)
+        specialist_signals = await self._get_recent_specialist_signals(pm_id, window_start, as_of)
         catalysts = await self._get_catalysts(as_of.date())
 
         scored = await self._score_signals(
@@ -119,8 +136,10 @@ class MorningBriefAgent:
 
         sections = self._build_sections(scored, theses)
         focus_one = self._pick_focus_one(sections, tickers, theses, memory)
+        curated = self._curate_specialist_signals(specialist_signals, tickers)
         brief = MorningBriefOutput(
             sections=sections,
+            specialist_signals=curated,
             focus_one=focus_one,
             catalyst_week=catalysts,
         )
@@ -196,6 +215,49 @@ class MorningBriefAgent:
             )
         )
         return list(result.scalars().all())
+
+    async def _get_recent_specialist_signals(
+        self,
+        pm_id: str,
+        start: datetime,
+        end: datetime,
+    ) -> list[SpecialistSignal]:
+        result = await self.session.execute(
+            select(SpecialistSignal).where(
+                SpecialistSignal.pm_id == pm_id,
+                SpecialistSignal.created_at >= start,
+                SpecialistSignal.created_at <= end,
+            )
+        )
+        return list(result.scalars().all())
+
+    def _curate_specialist_signals(
+        self,
+        signals: list[SpecialistSignal],
+        tickers: list[TickerRegistry],
+    ) -> list[SpecialistSignalItem]:
+        """Return top 5 specialist signals filtered to active tickers and sorted by confidence."""
+        active = {t.ticker for t in tickers if t.active}
+        curated: list[SpecialistSignalItem] = []
+        for signal in signals:
+            ticker = signal.ticker
+            if not ticker or ticker not in active:
+                continue
+            curated.append(
+                SpecialistSignalItem(
+                    id=signal.id,
+                    ticker=ticker,
+                    source_type=signal.source_type,
+                    specialist_agent=signal.specialist_agent,
+                    signal_type=signal.signal_type,
+                    summary=signal.summary or "",
+                    stance=signal.stance or "NEUTRAL",
+                    confidence=signal.confidence or 0.0,
+                    evidence_json=signal.evidence_json or {},
+                )
+            )
+        curated.sort(key=lambda s: s.confidence, reverse=True)
+        return curated[:5]
 
     async def _get_catalysts(self, as_of: date) -> list[CatalystItem]:
         """Return upcoming catalysts for the rest of the current week."""

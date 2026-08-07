@@ -11,9 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from axe.agents.embedding import EmbeddingModel, cosine_similarity, get_default_embedding_model
 from axe.agents.llm import LLMProvider, get_default_provider
+from axe.agents.model_trace import TraceableProvider
+from axe.config import get_settings
 from axe.db.models import (
     BrokenAssumption,
     SignalLog,
+    SpecialistSignal,
     ThesisTest,
     ThesisTestResult,
     ThesisVersion,
@@ -21,6 +24,89 @@ from axe.db.models import (
 )
 from axe.db.uow import UnitOfWork
 from axe.services.thesis import ThesisRepo
+
+
+def _specialist_signal_text(signal: SpecialistSignal) -> str:
+    """Build a signal text string from a structured specialist signal."""
+    parts = [f"[{signal.source_type}] {signal.summary or ''}"]
+    evidence = signal.evidence_json or {}
+    if evidence:
+        # Include headline/title if present without duplicating the summary.
+        for key in ("headline", "title", "subject"):
+            value = evidence.get(key)
+            if value and str(value).strip() != str(signal.summary or "").strip():
+                parts.append(f"{key}: {value}")
+                break
+    return "\n".join(parts)
+
+
+def _specialist_source_url(signal: SpecialistSignal) -> str | None:
+    """Extract a source URL from specialist signal evidence if present."""
+    evidence = signal.evidence_json or {}
+    for key in ("source_url", "url", "link"):
+        value = evidence.get(key)
+        if value:
+            return str(value)
+    return None
+
+
+def _assumption_text(
+    assumptions: list[dict[str, Any]],
+    assumption_id: str | None,
+) -> str:
+    for assumption in assumptions:
+        if not isinstance(assumption, dict):
+            continue
+        if assumption.get("id") == assumption_id:
+            return str(assumption.get("statement") or assumption.get("text") or "")
+    return ""
+
+
+def _needs_human_review(
+    pair: SignalAssumptionPair,
+    trace: Any | None,
+    threshold: float | None = None,
+) -> bool:
+    """Return True when the classification should be routed to human review."""
+    settings = get_settings()
+    threshold = threshold if threshold is not None else settings.hallucination_score_threshold
+    review_score = threshold if threshold is not None else 0.3
+    if trace is not None and getattr(trace, "hallucination_score", None) is not None:
+        return bool(trace.hallucination_score > review_score)
+    # No trace available; use model confidence as a proxy and flag very uncertain results.
+    return pair.confidence is not None and pair.confidence < 0.35
+
+
+def _escalation_payload(
+    signal: SpecialistSignal,
+    thesis: ThesisVersion,
+    assumption_id: str | None,
+    pair: SignalAssumptionPair,
+    trace_id: str | None,
+) -> dict[str, Any]:
+    assumption_text = _assumption_text(thesis.key_assumptions or [], assumption_id)
+    return {
+        "ticker": signal.ticker,
+        "pm_id": signal.pm_id,
+        "assumption_id": assumption_id,
+        "assumption": assumption_text,
+        "signal_id": signal.id,
+        "trace_id": trace_id,
+        "source_type": signal.source_type,
+        "source_url": _specialist_source_url(signal),
+        "specialist_agent": signal.specialist_agent,
+        "stance": pair.stance,
+        "confidence": pair.confidence,
+        "reasoning": pair.reasoning,
+        "message": (
+            f"[{signal.ticker}] HUMAN REVIEW REQUESTED — specialist signal from "
+            f"{signal.specialist_agent} classified as {pair.stance} with low confidence "
+            f"or high hallucination risk. Assumption: {assumption_text}."
+        ),
+        "slack_enabled": True,
+        "email_enabled": True,
+    }
+
 
 Stance = Literal["CONFIRMS", "CONTRADICTS", "NEUTRAL", "UNCERTAIN"]
 STANCES: set[Stance] = {"CONFIRMS", "CONTRADICTS", "NEUTRAL", "UNCERTAIN"}
@@ -347,7 +433,25 @@ class EarningsAlertService:
         if not assumptions:
             return alerts
 
-        classifications = await self.drift_agent.classify_assumptions(signal_text, assumptions)
+        # Wrap the provider for this invocation to capture a ModelTrace when the
+        # injected drift agent exposes one. Tests may monkey-patch a minimal stub
+        # that has no ``provider`` attribute, in which case we use the stub as-is.
+        base_provider = getattr(self.drift_agent, "provider", None)
+        if base_provider is not None:
+            provider = TraceableProvider(
+                base_provider,
+                agent="EarningsAlertService.drift",
+                uow=self.uow,
+            )
+            drift_agent = DriftDetectionAgent(
+                provider=provider,
+                embedding_model=self.drift_agent.embedding_model,
+                similarity_threshold=self.drift_agent.similarity_threshold,
+            )
+        else:
+            drift_agent = self.drift_agent
+
+        classifications = await drift_agent.classify_assumptions(signal_text, assumptions)
         broken_assumption_ids = await self._broken_assumption_ids(pm_id, ticker)
 
         for assumption_id, pair in classifications:
@@ -367,8 +471,8 @@ class EarningsAlertService:
                 raw_content=raw_content or signal_text,
                 extracted_signal={"stance": pair.stance, "reasoning": pair.reasoning},
                 citation={"url": source_url},
-                relevance_score=await self.drift_agent._relevance(
-                    signal_text, self._assumption_text(assumptions, assumption_id)
+                relevance_score=await drift_agent._relevance(
+                    signal_text, _assumption_text(assumptions, assumption_id)
                 ),
                 thesis_assumption_id=assumption_id,
                 stance=pair.stance,
@@ -397,6 +501,137 @@ class EarningsAlertService:
         await self.session.flush()
         return alerts
 
+    async def process_specialist_signals(
+        self,
+        pm_id: str,
+        signals: list[SpecialistSignal],
+        *,
+        review_threshold: float | None = None,
+    ) -> dict[str, Any]:
+        """Classify structured specialist signals and return alerts + review queue items.
+
+        For each signal, the service attempts to match it against the latest
+        published thesis assumptions for its ticker. Contradictions that are not
+        already broken produce an alert payload. Classifications with high
+        hallucination risk (or very low confidence) produce a human-review
+        escalation payload instead of, or in addition to, the alert.
+
+        Returns a dict with keys:
+          - ``alerts``: list of alert payloads for new contradictions.
+          - ``human_reviews``: list of human-review escalation payloads.
+          - ``signal_logs``: list of persisted ``SignalLog`` rows.
+        """
+        alerts: list[dict[str, Any]] = []
+        human_reviews: list[dict[str, Any]] = []
+        signal_logs: list[SignalLog] = []
+
+        if not signals:
+            return {"alerts": alerts, "human_reviews": human_reviews, "signal_logs": signal_logs}
+
+        repo = ThesisRepo(self.uow, pm_id, "")
+
+        for signal in signals:
+            ticker = signal.ticker
+            if not ticker:
+                continue
+
+            latest = await repo.get_latest_thesis(ticker)
+            if latest is None or latest.is_draft:
+                continue
+
+            assumptions = latest.key_assumptions or []
+            if not assumptions:
+                continue
+
+            signal_text = _specialist_signal_text(signal)
+
+            # Wrap the provider for each signal to capture a per-signal ModelTrace.
+            provider = TraceableProvider(
+                self.drift_agent.provider,
+                agent=f"SpecialistDrift.{signal.specialist_agent}",
+                uow=self.uow,
+            )
+            drift_agent = DriftDetectionAgent(
+                provider=provider,
+                embedding_model=self.drift_agent.embedding_model,
+                similarity_threshold=self.drift_agent.similarity_threshold,
+            )
+
+            classifications = await drift_agent.classify_assumptions(signal_text, assumptions)
+            broken_assumption_ids = await self._broken_assumption_ids(pm_id, ticker)
+
+            trace_id: str | None = None
+            trace = None
+            provider_obj = drift_agent.provider
+            if isinstance(provider_obj, TraceableProvider) and hasattr(provider_obj, "last_trace"):
+                trace = provider_obj.last_trace
+                trace_id = trace.id if trace is not None else None
+
+            for assumption_id, pair in classifications:
+                if pair.stance not in {"CONFIRMS", "CONTRADICTS", "NEUTRAL", "UNCERTAIN"}:
+                    continue
+
+                relevance = await drift_agent._relevance(
+                    signal_text, _assumption_text(assumptions, assumption_id)
+                )
+
+                signal_log = SignalLog(
+                    pm_id=pm_id,
+                    ticker=ticker,
+                    source_type=signal.source_type,
+                    content_hash=signal.id,
+                    raw_content=signal_text,
+                    extracted_signal={
+                        "stance": pair.stance,
+                        "reasoning": pair.reasoning,
+                        "specialist_agent": signal.specialist_agent,
+                        "signal_type": signal.signal_type,
+                        "summary": signal.summary,
+                    },
+                    citation={"url": _specialist_source_url(signal)},
+                    relevance_score=relevance,
+                    thesis_assumption_id=assumption_id,
+                    stance=pair.stance,
+                    extraction_confidence=pair.confidence,
+                    alerted=False,
+                    created_at=utc_now(),
+                )
+                self.session.add(signal_log)
+                await self.session.flush()
+                signal_logs.append(signal_log)
+
+                if _needs_human_review(pair, trace, review_threshold):
+                    assert latest is not None
+                    human_reviews.append(
+                        _escalation_payload(signal, latest, assumption_id, pair, trace_id)
+                    )
+                    continue
+
+                if pair.stance == "CONTRADICTS" and assumption_id not in broken_assumption_ids:
+                    signal_log.alerted = True
+                    assert ticker is not None
+                    assert latest is not None
+                    alerts.append(
+                        self._build_alert_payload(
+                            ticker,
+                            latest,
+                            assumption_id,
+                            pair,
+                            _specialist_source_url(signal),
+                            signal_log.id,
+                        )
+                    )
+                    broken = BrokenAssumption(
+                        pm_id=pm_id,
+                        ticker=ticker,
+                        assumption_id=assumption_id or "",
+                        signal_id=signal_log.id,
+                    )
+                    self.session.add(broken)
+
+        await self.session.flush()
+        return {"alerts": alerts, "human_reviews": human_reviews, "signal_logs": signal_logs}
+
     async def _broken_assumption_ids(
         self,
         pm_id: str,
@@ -423,18 +658,6 @@ class EarningsAlertService:
         return broken_ids
 
     @staticmethod
-    def _assumption_text(
-        assumptions: list[dict[str, Any]],
-        assumption_id: str | None,
-    ) -> str:
-        for assumption in assumptions:
-            if not isinstance(assumption, dict):
-                continue
-            if assumption.get("id") == assumption_id:
-                return str(assumption.get("statement") or assumption.get("text") or "")
-        return ""
-
-    @staticmethod
     def _build_alert_payload(
         ticker: str,
         thesis: ThesisVersion,
@@ -443,9 +666,7 @@ class EarningsAlertService:
         source_url: str | None,
         signal_id: str,
     ) -> dict[str, Any]:
-        assumption_text = EarningsAlertService._assumption_text(
-            thesis.key_assumptions or [], assumption_id
-        )
+        assumption_text = _assumption_text(thesis.key_assumptions or [], assumption_id)
         link = f" [source link: {source_url}]" if source_url else ""
         body = (
             f"[{ticker}] THESIS ALERT — {assumption_text} may be breaking. "

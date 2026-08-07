@@ -9,7 +9,7 @@ from typing import Any, TypeVar, cast
 
 from sqlalchemy import desc, func, select
 
-from axe.db.models import AuditLog, ThesisVersion, TickerRegistry
+from axe.db.models import AuditLog, SpecialistSignal, ThesisVersion, TickerRegistry
 from axe.db.uow import UnitOfWork
 from axe.security.audit import _state_dict
 from axe.security.context import RequestContext
@@ -372,3 +372,51 @@ class DriftDetectionService:
                 .order_by(ThesisVersion.ticker)
             )
             return list(result.scalars().all())
+
+    async def alertable_latest_theses_with_signals(
+        self,
+        *,
+        signal_window_hours: float = 24.0,
+        min_confidence: float | None = None,
+    ) -> list[ThesisVersion]:
+        """Return the latest published thesis per ticker joined with recent signals.
+
+        The returned ``ThesisVersion`` instances have a transient
+        ``_specialist_signals`` attribute containing the matching
+        ``SpecialistSignal`` rows produced for that ticker within the configured
+        time window. This keeps the API type-compatible with
+        ``alertable_latest_theses`` while letting downstream agents consume
+        structured specialist signals without an extra query.
+        """
+        from datetime import UTC, datetime, timedelta
+
+        cutoff = datetime.now(UTC) - timedelta(hours=signal_window_hours)
+        theses = await self.alertable_latest_theses()
+        if not theses:
+            return []
+
+        with self._context:
+            ticker_ids = [t.ticker for t in theses]
+            stmt = IsolationService.select_for(SpecialistSignal).where(
+                SpecialistSignal.pm_id == self.pm_id,
+                SpecialistSignal.ticker.in_(ticker_ids),
+                SpecialistSignal.created_at >= cutoff,
+            )
+            if min_confidence is not None:
+                stmt = stmt.where(SpecialistSignal.confidence >= min_confidence)
+            stmt = stmt.order_by(SpecialistSignal.created_at.desc())
+            result = await self.session.execute(stmt)
+            signals = list(result.scalars().all())
+
+        signals_by_ticker: dict[str, list[SpecialistSignal]] = {}
+        for signal in signals:
+            signals_by_ticker.setdefault(signal.ticker or "", []).append(signal)
+
+        for thesis in theses:
+            # Transient attribute used by specialist/drift/morning-brief agents.
+            # Dynamically attach to avoid changing the mapped model class.
+            object.__setattr__(
+                thesis, "_specialist_signals", signals_by_ticker.get(thesis.ticker, [])
+            )
+
+        return theses

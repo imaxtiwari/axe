@@ -51,42 +51,99 @@ Six implementation workstreams grouped into two phases:
 class ConnectorConfig(Base):
     id, pm_id, source_type, credentials_encrypted, schedule, enabled, last_cursor, created_at
 
+
 class RawIngest(Base):
-    id, pm_id, source_type, external_id, content_hash, raw_payload_json, extracted_signal_json,
+    (
+        id,
+        pm_id,
+        source_type,
+        external_id,
+        content_hash,
+        raw_payload_json,
+        extracted_signal_json,
+    )
     extracted_at, status, dedup_key
+
 
 # Memory / identity
 class PMPersona(Base):
-    id, pm_id, writing_style_summary, decision_triggers, peer_relationships_json,
+    (
+        id,
+        pm_id,
+        writing_style_summary,
+        decision_triggers,
+        peer_relationships_json,
+    )
     trusted_sources, confidence_language, last_refreshed_at
 
+
 class MemoryCitation(Base):
-    id, pm_id, source_type, source_id, snippet, linked_ticker, linked_deal_id,
+    (
+        id,
+        pm_id,
+        source_type,
+        source_id,
+        snippet,
+        linked_ticker,
+        linked_deal_id,
+    )
     sentiment, extracted_at
 
+
 class PMPeerMap(Base):
-    id, pm_id, peer_email_or_slack_id, peer_name, relationship_type, interaction_frequency,
+    (
+        id,
+        pm_id,
+        peer_email_or_slack_id,
+        peer_name,
+        relationship_type,
+        interaction_frequency,
+    )
     topics, trust_level
+
 
 # Signal specialists
 class SpecialistSignal(Base):
-    id, pm_id, ticker, source_type, specialist_agent, signal_type, summary, stance,
+    (
+        id,
+        pm_id,
+        ticker,
+        source_type,
+        specialist_agent,
+        signal_type,
+        summary,
+        stance,
+    )
     confidence, evidence_json, assumptions_touched, created_at
+
 
 # Artifact interactivity
 class ArtifactAction(Base):
     id, artifact_type, artifact_id, pm_id, action_type, payload, created_at, executed_at, status
 
+
 class DecisionPrompt(Base):
     id, pm_id, artifact_id, prompt_text, options_json, response, deadline_at, resolved_at
 
+
 # Guardrails
 class ModelTrace(Base):
-    id, pm_id, agent, prompt_hash, model, response_schema, latency_ms, token_usage,
+    (
+        id,
+        pm_id,
+        agent,
+        prompt_hash,
+        model,
+        response_schema,
+        latency_ms,
+        token_usage,
+    )
     citations_json, hallucination_score, human_review_status
+
 
 class PolicyRule(Base):
     id, fund_entity_id, rule_type, scope, conditions_json, action, priority, enabled
+
 
 # Compliance escalation
 class ComplianceEscalation(Base):
@@ -188,6 +245,7 @@ class BaseConnector(ABC):
 
     async def normalize(self, candidate: IngestCandidate) -> SignalLog | None: ...
 
+
 class ConnectorResult(NamedTuple):
     items: list[dict]
     next_cursor: Any | None
@@ -208,13 +266,9 @@ class MemoryMinerAgent:
         self, pm_id: str, token: OAuthToken, channels: list[str]
     ) -> MiningSummary: ...
 
-    async def build_persona(
-        self, pm_id: str, snippets: list[MemoryCitation]
-    ) -> PMPersona: ...
+    async def build_persona(self, pm_id: str, snippets: list[MemoryCitation]) -> PMPersona: ...
 
-    async def map_peers(
-        self, pm_id: str, snippets: list[MemoryCitation]
-    ) -> list[PMPeerMap]: ...
+    async def map_peers(self, pm_id: str, snippets: list[MemoryCitation]) -> list[PMPeerMap]: ...
 ```
 
 ### 4.3 Specialist signal agents (`src/axe/agents/specialist_signal.py`)
@@ -226,11 +280,22 @@ class SpecialistSignalAgent(ABC):
     @abstractmethod
     async def process(self, raw: RawIngest, ctx: AgentContext) -> SpecialistSignal | None: ...
 
+
 class EarningsSpecialist(SpecialistSignalAgent): ...
+
+
 class ResearchEdgeSpecialist(SpecialistSignalAgent): ...
+
+
 class ExpertNetworkSpecialist(SpecialistSignalAgent): ...
+
+
 class BrokerSpecialist(SpecialistSignalAgent): ...
+
+
 class PDFDeckSpecialist(SpecialistSignalAgent): ...
+
+
 class CRMSpecialist(SpecialistSignalAgent): ...
 ```
 
@@ -257,6 +322,7 @@ class AgentMessage(BaseModel):
     payload: dict
     required_confidence: float
 
+
 class AgentCollaborationBus:
     async def publish(self, message: AgentMessage) -> None: ...
     async def subscribe(self, agent_id: str, handler: Callable): ...
@@ -268,7 +334,9 @@ class AgentCollaborationBus:
 ```python
 class GuardrailRunner:
     async def check(self, content: str, ctx: AgentContext) -> GuardrailResult: ...
+
     # checks: mnpi, policy, privacy, securities_regulation, self_consistency
+
 
 class HallucinationGuard:
     async def score(
@@ -285,6 +353,7 @@ class HallucinationGuard:
 ```python
 class PolicyEngine:
     async def evaluate(self, event: PolicyEvent) -> list[PolicyAction]: ...
+
 
 class ComplianceEscalationService:
     async def open(self, trigger: EscalationTrigger) -> ComplianceEscalation: ...

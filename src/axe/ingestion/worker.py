@@ -10,6 +10,13 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from axe.agents.specialist_signal import (
+    AgentContext,
+    record_specialist_signals,
+)
+from axe.agents.specialist_signal import (
+    default_registry as default_specialist_registry,
+)
 from axe.db.uow import UnitOfWork
 from axe.ingestion.dedup import DedupService
 from axe.ingestion.handlers import (
@@ -18,6 +25,7 @@ from axe.ingestion.handlers import (
 )
 from axe.ingestion.retry import RetryQueue
 from axe.services.connector import ConnectorService
+from axe.services.thesis import DriftDetectionService
 
 logger = logging.getLogger(__name__)
 
@@ -201,8 +209,9 @@ async def specialize_signal_handler(
 ) -> bool:
     """Dispatch a raw ingest to the appropriate specialist agent.
 
-    Currently a no-op placeholder; specialist registry dispatch will be
-    implemented in Prompt 3.
+    Uses the specialist signal registry to convert a ``RawIngest`` row into
+    one or more ``SpecialistSignal`` rows. The raw ingest status is updated to
+    ``processed`` on success, or ``failed`` if no agent is registered.
 
     Expected payload keys:
       - raw_ingest_id (str)
@@ -217,13 +226,65 @@ async def specialize_signal_handler(
         logger.error("specialize_signal payload missing required fields")
         return True
 
+    async with UnitOfWork(session) as uow:
+        raw_ingest = await uow.raw_ingests.get_by_id(raw_ingest_id)
+        if raw_ingest is None:
+            logger.warning("RawIngest %s not found; skipping specialization", raw_ingest_id)
+            return True
+
+        registry = default_specialist_registry()
+        agent = registry.build(source_type)
+        if agent is None:
+            logger.warning("No specialist registered for source_type %s", source_type)
+            raw_ingest.status = "failed"
+            await uow.commit()
+            return True
+
+        context = await _build_agent_context_for_pm(uow, pm_id)
+        outputs = await agent.process(raw_ingest, context)
+        if outputs:
+            record_specialist_signals(uow, raw_ingest_id, pm_id, outputs)
+
+        raw_ingest.status = "processed"
+        await uow.commit()
+
     logger.info(
-        "specialize_signal placeholder: raw_ingest_id=%s source_type=%s pm_id=%s",
+        "specialize_signal complete: raw_ingest_id=%s source_type=%s pm_id=%s signals=%s",
         raw_ingest_id,
         source_type,
         pm_id,
+        len(outputs),
     )
     return True
+
+
+async def _build_agent_context_for_pm(uow: UnitOfWork, pm_id: str) -> AgentContext:
+    """Build an ``AgentContext`` for ``pm_id`` from current theses and persona."""
+    from axe.security.context import RequestContext
+
+    ctx = RequestContext.current_or_none()
+    fund_id = ctx.fund_id if ctx is not None else None
+
+    persona_row = await uow.pm_personas.get_current()
+    persona = persona_row.decision_triggers if persona_row else None
+
+    thesis_service = DriftDetectionService(uow, pm_id)
+    theses = await thesis_service.alertable_latest_theses_with_signals()
+
+    return AgentContext(
+        pm_id=pm_id,
+        fund_id=fund_id,
+        persona=persona,
+        active_tickers={t.ticker for t in theses},
+        recent_theses=[
+            {
+                "ticker": t.ticker,
+                "direction": t.direction,
+                "key_assumptions": t.key_assumptions or [],
+            }
+            for t in theses
+        ],
+    )
 
 
 __all__ = ["TaskHandler", "TaskRegistry", "RetryWorker", "default_registry"]
