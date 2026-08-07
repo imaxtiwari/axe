@@ -11,6 +11,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from axe.agents.llm import LLMProvider, get_default_provider
+from axe.agents.persona_models import PersonaStyleSnapshot
 from axe.db.models import ThesisVersion
 
 
@@ -53,13 +54,30 @@ class ThesisExtractAgent:
         "If the input is vague or unsupported, set unsupported=true."
     )
 
+    def _build_system_prompt(self, persona: PersonaStyleSnapshot | None = None) -> str:
+        """Return the system prompt, optionally infused with PM persona guidance."""
+        prompt = self.SYSTEM_PROMPT
+        if persona:
+            snippet = persona.render_system_prompt_snippet()
+            if snippet:
+                prompt += (
+                    "\n\nTailor language and emphasis to the PM's style. "
+                    "Prioritize the PM's decision triggers and trusted sources when inferring "
+                    "conviction and risks.\n" + snippet
+                )
+        return prompt
+
     def __init__(self, provider: LLMProvider | None = None) -> None:
         self.provider = provider or get_default_provider()
 
-    async def extract(self, content: str) -> ExtractedThesis:
+    async def extract(
+        self,
+        content: str,
+        persona: PersonaStyleSnapshot | None = None,
+    ) -> ExtractedThesis:
         """Extract a structured thesis from unstructured ``content``."""
         messages = [
-            {"role": "system", "content": self.SYSTEM_PROMPT},
+            {"role": "system", "content": self._build_system_prompt(persona)},
             {"role": "user", "content": content},
         ]
         response = await self.provider.complete(
@@ -143,16 +161,25 @@ class ThesisExtractAgent:
             mnpi_flag=extracted.mnpi_flag or base.mnpi_flag,
         )
 
-    async def run(self, content: str, latest: ThesisVersion | None = None) -> ThesisVersion | None:
+    async def run(
+        self,
+        content: str,
+        latest: ThesisVersion | None = None,
+        persona: PersonaStyleSnapshot | None = None,
+    ) -> ThesisVersion | None:
         """End-to-end extract + reconcile, returning None for non-thesis or empty input."""
-        extracted = await self.extract(content)
+        extracted = await self.extract(content, persona=persona)
         if extracted.not_investment_thesis or extracted.is_empty() or extracted.unsupported:
             return None
         return await self.reconcile(extracted, latest)
 
-    async def from_natural_language(self, content: str) -> dict[str, Any]:
+    async def from_natural_language(
+        self,
+        content: str,
+        persona: PersonaStyleSnapshot | None = None,
+    ) -> dict[str, Any]:
         """Legacy-compatible wrapper returning a dict for ThesisRepo.create_thesis."""
-        extracted = await self.extract(content)
+        extracted = await self.extract(content, persona=persona)
         return {
             "ticker": extracted.ticker,
             "bull_case": extracted.bull_case,

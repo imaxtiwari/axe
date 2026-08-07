@@ -8,8 +8,10 @@ returns a single ``IngestCandidate`` per page (or per document if requested).
 from __future__ import annotations
 
 import base64
+import importlib
 import io
 import os
+from typing import Any
 
 from axe.connectors.base import BaseConnector, ConnectorError, ConnectorResult, IngestCandidate
 
@@ -128,25 +130,28 @@ class PDFDeckConnector(BaseConnector):
         try:
             import fitz
 
-            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-            pages = [page.get_text() or "" for page in doc]
+            doc: Any = fitz.open(stream=pdf_bytes, filetype="pdf")
+            pages: list[str] = []
+            for page in doc:
+                text = page.get_text()
+                pages.append(text if isinstance(text, str) else "")
             doc.close()
             return pages
         except ImportError:
             pass
 
         try:
-            import pdfplumber
-
-            extracted: list[str] = []
-            with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-                for page in pdf.pages:
-                    text = page.extract_text() or ""
-                    extracted.append(text)
-            return extracted
+            pdfplumber: Any = importlib.import_module("pdfplumber")
         except ImportError as exc:
             raise ConnectorError(
                 "PDF extraction requires pymupdf or pdfplumber",
                 source_type=self.source_type,
                 is_retryable=False,
             ) from exc
+
+        extracted: list[str] = []
+        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+            for page in pdf.pages:
+                text = page.extract_text()
+                extracted.append(text if isinstance(text, str) else "")
+        return extracted

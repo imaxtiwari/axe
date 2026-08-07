@@ -13,10 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from axe.agents.embedding import EmbeddingModel, cosine_similarity, get_default_embedding_model
 from axe.agents.llm import LLMProvider, get_default_provider
+from axe.agents.persona_models import PersonaStyleSnapshot
 from axe.db.models import (
     CatalystEvent,
     MorningBrief,
     PMMemory,
+    PMPersona,
     PMUser,
     SignalLog,
     SpecialistSignal,
@@ -114,6 +116,7 @@ class MorningBriefAgent:
         self,
         pm_id: str,
         as_of: datetime | None = None,
+        persona: PersonaStyleSnapshot | None = None,
     ) -> MorningBriefOutput:
         """Generate a brief for ``pm_id`` scoped to the 24h window ending at ``as_of``."""
         as_of = as_of or datetime.now(UTC)
@@ -123,6 +126,7 @@ class MorningBriefAgent:
         tickers = await self._get_tickers(pm_id)
         theses = await self._get_theses(pm_id)
         memory = await self._get_memory(pm_id)
+        persona = persona or await self._get_persona(pm_id)
         signals = await self._get_recent_signals(pm_id, window_start, as_of)
         specialist_signals = await self._get_recent_specialist_signals(pm_id, window_start, as_of)
         catalysts = await self._get_catalysts(as_of.date())
@@ -132,6 +136,7 @@ class MorningBriefAgent:
             theses=theses,
             tickers=tickers,
             memory=memory,
+            persona=persona,
         )
 
         sections = self._build_sections(scored, theses)
@@ -200,6 +205,18 @@ class MorningBriefAgent:
             select(PMMemory).where(PMMemory.pm_id == pm_id).order_by(PMMemory.version.desc())
         )
         return result.scalars().first()
+
+    async def _get_persona(self, pm_id: str) -> PersonaStyleSnapshot | None:
+        """Load the current persona snapshot for the PM, if one exists."""
+        from axe.agents.persona import PersonaAgent
+
+        result = await self.session.execute(
+            select(PMPersona).where(PMPersona.pm_id == pm_id).order_by(PMPersona.created_at.desc())
+        )
+        model = result.scalars().first()
+        if model is None:
+            return None
+        return PersonaAgent.snapshot_from_model(model)
 
     async def _get_recent_signals(
         self,
@@ -288,6 +305,7 @@ class MorningBriefAgent:
         theses: list[ThesisVersion],
         tickers: list[TickerRegistry],
         memory: PMMemory | None,
+        persona: PersonaStyleSnapshot | None = None,
     ) -> list[tuple[SignalLog, ThesisVersion, dict[str, Any], float]]:
         """Return scored tuples: (signal, thesis, assumption, relevance_score)."""
         scored: list[tuple[SignalLog, ThesisVersion, dict[str, Any], float]] = []
@@ -325,6 +343,7 @@ class MorningBriefAgent:
                     thesis=thesis,
                     assumption_text=assumption_text,
                     memory=memory,
+                    persona=persona,
                 )
                 scored.append(
                     (
@@ -353,6 +372,7 @@ class MorningBriefAgent:
         thesis: ThesisVersion,
         assumption_text: str,
         memory: PMMemory | None,
+        persona: PersonaStyleSnapshot | None = None,
     ) -> dict[str, Any]:
         memory_context = ""
         if memory:
@@ -363,6 +383,10 @@ class MorningBriefAgent:
                 f"Ticker memory for {thesis.ticker}: {ticker_mem}."
             )
 
+        persona_snippet = ""
+        if persona:
+            persona_snippet = persona.render_system_prompt_snippet()
+
         prompt = (
             "You score how much the following signal matters to a specific thesis assumption.\n\n"
             f"Ticker: {thesis.ticker}\n"
@@ -371,6 +395,10 @@ class MorningBriefAgent:
             f"Signal source: {signal.source_type}\n"
             f"Signal content: {signal.raw_content or signal.extracted_signal.get('summary', '')}\n\n"
             f"Memory context: {memory_context}\n\n"
+        )
+        if persona_snippet:
+            prompt += f"PM persona guidance: {persona_snippet}\n\n"
+        prompt += (
             "Return a JSON object with: relevance_score (0.0-1.0), is_generic_macro (bool), "
             "stance (CONFIRMS|CONTRADICTS|NEUTRAL|UNCERTAIN), and reason."
         )

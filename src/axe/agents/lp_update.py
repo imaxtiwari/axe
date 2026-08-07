@@ -16,12 +16,14 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from axe.agents.llm import LLMProvider, get_default_provider
+from axe.agents.persona_models import PersonaStyleSnapshot
 from axe.db.models import (
     DealRoom,
     DealThesisVersion,
     InvestmentVehicle,
     LPRelationship,
     LPUpdate,
+    PMPersona,
     TickerRegistry,
     utc_now,
 )
@@ -71,11 +73,13 @@ class LPUpdateAgent:
         *,
         pm_id: str | None = None,
         fund_entity_id: str | None = None,
+        persona: PersonaStyleSnapshot | None = None,
     ) -> None:
         self.session = session
         self.provider = provider or get_default_provider()
         self.pm_id = pm_id
         self.fund_entity_id = fund_entity_id
+        self.persona = persona
 
     async def gather_vehicle_activity(self, vehicle_id: str) -> dict[str, Any]:
         """Collect baseline vehicle and LP relationship data for an update."""
@@ -279,6 +283,22 @@ class LPUpdateAgent:
         update.content_html = html
         return update
 
+    async def _get_persona(self) -> PersonaStyleSnapshot | None:
+        """Load the current PM persona snapshot if not already injected."""
+        if self.persona is not None:
+            return self.persona
+        if not self.pm_id:
+            return None
+        from axe.agents.persona import PersonaAgent
+
+        result = await self.session.execute(
+            select(PMPersona).where(PMPersona.pm_id == self.pm_id).order_by(PMPersona.created_at.desc())
+        )
+        model = result.scalars().first()
+        if model is None:
+            return None
+        return PersonaAgent.snapshot_from_model(model)
+
     async def _build_content(
         self,
         vehicle_name: str,
@@ -301,9 +321,11 @@ class LPUpdateAgent:
         lp_count = activity.get("lp_count", 0)
         sources = activity.get("sources") or ["Internal records"]
 
+        persona = await self._get_persona()
+
         # Try LLM for richer content when a real provider is available.
         if not isinstance(self.provider, MockProvider):
-            llm_content = await self._try_llm_content(vehicle_name, quarter, activity)
+            llm_content = await self._try_llm_content(vehicle_name, quarter, activity, persona)
             if llm_content is not None:
                 return llm_content
 
@@ -324,16 +346,20 @@ class LPUpdateAgent:
         vehicle_name: str,
         quarter: str,
         activity: dict[str, Any],
+        persona: PersonaStyleSnapshot | None = None,
     ) -> LPUpdateContent | None:
         """Return structured LLM content when available."""
+        system_content = (
+            "You are an investor relations author drafting a quarterly LP "
+            "letter. Produce concise, professional sections."
+        )
+        if persona:
+            system_content += (
+                "\n\nAdapt the tone to match the PM's persona:\n"
+                + persona.render_system_prompt_snippet()
+            )
         messages = [
-            {
-                "role": "system",
-                "content": (
-                    "You are an investor relations author drafting a quarterly LP "
-                    "letter. Produce concise, professional sections."
-                ),
-            },
+            {"role": "system", "content": system_content},
             {
                 "role": "user",
                 "content": self._build_prompt(vehicle_name, quarter, activity),

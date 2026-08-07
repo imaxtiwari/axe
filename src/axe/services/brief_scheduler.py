@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from axe.agents.morning_brief import MorningBriefAgent, MorningBriefOutput, is_nyse_trading_day
 from axe.db.models import MorningBrief, PMUser
 from axe.services.brief_delivery import deliver_brief
+from axe.services.persona import refresh_persona_for_pm
 
 logger = logging.getLogger(__name__)
 
@@ -93,9 +94,59 @@ def schedule_brief_jobs(
     )
 
 
+def schedule_persona_refresh_jobs(
+    scheduler: BaseScheduler,
+    session_maker: async_sessionmaker[AsyncSession],
+) -> None:
+    """Register the weekly persona-refresh cron job for all active PMs."""
+    from apscheduler.triggers.cron import CronTrigger
+    from sqlalchemy import select
+
+    from axe.config import get_settings
+
+    settings = get_settings()
+
+    async def _job() -> None:
+        async with session_maker() as session:
+            result = await session.execute(select(PMUser).where(PMUser.active.is_(True)))
+            pms = result.scalars().all()
+            for pm in pms:
+                try:
+                    await refresh_persona_for_pm(
+                        pm.id,
+                        fund_id=pm.fund_entity_id,
+                    )
+                except Exception:
+                    logger.exception("Persona refresh failed for pm=%s", pm.id)
+
+    parts = settings.persona_refresh_cron.split()
+    if len(parts) != 5:
+        logger.warning(
+            "Invalid persona_refresh_cron '%s'; falling back to Sunday 02:00 UTC",
+            settings.persona_refresh_cron,
+        )
+        parts = ["0", "2", "*", "*", "0"]
+
+    minute, hour, day, month, day_of_week = parts
+    scheduler.add_job(
+        _job,
+        trigger=CronTrigger(
+            minute=minute,
+            hour=hour,
+            day=day,
+            month=month,
+            day_of_week=day_of_week,
+            timezone="UTC",
+        ),
+        id="persona_refresh_weekly",
+        replace_existing=True,
+    )
+
+
 __all__ = [
     "create_scheduler",
     "deliver_briefs_to_all_active_pms",
     "generate_and_deliver_for_pm",
     "schedule_brief_jobs",
+    "schedule_persona_refresh_jobs",
 ]

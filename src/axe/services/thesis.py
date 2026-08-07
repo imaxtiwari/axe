@@ -9,7 +9,7 @@ from typing import Any, TypeVar, cast
 
 from sqlalchemy import desc, func, select
 
-from axe.db.models import AuditLog, SpecialistSignal, ThesisVersion, TickerRegistry
+from axe.db.models import AuditLog, PMPersona, SpecialistSignal, ThesisVersion, TickerRegistry
 from axe.db.uow import UnitOfWork
 from axe.security.audit import _state_dict
 from axe.security.context import RequestContext
@@ -84,9 +84,11 @@ class ThesisRepo:
         direction: str = "long",
         status: str = "active",
         mnpi_flag: bool = False,
+        pm_persona_snapshot_id: str | None = None,
     ) -> ThesisVersion:
         """Create the first version of a thesis for a ticker."""
         async with _ThesisLocks.get(self.pm_id, ticker):
+            snapshot_id = pm_persona_snapshot_id or await self._current_persona_snapshot_id()
             return await self._create_thesis_locked(
                 ticker=ticker,
                 bull_case=bull_case,
@@ -100,6 +102,7 @@ class ThesisRepo:
                 direction=direction,
                 status=status,
                 mnpi_flag=mnpi_flag,
+                pm_persona_snapshot_id=snapshot_id,
             )
 
     async def _create_thesis_locked(
@@ -117,6 +120,7 @@ class ThesisRepo:
         direction: str,
         status: str,
         mnpi_flag: bool,
+        pm_persona_snapshot_id: str | None = None,
     ) -> ThesisVersion:
         version = await self._next_version(ticker)
         thesis = ThesisVersion(
@@ -135,6 +139,7 @@ class ThesisRepo:
             unresolved_risks=unresolved_risks or [],
             fund_entity_id=self.fund_entity_id,
             mnpi_flag=mnpi_flag,
+            pm_persona_snapshot_id=pm_persona_snapshot_id,
         )
         self.session.add(thesis)
         await self.session.flush()
@@ -148,7 +153,12 @@ class ThesisRepo:
         async with _ThesisLocks.get(self.pm_id, ticker):
             prior = await self._latest_locked(ticker)
             if prior is None:
+                if "pm_persona_snapshot_id" not in changes:
+                    changes["pm_persona_snapshot_id"] = await self._current_persona_snapshot_id()
                 return await self._create_thesis_locked(ticker=ticker, **changes)
+
+            if "pm_persona_snapshot_id" not in changes:
+                changes["pm_persona_snapshot_id"] = await self._current_persona_snapshot_id()
 
             version = await self._next_version(ticker)
             next_version = ThesisVersion(
@@ -167,6 +177,7 @@ class ThesisRepo:
                 unresolved_risks=changes.get("unresolved_risks", prior.unresolved_risks),
                 fund_entity_id=self.fund_entity_id,
                 mnpi_flag=changes.get("mnpi_flag", prior.mnpi_flag),
+                pm_persona_snapshot_id=changes.get("pm_persona_snapshot_id"),
             )
             self.session.add(next_version)
             await self.session.flush()
@@ -265,6 +276,17 @@ class ThesisRepo:
                 b, sort_keys=True, default=str
             )
         return bool(a != b)
+
+    async def _current_persona_snapshot_id(self) -> str | None:
+        """Return the latest PMPersona id for this repo's PM, if any."""
+        result = await self.session.execute(
+            IsolationService.scope(select(PMPersona), PMPersona, self.pm_id)
+            .where(PMPersona.pm_id == self.pm_id)
+            .order_by(PMPersona.created_at.desc())
+            .limit(1)
+        )
+        persona = result.scalar_one_or_none()
+        return persona.id if persona is not None else None
 
     async def _next_version(self, ticker: str) -> int:
         max_version = await self.session.scalar(
