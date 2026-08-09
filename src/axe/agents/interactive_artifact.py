@@ -78,11 +78,11 @@ class InteractiveArtifactAgent:
                 pm_id=pm_id,
             )
 
-        if artifact_type == "morning_brief":
+        if isinstance(artifact, MorningBrief):
             return self._morning_brief_actions(artifact, pm_id)
-        if artifact_type == "lp_update":
+        if isinstance(artifact, LPUpdate):
             return self._lp_update_actions(artifact, pm_id)
-        if artifact_type == "deck_output":
+        if isinstance(artifact, DeckOutput):
             return self._deck_actions(artifact, pm_id)
 
         return ArtifactActionPlan(
@@ -106,9 +106,9 @@ class InteractiveArtifactAgent:
                 pm_id=pm_id,
             )
 
-        if artifact_type == "morning_brief":
+        if isinstance(artifact, MorningBrief):
             return self._morning_brief_prompt(artifact, pm_id)
-        if artifact_type == "lp_update":
+        if isinstance(artifact, LPUpdate):
             return self._lp_update_prompt(artifact, pm_id)
 
         return ArtifactActionPlan(
