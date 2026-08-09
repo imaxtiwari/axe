@@ -195,9 +195,11 @@ class InteractiveArtifactAgent:
                 action_type="schedule_call",
                 label="Schedule analyst call",
                 payload={
-                    "topic": f"Morning Brief follow-up: {ticker or 'portfolio'}"
-                    if ticker
-                    else "Morning Brief follow-up",
+                    "topic": (
+                        f"Morning Brief follow-up: {ticker or 'portfolio'}"
+                        if ticker
+                        else "Morning Brief follow-up"
+                    ),
                     "draft_only": True,
                 },
             )

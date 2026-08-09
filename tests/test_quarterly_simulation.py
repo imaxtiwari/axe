@@ -501,6 +501,7 @@ async def test_full_quarterly_simulation(
     assert actions.count("lp_update_approved") == 1
     assert actions.count("lp_update_sent") == 1
     assert actions.count("deck_output_created") == 1
+    assert actions.count("agent_message_published") == 1
 
     # Sum of all explicit audit events should equal the total AuditLog rows.
     expected_mutations = (
@@ -516,13 +517,14 @@ async def test_full_quarterly_simulation(
         + 1  # lp_update_approved
         + 1  # lp_update_sent
         + 1  # deck_output_created
+        + 1  # agent_message_published (cross-agent collaboration bus)
         + 1  # decision_prompt_created (LP update approval)
         + 1  # artifact_action_created (LP update send/preview)
         + 3  # artifact_action_created (deck annotation actions)
     )
-    assert final_count == expected_mutations, (
-        f"Expected {expected_mutations} audit rows, got {final_count}: {actions}"
-    )
+    assert (
+        final_count == expected_mutations
+    ), f"Expected {expected_mutations} audit rows, got {final_count}: {actions}"
 
     # The delta between checkpoints should be monotonic; some phases may not add
     # audit rows on their own, but the total must never decrease.

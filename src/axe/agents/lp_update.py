@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from axe.agents.agent_collaboration import AgentCollaborationBus, AgentMessage
 from axe.agents.llm import LLMProvider, get_default_provider
 from axe.agents.persona_models import PersonaStyleSnapshot
 from axe.db.models import (
@@ -283,8 +284,37 @@ class LPUpdateAgent:
         update.content_html = html
 
         await self._attach_interactive_layer(update)
+        await self._publish_answerable_questions(update)
 
         return update
+
+    async def _publish_answerable_questions(self, update: LPUpdate) -> None:
+        """Flag LP questions that another agent may be able to answer."""
+        pm_id = self.pm_id
+        if pm_id is None:
+            return
+
+        from axe.db.uow import UnitOfWork
+
+        async with UnitOfWork(self.session) as uow:
+            bus = AgentCollaborationBus(uow=uow)
+            await bus.publish(
+                AgentMessage(
+                    sender_agent="lp_update",
+                    sender_pm_id=pm_id,
+                    fund_entity_id=self.fund_entity_id or "",
+                    intent="question_forward",
+                    payload={
+                        "summary": (
+                            f"LP update {update.quarter} drafted. "
+                            "Review for questions the deal or drift agents can answer."
+                        ),
+                        "lp_update_id": update.id,
+                        "quarter": update.quarter,
+                    },
+                    requires_decision=True,
+                )
+            )
 
     async def _attach_interactive_layer(self, update: LPUpdate) -> None:
         """Generate and persist approval decision prompt and actions."""

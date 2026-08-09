@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from axe.agents.agent_collaboration import AgentCollaborationBus, AgentMessage
 from axe.agents.embedding import EmbeddingModel, cosine_similarity, get_default_embedding_model
 from axe.agents.llm import LLMProvider, get_default_provider
 from axe.agents.model_trace import TraceableProvider
@@ -499,7 +500,57 @@ class EarningsAlertService:
             self.session.add(broken)
 
         await self.session.flush()
+
+        await self._publish_multi_ticker_conflict_alert(
+            pm_id=pm_id,
+            ticker=ticker,
+            fund_entity_id=latest.fund_entity_id,
+            alerts=alerts,
+        )
+
         return alerts
+
+    async def _publish_multi_ticker_conflict_alert(
+        self,
+        pm_id: str,
+        ticker: str,
+        fund_entity_id: str,
+        alerts: list[dict[str, Any]],
+    ) -> None:
+        """Publish a collaboration message when a signal affects multiple theses."""
+        if not alerts:
+            return
+
+        repo = ThesisRepo(self.uow, pm_id, fund_entity_id)
+        related_tickers: list[str] = []
+        for other_ticker in {a["ticker"] for a in alerts}:
+            if other_ticker == ticker:
+                continue
+            other = await repo.get_latest_thesis(other_ticker)
+            if other is not None:
+                related_tickers.append(other_ticker)
+
+        if not related_tickers:
+            return
+
+        bus = AgentCollaborationBus(uow=self.uow)
+        await bus.publish(
+            AgentMessage(
+                sender_agent="drift_detect",
+                sender_pm_id=pm_id,
+                fund_entity_id=fund_entity_id,
+                intent="conflict_alert",
+                payload={
+                    "summary": (
+                        f"Signal on {ticker} may also impact "
+                        f"{', '.join(related_tickers)}. Review for peer-thesis conflict."
+                    ),
+                    "primary_ticker": ticker,
+                    "related_tickers": related_tickers,
+                },
+                requires_decision=True,
+            )
+        )
 
     async def process_specialist_signals(
         self,

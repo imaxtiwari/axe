@@ -6,6 +6,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
+from axe.agents.agent_collaboration import AgentCollaborationBus
 from axe.agents.interactive_artifact import (
     InteractiveArtifactAgent,
 )
@@ -123,11 +124,56 @@ class InteractiveArtifactService:
             self.session.add(prompt)
             persisted.append(prompt)
 
+        cross_agent_prompts = await self.create_prompts_for_cross_agent_messages(
+            artifact_type=artifact_type,
+            artifact_id=artifact_id,
+        )
+        persisted.extend(cross_agent_prompts)
+
         if persisted:
             await self.session.flush()
             for prompt in persisted:
                 await self._audit("decision_prompt_created", prompt)
             await self.uow.commit()
+        return persisted
+
+    async def create_prompts_for_cross_agent_messages(
+        self,
+        artifact_type: str,
+        artifact_id: str,
+        *,
+        limit: int = 5,
+    ) -> list[DecisionPrompt]:
+        """Promote recent, unaddressed cross-agent messages into decision prompts.
+
+        Only messages addressed to this PM (or fund-scoped broadcasts) that have
+        not yet been turned into a prompt for this artifact are surfaced.
+        """
+        await self._ensure_context()
+
+        existing_ids = {
+            row.artifact_id
+            for row in await self.list_prompts_for_artifact(artifact_id)
+            if row.artifact_id is not None
+        }
+
+        bus = AgentCollaborationBus(uow=self.uow)
+        messages = await bus.recent_messages_for_pm(
+            pm_id=self.pm_id,
+            fund_entity_id=self.fund_entity_id,
+            limit=limit,
+        )
+
+        persisted: list[DecisionPrompt] = []
+        for message in messages:
+            if message.id in existing_ids or not message.requires_decision:
+                continue
+            prompt = await bus.route_to_pm(message)
+            if prompt is not None:
+                # Relate the prompt to the artifact that triggered surfacing.
+                prompt.artifact_id = artifact_id
+                persisted.append(prompt)
+
         return persisted
 
     # ------------------------------------------------------------------

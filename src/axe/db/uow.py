@@ -17,6 +17,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from axe.db.models import (
+    AgentMessage,
     ArtifactAction,
     AuditLog,
     ComplianceEscalation,
@@ -572,6 +573,58 @@ class DecisionPromptRepository(_BaseRepo):
         return prompt
 
 
+class AgentMessageRepository(_BaseRepo):
+    """CRUD helpers for persisted cross-agent collaboration messages.
+
+    Reads are isolated by fund via ``IsolationService`` because ``AgentMessage``
+    has a ``fund_id`` column. Writes require an explicit fund_id check by the
+    caller (usually ``AgentCollaborationBus``).
+    """
+
+    async def get_by_id(self, message_id: str) -> AgentMessage | None:
+        result = await self.session.execute(
+            IsolationService.select_for(AgentMessage).where(AgentMessage.id == message_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def list_for_sender(
+        self,
+        sender_pm_id: str,
+        *,
+        limit: int | None = None,
+    ) -> list[AgentMessage]:
+        stmt = (
+            IsolationService.select_for(AgentMessage)
+            .where(AgentMessage.sender_pm_id == sender_pm_id)
+            .order_by(AgentMessage.created_at.desc())
+        )
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def list_for_recipient(
+        self,
+        recipient_pm_id: str,
+        *,
+        limit: int | None = None,
+    ) -> list[AgentMessage]:
+        stmt = (
+            IsolationService.select_for(AgentMessage)
+            .where(AgentMessage.recipient_pm_id == recipient_pm_id)
+            .order_by(AgentMessage.created_at.desc())
+        )
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    def create_message(self, **kwargs: Any) -> AgentMessage:
+        message = AgentMessage(**kwargs)
+        self.session.add(message)
+        return message
+
+
 class ModelTraceRepository(_BaseRepo):
     """CRUD helpers for model trace records."""
 
@@ -727,6 +780,7 @@ class UnitOfWork:
         self.specialist_signals = SpecialistSignalRepository(self.session)
         self.artifact_actions = ArtifactActionRepository(self.session)
         self.decision_prompts = DecisionPromptRepository(self.session)
+        self.agent_messages = AgentMessageRepository(self.session)
         self.model_traces = ModelTraceRepository(self.session)
         self.policy_rules = PolicyRuleRepository(self.session)
         self.compliance_escalations = ComplianceEscalationRepository(self.session)
@@ -753,6 +807,7 @@ class UnitOfWork:
             self.specialist_signals = SpecialistSignalRepository(self.session)
             self.artifact_actions = ArtifactActionRepository(self.session)
             self.decision_prompts = DecisionPromptRepository(self.session)
+            self.agent_messages = AgentMessageRepository(self.session)
             self.model_traces = ModelTraceRepository(self.session)
             self.policy_rules = PolicyRuleRepository(self.session)
             self.compliance_escalations = ComplianceEscalationRepository(self.session)

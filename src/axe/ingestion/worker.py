@@ -10,6 +10,10 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from axe.agents.agent_collaboration import (
+    AgentCollaborationBus,
+    AgentMessage,
+)
 from axe.agents.specialist_signal import (
     AgentContext,
     record_specialist_signals,
@@ -24,6 +28,7 @@ from axe.ingestion.handlers import (
     send_alert_handler,
 )
 from axe.ingestion.retry import RetryQueue
+from axe.security.context import RequestContext
 from axe.services.connector import ConnectorService
 from axe.services.thesis import DriftDetectionService
 
@@ -64,6 +69,7 @@ def default_registry() -> TaskRegistry:
     registry.register("send_alert", send_alert_handler)
     registry.register("run_connector", run_connector_handler)
     registry.register("specialize_signal", specialize_signal_handler)
+    registry.register("route_agent_message", route_agent_message_handler)
     return registry
 
 
@@ -285,6 +291,41 @@ async def _build_agent_context_for_pm(uow: UnitOfWork, pm_id: str) -> AgentConte
             for t in theses
         ],
     )
+
+
+async def route_agent_message_handler(
+    session: AsyncSession,
+    payload: dict[str, Any],
+) -> bool:
+    """Create a ``DecisionPrompt`` for a collaboration message marked as requiring a decision.
+
+    Expected payload keys: all fields of ``AgentMessage.model_dump_for_worker()``.
+    The handler binds the sender's identity as the request context so isolation
+    checks pass, then delegates to ``AgentCollaborationBus.route_to_pm``.
+    """
+    message = AgentMessage.model_validate_from_worker(payload)
+    if not message.requires_decision:
+        return True
+
+    pm_id = message.sender_pm_id
+    fund_id = message.fund_entity_id
+
+    ctx = RequestContext.current_or_none()
+    if ctx is None or ctx.pm_id != pm_id or ctx.fund_id != fund_id:
+        with RequestContext.bind(pm_id=pm_id, fund_id=fund_id):
+            return await _route_agent_message(session, message)
+    return await _route_agent_message(session, message)
+
+
+async def _route_agent_message(
+    session: AsyncSession,
+    message: AgentMessage,
+) -> bool:
+    async with UnitOfWork(session) as uow:
+        bus = AgentCollaborationBus(uow=uow)
+        prompt = await bus.route_to_pm(message)
+        await uow.commit()
+        return prompt is not None
 
 
 __all__ = ["TaskHandler", "TaskRegistry", "RetryWorker", "default_registry"]

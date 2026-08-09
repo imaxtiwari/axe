@@ -1017,6 +1017,38 @@ class ArtifactAction(Base):
     )
 
 
+class AgentMessage(Base):
+    """Persisted cross-agent collaboration message.
+
+    Messages are isolated by fund and persisted with a TTL so the audit trail
+    can be replayed without becoming an unbounded log.
+    """
+
+    __tablename__ = "agent_messages"
+    isolation_scope = "fund"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    sender_agent: Mapped[str] = mapped_column(String(128), nullable=False)
+    recipient_agent: Mapped[str | None] = mapped_column(String(128))
+    sender_pm_id: Mapped[str] = mapped_column(ForeignKey("pm_users.id"), nullable=False)
+    recipient_pm_id: Mapped[str | None] = mapped_column(ForeignKey("pm_users.id"))
+    fund_entity_id: Mapped[str] = mapped_column(ForeignKey("fund_entities.id"), nullable=False)
+    intent: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    scope: Mapped[str] = mapped_column(String(16), default="pm", nullable=False)
+    allowed_other_pm_ids: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    required_confidence: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    requires_decision: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+    __table_args__ = (
+        Index("ix_agent_messages_pm_created", "sender_pm_id", "created_at"),
+        Index("ix_agent_messages_fund", "fund_entity_id"),
+        Index("ix_agent_messages_recipient", "recipient_pm_id", "created_at"),
+    )
+
+
 class DecisionPrompt(Base):
     """Decision prompt attached to an artifact awaiting PM response."""
 

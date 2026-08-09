@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from axe.agents.agent_collaboration import AgentCollaborationBus
 from axe.agents.embedding import EmbeddingModel, cosine_similarity, get_default_embedding_model
 from axe.agents.llm import LLMProvider, get_default_provider
 from axe.agents.persona_models import PersonaStyleSnapshot
@@ -139,7 +140,10 @@ class MorningBriefAgent:
             persona=persona,
         )
 
+        cross_agent_sections = await self._load_cross_agent_sections(pm_id, tickers)
         sections = self._build_sections(scored, theses)
+        sections.extend(cross_agent_sections)
+        sections.sort(key=lambda s: s.relevance_score, reverse=True)
         focus_one = self._pick_focus_one(sections, tickers, theses, memory)
         curated = self._curate_specialist_signals(specialist_signals, tickers)
         brief = MorningBriefOutput(
@@ -183,6 +187,50 @@ class MorningBriefAgent:
 
         await self.session.commit()
         return brief_record
+
+    async def _load_cross_agent_sections(
+        self,
+        pm_id: str,
+        tickers: list[TickerRegistry],
+    ) -> list[BriefSection]:
+        """Load recent cross-agent messages relevant to this PM's book."""
+        from axe.db.uow import UnitOfWork
+
+        active_tickers = {t.ticker for t in tickers if t.active}
+        sections: list[BriefSection] = []
+
+        async with UnitOfWork(self.session) as uow:
+            bus = AgentCollaborationBus(uow=uow)
+            messages = await bus.recent_messages_for_pm(
+                pm_id=pm_id,
+                fund_entity_id=None,
+                limit=10,
+            )
+
+        for message in messages:
+            tickers_in_msg = {
+                str(message.payload.get(k))
+                for k in ("primary_ticker", "related_tickers", "ticker")
+                if message.payload.get(k)
+            }
+            related = list(tickers_in_msg & active_tickers)
+            if not related:
+                continue
+
+            sections.append(
+                BriefSection(
+                    ticker=related[0],
+                    assumption_id=f"cross_agent:{message.id}",
+                    assumption_text="Cross-agent collaboration message",
+                    headline=f"[{message.intent}] from {message.sender_agent}",
+                    body=message.payload.get("summary") or str(message.payload),
+                    source_ids=[message.id or ""],
+                    stance="CONTRADICTS" if message.intent == "conflict_alert" else "UNCERTAIN",
+                    relevance_score=0.85 if message.requires_decision else 0.6,
+                )
+            )
+
+        return sections
 
     async def _attach_interactive_layer(self, pm_id: str, brief_record: MorningBrief) -> None:
         """Generate and persist Focus One actions and a decision prompt."""
