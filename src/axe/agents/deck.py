@@ -281,7 +281,7 @@ class DeckBuilderAgent:
         if template is None:
             template = await self._ensure_default_template(vehicle_type)
         structure = template.structure or []
-        output = self._persist_deck(
+        output = await self._persist_deck(
             pm_id=pm_id,
             title=title,
             template=template,
@@ -316,7 +316,7 @@ class DeckBuilderAgent:
         source_ids: list[str] = []
         if thesis is not None:
             source_ids.append(str(getattr(thesis, "id", "")))
-        output = self._persist_deck(
+        output = await self._persist_deck(
             pm_id=pm_id,
             title=deck_title,
             template=template,
@@ -331,7 +331,7 @@ class DeckBuilderAgent:
         await self.session.flush()
         return output
 
-    def _persist_deck(
+    async def _persist_deck(
         self,
         pm_id: str,
         title: str,
@@ -345,7 +345,7 @@ class DeckBuilderAgent:
         output_type: str = "deal_deck",
         content_key: str = "slides",
     ) -> DeckOutput:
-        """Build slide content and persist a DeckOutput row."""
+        """Build slide content and persist a DeckOutput row with annotation actions."""
         slides: list[dict[str, Any]] = []
         for index, item in enumerate(structure, start=1):
             if isinstance(item, dict):
@@ -392,7 +392,30 @@ class DeckBuilderAgent:
             content=content,
         )
         self.session.add(output)
+        await self.session.flush()
+        await self._attach_interactive_layer(pm_id, output)
         return output
+
+    async def _attach_interactive_layer(
+        self,
+        pm_id: str,
+        deck: DeckOutput,
+    ) -> None:
+        """Generate and persist deck annotation actions."""
+        from axe.db.uow import UnitOfWork
+        from axe.services.interactive import InteractiveArtifactService
+
+        async with UnitOfWork(self.session) as uow:
+            service = InteractiveArtifactService(
+                uow,
+                pm_id=pm_id,
+                fund_entity_id=None,
+            )
+            await service._ensure_context()
+            await service.create_actions(
+                artifact_type="deck_output",
+                artifact_id=deck.id,
+            )
 
 
 __all__ = ["DEFAULT_DECK_TEMPLATES", "DeckBuilderAgent"]

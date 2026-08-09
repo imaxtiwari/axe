@@ -516,6 +516,9 @@ async def test_full_quarterly_simulation(
         + 1  # lp_update_approved
         + 1  # lp_update_sent
         + 1  # deck_output_created
+        + 1  # decision_prompt_created (LP update approval)
+        + 1  # artifact_action_created (LP update send/preview)
+        + 3  # artifact_action_created (deck annotation actions)
     )
     assert final_count == expected_mutations, (
         f"Expected {expected_mutations} audit rows, got {final_count}: {actions}"

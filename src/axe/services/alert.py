@@ -24,6 +24,7 @@ class AlertDelivery:
         resend_api_key: str | None = None,
         from_email: str | None = None,
         resend_post_hook: Callable[..., Awaitable[dict[str, Any]]] | None = None,
+        public_base_url: str | None = None,
     ) -> None:
         settings = get_settings()
         self.slack_bot_token = slack_bot_token or settings.slack_bot_token
@@ -34,6 +35,40 @@ class AlertDelivery:
             from_email or settings_from or settings.axe_email_domain or "alerts@axe.fund"
         )
         self.resend_post_hook = resend_post_hook
+        self.public_base_url = public_base_url or getattr(
+            settings, "public_base_url", "https://app.axe.fund"
+        )
+
+    def _deep_link_for_decision_prompt(
+        self,
+        artifact_type: str,
+        artifact_id: str,
+        prompt_id: str | None,
+    ) -> str:
+        """Return a web deep link to a decision prompt, if IDs are available."""
+        if not artifact_type or not artifact_id:
+            return ""
+        base = f"{self.public_base_url}/artifacts/{artifact_type}/{artifact_id}"
+        if prompt_id:
+            return f"{base}/decision-prompts/{prompt_id}"
+        return base
+
+    def _append_deep_links(
+        self,
+        message: str,
+        payload: dict[str, Any],
+    ) -> str:
+        """Append deep links to a Slack/email message when payload provides them."""
+        deep_link = self._deep_link_for_decision_prompt(
+            artifact_type=payload.get("artifact_type", ""),
+            artifact_id=payload.get("artifact_id", ""),
+            prompt_id=payload.get("prompt_id"),
+        )
+        if not deep_link:
+            return message
+        if deep_link in message:
+            return message
+        return f"{message}\n\nDecide now: {deep_link}"
 
     async def send_slack_dm(
         self,
@@ -118,10 +153,16 @@ class AlertDelivery:
         slack_user_id: str | None,
         email: str | None,
     ) -> dict[str, Any]:
-        """Dispatch an alert payload to Slack and/or email per payload flags."""
+        """Dispatch an alert payload to Slack and/or email per payload flags.
+
+        When ``payload`` includes ``artifact_type`` and ``artifact_id`` (and
+        optionally ``prompt_id``), a deep link to the corresponding decision
+        prompt is appended to the message body.
+        """
         results: dict[str, Any] = {"slack": None, "email": None}
         message = payload.get("message", "")
         subject = message.split(". Evidence:")[0] if ". Evidence:" in message else message
+        message = self._append_deep_links(message, payload)
 
         if payload.get("slack_enabled") and slack_user_id:
             results["slack"] = await self.send_slack_dm(slack_user_id, message)

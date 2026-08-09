@@ -156,7 +156,12 @@ class MorningBriefAgent:
         brief: MorningBriefOutput,
         deliver_fn: Callable[..., Awaitable[dict[str, Any]]] | None = None,
     ) -> MorningBrief:
-        """Persist the brief, optionally deliver via ``deliver_fn`` and record result."""
+        """Persist the brief, optionally deliver via ``deliver_fn`` and record result.
+
+        Also generates a Focus One decision prompt and one-click actions when a
+        Focus One ticker is present, persisting them to ``decision_prompt`` and
+        ``artifact_action`` tables.
+        """
         brief_record = MorningBrief(
             pm_id=pm_id,
             date=datetime.now(UTC).date(),
@@ -174,8 +179,42 @@ class MorningBriefAgent:
             brief_record.delivered_slack = bool(delivery_result.get("slack_ok"))
             brief_record.delivered_email = bool(delivery_result.get("email_ok"))
 
+        await self._attach_interactive_layer(pm_id, brief_record)
+
         await self.session.commit()
         return brief_record
+
+    async def _attach_interactive_layer(self, pm_id: str, brief_record: MorningBrief) -> None:
+        """Generate and persist Focus One actions and a decision prompt."""
+        from axe.db.uow import UnitOfWork
+        from axe.services.interactive import InteractiveArtifactService
+
+        async with UnitOfWork(self.session) as uow:
+            service = InteractiveArtifactService(
+                uow,
+                pm_id=pm_id,
+                fund_entity_id=None,
+            )
+            await service._ensure_context()
+            actions = await service.create_actions(
+                artifact_type="morning_brief",
+                artifact_id=brief_record.id,
+            )
+            prompts = await service.create_prompts(
+                artifact_type="morning_brief",
+                artifact_id=brief_record.id,
+            )
+            brief_record.actions_json = [a.payload or {} for a in actions]
+            brief_record.decision_prompts_json = [
+                {
+                    "prompt_id": p.id,
+                    "prompt_text": p.prompt_text,
+                    "options": p.options_json,
+                    "deadline_at": p.deadline_at.isoformat() if p.deadline_at else None,
+                }
+                for p in prompts
+            ]
+            await self.session.flush()
 
     async def _get_user(self, pm_id: str) -> PMUser | None:
         result = await self.session.execute(select(PMUser).where(PMUser.id == pm_id))

@@ -281,7 +281,35 @@ class LPUpdateAgent:
         await self.session.flush()
         update.content_md = markdown
         update.content_html = html
+
+        await self._attach_interactive_layer(update)
+
         return update
+
+    async def _attach_interactive_layer(self, update: LPUpdate) -> None:
+        """Generate and persist approval decision prompt and actions."""
+        from axe.db.uow import UnitOfWork
+        from axe.services.interactive import InteractiveArtifactService
+
+        pm_id = self.pm_id
+        if pm_id is None:
+            return
+
+        async with UnitOfWork(self.session) as uow:
+            service = InteractiveArtifactService(
+                uow,
+                pm_id=pm_id,
+                fund_entity_id=self.fund_entity_id,
+            )
+            await service._ensure_context()
+            await service.create_actions(
+                artifact_type="lp_update",
+                artifact_id=update.id,
+            )
+            await service.create_prompts(
+                artifact_type="lp_update",
+                artifact_id=update.id,
+            )
 
     async def _get_persona(self) -> PersonaStyleSnapshot | None:
         """Load the current PM persona snapshot if not already injected."""
@@ -292,7 +320,9 @@ class LPUpdateAgent:
         from axe.agents.persona import PersonaAgent
 
         result = await self.session.execute(
-            select(PMPersona).where(PMPersona.pm_id == self.pm_id).order_by(PMPersona.created_at.desc())
+            select(PMPersona)
+            .where(PMPersona.pm_id == self.pm_id)
+            .order_by(PMPersona.created_at.desc())
         )
         model = result.scalars().first()
         if model is None:
