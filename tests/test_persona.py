@@ -199,22 +199,16 @@ async def test_persona_service_refresh_persists_citations_and_peers(db_session) 
     assert snapshot.pm_id == user.id
     assert snapshot.writing_style_summary == "Data-driven."
 
-    result = await db_session.execute(
-        select(PMPersona).where(PMPersona.pm_id == user.id)
-    )
+    result = await db_session.execute(select(PMPersona).where(PMPersona.pm_id == user.id))
     personas = list(result.scalars().all())
     assert len(personas) == 1
 
-    result = await db_session.execute(
-        select(MemoryCitation).where(MemoryCitation.pm_id == user.id)
-    )
+    result = await db_session.execute(select(MemoryCitation).where(MemoryCitation.pm_id == user.id))
     citations = list(result.scalars().all())
     assert len(citations) == 1
     assert citations[0].linked_ticker == "AAPL"
 
-    result = await db_session.execute(
-        select(PMPeerMap).where(PMPeerMap.pm_id == user.id)
-    )
+    result = await db_session.execute(select(PMPeerMap).where(PMPeerMap.pm_id == user.id))
     peers = list(result.scalars().all())
     assert len(peers) == 1
     assert peers[0].peer_email_or_slack_id == "analyst@example.com"
