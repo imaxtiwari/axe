@@ -522,9 +522,9 @@ async def test_full_quarterly_simulation(
         + 1  # artifact_action_created (LP update send/preview)
         + 3  # artifact_action_created (deck annotation actions)
     )
-    assert (
-        final_count == expected_mutations
-    ), f"Expected {expected_mutations} audit rows, got {final_count}: {actions}"
+    assert final_count == expected_mutations, (
+        f"Expected {expected_mutations} audit rows, got {final_count}: {actions}"
+    )
 
     # The delta between checkpoints should be monotonic; some phases may not add
     # audit rows on their own, but the total must never decrease.
