@@ -1130,6 +1130,7 @@ class ComplianceEscalation(Base):
         String(32), default="open", nullable=False
     )  # open|assigned|resolved|dismissed
     reviewer_id: Mapped[str | None] = mapped_column(String(36))
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     opened_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
