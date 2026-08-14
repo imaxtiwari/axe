@@ -45,7 +45,7 @@ class CitationExtractor:
     )
 
     # Split text into sentences without destroying the marker positions.
-    _SENTENCE_RE = re.compile(r"[^.!?\n]+[.!?]?(?=\s|$)")
+    _SENTENCE_RE = re.compile(r"[^.!?\n]+[.!?]?(?=\s|$)", re.DOTALL)
 
     def __init__(
         self,
@@ -155,21 +155,33 @@ class CitationExtractor:
 
     def _claim_for_marker(self, output: str, match: re.Match[str]) -> str:
         """Return the sentence containing the citation marker."""
-        start = max(0, match.start() - 1)
-        # Walk back to sentence start.
-        while start > 0 and output[start] not in ".!?\n":
-            start -= 1
-        if output[start] in ".!?\n":
-            start += 1
+        # Walk backward from the character just before the marker, skipping any
+        # whitespace so the marker's own padding does not terminate the search,
+        # then continue back to the previous sentence boundary.
+        sentence_start = match.start()
+        passed_whitespace = False
+        while sentence_start > 0:
+            ch = output[sentence_start - 1]
+            if ch.isspace():
+                sentence_start -= 1
+                passed_whitespace = True
+                continue
+            if passed_whitespace and ch in ".!?\n":
+                # We reached the boundary that terminates the claim sentence;
+                # stop before it.
+                break
+            sentence_start -= 1
 
-        end = match.end()
-        while end < len(output) and output[end] not in ".!?\n":
-            end += 1
-        if end < len(output) and output[end] in ".!?:":
-            end += 1
+        # Walk forward from the character just after the marker to find the end
+        # of the sentence. Include any trailing terminator.
+        sentence_end = match.end()
+        while sentence_end < len(output) and output[sentence_end] not in ".!?\n":
+            sentence_end += 1
+        if sentence_end < len(output) and output[sentence_end] in ".!":
+            sentence_end += 1
 
-        snippet = output[start:end].strip()
-        # Strip the marker itself from the claim text.
+        # Slice the whole sentence and remove the marker afterwards.
+        snippet = output[sentence_start:sentence_end].strip()
         snippet = self._MARKER_RE.sub("", snippet).strip()
         return snippet
 
@@ -226,7 +238,7 @@ class CitationExtractor:
 class CitationVerifier:
     """Verify that extracted citation snippets are actually present in sources."""
 
-    def __init__(self, substring_threshold: float = 0.6, overlap_threshold: float = 0.5) -> None:
+    def __init__(self, substring_threshold: float = 0.55, overlap_threshold: float = 0.5) -> None:
         self.substring_threshold = substring_threshold
         self.overlap_threshold = overlap_threshold
 

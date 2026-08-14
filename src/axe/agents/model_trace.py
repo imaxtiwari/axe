@@ -15,6 +15,9 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from axe.agents.citation import CitationExtractor, CitationVerifier
+from axe.agents.guardrails import GuardrailRunner
+from axe.agents.hallucination_guard import HallucinationGuard
 from axe.agents.llm import LLMProvider, LLMResponse
 from axe.config import Settings, get_settings
 from axe.db.models import ModelTrace
@@ -56,8 +59,15 @@ class TraceableProvider(LLMProvider):
         messages: list[dict[str, str]],
         temperature: float = 0.0,
         response_schema: type[BaseModel] | None = None,
+        raw_sources: list[Any] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> LLMResponse:
-        """Delegate to the wrapped provider and capture a model trace."""
+        """Delegate to the wrapped provider and capture a model trace.
+
+        The captured trace includes citations, a hallucination score, and
+        guardrail results. High-risk outputs are automatically routed to
+        compliance review.
+        """
         trace_id = self._default_trace_id()
         prompt_hash = self._prompt_hash(messages)
         schema_name = response_schema.__name__ if response_schema is not None else None
@@ -74,6 +84,9 @@ class TraceableProvider(LLMProvider):
             response_schema=schema_name,
             latency_ms=latency_ms,
             usage=response.usage or {},
+            output_text=response.get_text(),
+            raw_sources=raw_sources,
+            metadata=metadata,
         )
         return response
 
@@ -86,6 +99,9 @@ class TraceableProvider(LLMProvider):
         response_schema: str | None,
         latency_ms: int,
         usage: dict[str, int],
+        output_text: str,
+        raw_sources: list[Any] | None,
+        metadata: dict[str, Any] | None,
     ) -> None:
         """Persist a ModelTrace row when tracing is enabled and UoW is available."""
         if not self.settings.model_trace_capture_enabled:
@@ -98,10 +114,32 @@ class TraceableProvider(LLMProvider):
         ctx = RequestContext.current_or_none()
         pm_id = ctx.pm_id if ctx is not None else None
 
-        # Calculate a placeholder hallucination score from citation coverage if
-        # the response includes it; real guardrails will overwrite later.
-        citations: list[Any] = []
-        hallucination_score: float | None = None
+        # Extract and verify citations, compute hallucination score, and run
+        # the configured guardrail suite.
+        extractor = CitationExtractor()
+        verifier = CitationVerifier()
+        citations = extractor.extract(output_text, raw_sources)
+        citations = verifier.verify(citations, raw_sources)
+        citations_json = [c.model_dump(mode="json") for c in citations]
+
+        hallucination_guard = HallucinationGuard(self.settings)
+        hallucination_score = hallucination_guard.score(output_text, citations, raw_sources)
+        routing = await hallucination_guard.route_for_review(
+            hallucination_score, trace_id=trace_id, uow=self.uow
+        )
+
+        guardrail_runner = GuardrailRunner(uow=self.uow, settings=self.settings)
+        guardrail_result = await guardrail_runner.check(
+            output_text, raw_sources=raw_sources, metadata=metadata
+        )
+        if guardrail_result.severity in {"high", "critical"}:
+            await guardrail_runner.escalate(guardrail_result, trace_id=trace_id)
+
+        # Combine hallucination routing with guardrail severity for the final
+        # human review status.
+        human_review_status = routing["human_review_status"]
+        if guardrail_result.suggested_action in {"review", "reject"}:
+            human_review_status = "pending"
 
         self.last_trace = self.uow.model_traces.create_trace(
             id=trace_id,
@@ -112,6 +150,7 @@ class TraceableProvider(LLMProvider):
             response_schema=response_schema,
             latency_ms=latency_ms,
             token_usage=usage,
-            citations_json=citations,
+            citations_json=citations_json,
             hallucination_score=hallucination_score,
+            human_review_status=human_review_status,
         )

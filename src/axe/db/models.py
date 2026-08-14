@@ -235,6 +235,8 @@ class MNPIReviewQueue(Base):
     materiality_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     reasoning: Mapped[str | None] = mapped_column(Text)
     alert_payloads: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    guardrail_result_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    guardrail_escalation_id: Mapped[str | None] = mapped_column(String(36))
     reviewer_id: Mapped[str | None] = mapped_column(String(36))
     decision_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)

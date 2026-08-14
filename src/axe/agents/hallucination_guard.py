@@ -46,12 +46,15 @@ class HallucinationGuard:
         raw_sources = raw_sources or []
 
         claims = self._split_claims(output)
+        if not claims:
+            return 0.0
+
         coverage = self._coverage_score(claims, citations)
         verification_ratio = self._verification_ratio(citations)
         overlap = self._average_overlap(citations)
 
         # Penalize outputs that make claims without any sources available.
-        no_source_penalty = 0.15 if not raw_sources and len(claims) > 0 else 0.0
+        no_source_penalty = 0.15 if not raw_sources else 0.0
 
         # Weighted combination; each term is in [0, 1].
         score = (
@@ -93,7 +96,7 @@ class HallucinationGuard:
 
         escalation: ComplianceEscalation | None = None
         if action in {"reject", "review"} and uow is not None:
-            escalation = self._create_escalation(score, trace_id, severity, uow)
+            escalation = await self._create_escalation(score, trace_id, severity, uow)
 
         return {
             "action": action,
@@ -103,7 +106,7 @@ class HallucinationGuard:
             "escalation_id": escalation.id if escalation else None,
         }
 
-    def _create_escalation(
+    async def _create_escalation(
         self,
         score: float,
         trace_id: str | None,
@@ -121,13 +124,16 @@ class HallucinationGuard:
             # Cannot create an escalation without a fund scope.
             return None
 
-        return uow.compliance_escalations.create_escalation(
+        escalation = uow.compliance_escalations.create_escalation(
             pm_id=pm_id,
             fund_entity_id=fund_entity_id,
             trigger_type="hallucination",
             severity=severity,
             status="open",
+            details={"trace_id": trace_id},
         )
+        await uow.session.flush()
+        return escalation
 
     @staticmethod
     def _split_claims(output: str) -> list[str]:

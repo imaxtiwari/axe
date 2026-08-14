@@ -8,6 +8,7 @@ from typing import Any, Literal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from axe.agents.guardrails import GuardrailRunner
 from axe.agents.mnpi_review import MNPIReviewAgent, MNPIReviewResult
 from axe.db.models import MNPIReviewQueue, PMUser, RetryQueue, SignalLog
 from axe.security.audit import AuditService
@@ -43,9 +44,11 @@ class MNPIService:
         self,
         session: AsyncSession,
         agent: MNPIReviewAgent | None = None,
+        guardrail_runner: GuardrailRunner | None = None,
     ) -> None:
         self.session = session
         self.agent = agent or MNPIReviewAgent()
+        self.guardrail_runner = guardrail_runner
 
     async def review_signal(
         self,
@@ -65,6 +68,19 @@ class MNPIService:
         if not result.flagged:
             return MNPIReviewOutcome(blocked=False, result=result)
 
+        # Run the shared guardrail runner so MNPI signals also surface in the
+        # compliance escalation queue.
+        guardrail_result = None
+        guardrail_escalation = None
+        if self.guardrail_runner is not None:
+            guardrail_result = await self.guardrail_runner.check(
+                signal_text,
+                metadata={"artifact_type": "signal", "ticker": ticker},
+            )
+            guardrail_escalation = await self.guardrail_runner.escalate(
+                guardrail_result, trace_id=None
+            )
+
         signal = await self.session.get(SignalLog, signal_id)
         if signal is not None:
             signal.mnpi_flag = True
@@ -80,6 +96,12 @@ class MNPIService:
             materiality_score=result.materiality_score,
             reasoning=result.reasoning,
             alert_payloads=alert_payloads,
+            guardrail_result_json=(
+                guardrail_result.__dict__ if guardrail_result is not None else None
+            ),
+            guardrail_escalation_id=(
+                guardrail_escalation.id if guardrail_escalation is not None else None
+            ),
         )
         self.session.add(review)
         await self.session.flush()
