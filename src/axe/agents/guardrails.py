@@ -14,9 +14,12 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from axe.config import Settings, get_settings
-from axe.db.models import ComplianceEscalation
 from axe.db.uow import UnitOfWork
 from axe.security.context import RequestContext
+from axe.services.compliance_escalation import (
+    ComplianceEscalationService,
+    ComplianceEscalationTrigger,
+)
 from axe.services.policy import PolicyEngine, PolicyEvent
 
 
@@ -322,7 +325,7 @@ class GuardrailRunner:
         self,
         result: GuardrailResult,
         trace_id: str | None = None,
-    ) -> ComplianceEscalation | None:
+    ) -> Any | None:
         """Open a compliance escalation for high-severity guardrail failures."""
         if result.severity not in {"high", "critical"}:
             return None
@@ -335,14 +338,15 @@ class GuardrailRunner:
         if not fund_entity_id:
             return None
 
-        return self.uow.compliance_escalations.create_escalation(
-            pm_id=pm_id,
-            fund_entity_id=fund_entity_id,
+        service = ComplianceEscalationService(self.uow)
+        trigger = ComplianceEscalationTrigger(
             trigger_type="guardrail",
-            severity=result.severity,
-            status="open",
+            severity=result.severity,  # type: ignore[arg-type]
+            fund_entity_id=fund_entity_id,
+            pm_id=pm_id,
             details={"violated_rules": result.violated_rules, "trace_id": trace_id},
         )
+        return await service.open(trigger)
 
     @staticmethod
     def _max_severity(severities: list[str]) -> str:

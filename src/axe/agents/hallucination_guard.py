@@ -12,8 +12,12 @@ from typing import Any
 
 from axe.agents.citation import Citation
 from axe.config import Settings, get_settings
-from axe.db.models import ComplianceEscalation
 from axe.db.uow import UnitOfWork
+from axe.services.compliance_escalation import (
+    BelowAutoEscalationThreshold,
+    ComplianceEscalationService,
+    ComplianceEscalationTrigger,
+)
 
 
 class HallucinationGuard:
@@ -94,16 +98,17 @@ class HallucinationGuard:
             human_review_status = "not_required"
             severity = "low"
 
-        escalation: ComplianceEscalation | None = None
+        escalation_id: str | None = None
         if action in {"reject", "review"} and uow is not None:
             escalation = await self._create_escalation(score, trace_id, severity, uow)
+            escalation_id = escalation.id if escalation is not None else None
 
         return {
             "action": action,
             "human_review_status": human_review_status,
             "severity": severity,
             "score": score,
-            "escalation_id": escalation.id if escalation else None,
+            "escalation_id": escalation_id,
         }
 
     async def _create_escalation(
@@ -112,7 +117,7 @@ class HallucinationGuard:
         trace_id: str | None,
         severity: str,
         uow: UnitOfWork,
-    ) -> ComplianceEscalation | None:
+    ) -> Any | None:
         """Persist a hallucination-driven compliance escalation."""
         from axe.security.context import RequestContext
 
@@ -124,16 +129,18 @@ class HallucinationGuard:
             # Cannot create an escalation without a fund scope.
             return None
 
-        escalation = uow.compliance_escalations.create_escalation(
-            pm_id=pm_id,
-            fund_entity_id=fund_entity_id,
+        service = ComplianceEscalationService(uow)
+        trigger = ComplianceEscalationTrigger(
             trigger_type="hallucination",
-            severity=severity,
-            status="open",
-            details={"trace_id": trace_id},
+            severity=severity,  # type: ignore[arg-type]
+            fund_entity_id=fund_entity_id,
+            pm_id=pm_id,
+            details={"score": score, "trace_id": trace_id},
         )
-        await uow.session.flush()
-        return escalation
+        try:
+            return await service.open(trigger)
+        except BelowAutoEscalationThreshold:
+            return None
 
     @staticmethod
     def _split_claims(output: str) -> list[str]:

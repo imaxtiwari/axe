@@ -13,6 +13,11 @@ from axe.agents.mnpi_review import MNPIReviewAgent, MNPIReviewResult
 from axe.db.models import MNPIReviewQueue, PMUser, RetryQueue, SignalLog
 from axe.security.audit import AuditService
 from axe.security.context import RequestContext
+from axe.services.compliance_escalation import (
+    BelowAutoEscalationThreshold,
+    ComplianceEscalationService,
+    ComplianceEscalationTrigger,
+)
 
 Decision = Literal["approved", "rejected"]
 
@@ -105,8 +110,47 @@ class MNPIService:
         )
         self.session.add(review)
         await self.session.flush()
+
+        # Open a compliance escalation for the MNPI review itself so the
+        # compliance queue has a single item to track.
+        await self._open_mnpi_escalation(review)
+
         await self._audit("mnpi_review_created", review)
         return MNPIReviewOutcome(blocked=True, review=review, result=result)
+
+    async def _open_mnpi_escalation(self, review: MNPIReviewQueue) -> None:
+        """Open a compliance escalation for a flagged MNPI review."""
+        ctx = RequestContext.current_or_none()
+        fund_entity_id = ctx.fund_id if ctx is not None else None
+        if not fund_entity_id:
+            return
+
+        severity: str = "high"
+        if review.mnpi_score is not None and review.mnpi_score >= 0.7:
+            severity = "critical"
+        elif (
+            review.materiality_score is not None
+            and review.materiality_score >= 0.7
+        ):
+            severity = "critical"
+
+        service = ComplianceEscalationService(self.session)
+        trigger = ComplianceEscalationTrigger(
+            trigger_type="mnpi_review",
+            severity=severity,  # type: ignore[arg-type]
+            fund_entity_id=fund_entity_id,
+            pm_id=review.pm_id,
+            details={
+                "mnpi_review_id": review.id,
+                "signal_id": review.signal_id,
+                "ticker": review.ticker,
+            },
+        )
+        try:
+            await service.open(trigger)
+        except BelowAutoEscalationThreshold:
+            pass
+
 
     async def decide(
         self,
