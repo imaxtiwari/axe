@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 import string
+from collections.abc import Generator
 from difflib import SequenceMatcher
 from typing import Any
 
@@ -19,9 +20,7 @@ from pydantic import BaseModel, Field
 class Citation(BaseModel):
     """A single citation linking an output claim to a source."""
 
-    source_id: str | None = Field(
-        default=None, description="Identifier of the cited source."
-    )
+    source_id: str | None = Field(default=None, description="Identifier of the cited source.")
     source_type: str = Field(
         default="unknown", description="Source type, e.g. signal, transcript, document."
     )
@@ -29,10 +28,10 @@ class Citation(BaseModel):
     span: tuple[int, int] | None = Field(
         default=None, description="Character span (start, end) of the cited snippet in the output."
     )
-    verified: bool = Field(default=False, description="True when the snippet is found in the source.")
-    confidence: float = Field(
-        default=0.0, ge=0.0, le=1.0, description="Verification confidence."
+    verified: bool = Field(
+        default=False, description="True when the snippet is found in the source."
     )
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="Verification confidence.")
 
 
 class CitationExtractor:
@@ -44,8 +43,16 @@ class CitationExtractor:
         re.IGNORECASE,
     )
 
-    # Split text into sentences without destroying the marker positions.
-    _SENTENCE_RE = re.compile(r"[^.!?\n]+[.!?]?(?=\s|$)", re.DOTALL)
+    # Real sentence terminators followed by whitespace or end-of-string.
+    # Avoid splitting on punctuation inside numbers/currency/percentages.
+    _SENTENCE_SPLIT_RE = re.compile(
+        r"(?<![a-zA-Z])"  # don't break after abbreviations/short words
+        r"(?<![$€£¥₹])"  # don't break immediately after currency symbols
+        r"(?<!\d)"  # don't break immediately after a digit
+        r"[.!?]+"
+        r"(?=\s|$)",
+        re.DOTALL,
+    )
 
     def __init__(
         self,
@@ -135,9 +142,7 @@ class CitationExtractor:
             )
         return citations
 
-    def _resolve_source(
-        self, label: str, sources: list[dict[str, Any]]
-    ) -> dict[str, Any] | None:
+    def _resolve_source(self, label: str, sources: list[dict[str, Any]]) -> dict[str, Any] | None:
         """Map a citation label to a source by id or 1-based index."""
         # Try exact id match first.
         for source in sources:
@@ -153,47 +158,68 @@ class CitationExtractor:
             pass
         return None
 
+    def _split_sentences(self, text: str) -> Generator[tuple[int, int, str], None, None]:
+        """Yield (start, end, sentence) slices splitting on real sentence boundaries."""
+        # First split on terminal punctuation to get rough sentence chunks.
+        parts: list[tuple[int, int, str]] = []
+        start = 0
+        for split_match in self._SENTENCE_SPLIT_RE.finditer(text):
+            end = split_match.end()
+            chunk = text[start:end].strip()
+            if chunk:
+                parts.append((start, end, chunk))
+            start = end
+
+        if start < len(text):
+            chunk = text[start:].strip()
+            if chunk:
+                parts.append((start, len(text), chunk))
+
+        if not parts:
+            # Degenerate case: no terminators found. Treat whole text as one sentence.
+            stripped = text.strip()
+            if stripped:
+                offset = text.index(stripped)
+                yield (offset, offset + len(stripped), stripped)
+            return
+
+        for _idx, (seg_start, seg_end, sentence) in enumerate(parts):
+            # Don't drop leading terminal punctuation of the next segment; it was
+            # consumed by the previous match. This is okay because punctuation is
+            # attached to the sentence it terminates.
+            yield (seg_start, seg_end, sentence)
+
     def _claim_for_marker(self, output: str, match: re.Match[str]) -> str:
-        """Return the sentence containing the citation marker."""
-        # Walk backward from the character just before the marker, skipping any
-        # whitespace so the marker's own padding does not terminate the search,
-        # then continue back to the previous sentence boundary.
-        sentence_start = match.start()
-        passed_whitespace = False
-        while sentence_start > 0:
-            ch = output[sentence_start - 1]
-            if ch.isspace():
-                sentence_start -= 1
-                passed_whitespace = True
-                continue
-            if passed_whitespace and ch in ".!?\n":
-                # We reached the boundary that terminates the claim sentence;
-                # stop before it.
-                break
-            sentence_start -= 1
+        """Return the sentence containing or immediately preceding the citation marker."""
+        marker_start = match.start()
 
-        # Walk forward from the character just after the marker to find the end
-        # of the sentence. Include any trailing terminator.
-        sentence_end = match.end()
-        while sentence_end < len(output) and output[sentence_end] not in ".!?\n":
-            sentence_end += 1
-        if sentence_end < len(output) and output[sentence_end] in ".!":
-            sentence_end += 1
+        # Prefer the sentence whose span contains the marker.
+        for sentence_start, sentence_end, sentence in self._split_sentences(output):
+            if sentence_start <= marker_start <= sentence_end:
+                snippet = self._MARKER_RE.sub("", sentence).strip()
+                return snippet
 
-        # Slice the whole sentence and remove the marker afterwards.
-        snippet = output[sentence_start:sentence_end].strip()
+        # Fallback to the sentence that ends closest to (but before) the marker.
+        best: tuple[int, int, str] | None = None
+        for sentence_start, sentence_end, sentence in self._split_sentences(output):
+            if sentence_end <= marker_start:
+                best = (sentence_start, sentence_end, sentence)
+
+        if best is not None:
+            snippet = self._MARKER_RE.sub("", best[2]).strip()
+            return snippet
+
+        # Ultimate fallback: text immediately before the marker.
+        snippet = output[max(0, marker_start - self.snippet_max_chars) : marker_start]
         snippet = self._MARKER_RE.sub("", snippet).strip()
         return snippet
 
-    def _extract_from_overlap(
-        self, output: str, sources: list[dict[str, Any]]
-    ) -> list[Citation]:
+    def _extract_from_overlap(self, output: str, sources: list[dict[str, Any]]) -> list[Citation]:
         citations: list[Citation] = []
         if not sources:
             return citations
 
-        for sentence_match in self._SENTENCE_RE.finditer(output):
-            sentence = sentence_match.group().strip()
+        for sentence_start, sentence_end, sentence in self._split_sentences(output):
             if len(sentence) < 8:
                 continue
 
@@ -211,7 +237,7 @@ class CitationExtractor:
                         source_id=best_source.get("id"),
                         source_type=best_source.get("source_type", "document"),
                         snippet=sentence[: self.snippet_max_chars],
-                        span=(sentence_match.start(), sentence_match.end()),
+                        span=(sentence_start, sentence_end),
                         confidence=round(best_score, 3),
                     )
                 )
@@ -238,7 +264,7 @@ class CitationExtractor:
 class CitationVerifier:
     """Verify that extracted citation snippets are actually present in sources."""
 
-    def __init__(self, substring_threshold: float = 0.55, overlap_threshold: float = 0.5) -> None:
+    def __init__(self, substring_threshold: float = 0.5, overlap_threshold: float = 0.4) -> None:
         self.substring_threshold = substring_threshold
         self.overlap_threshold = overlap_threshold
 

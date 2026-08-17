@@ -13,7 +13,6 @@ from axe.config import Settings
 from axe.db.models import ComplianceEscalation, FundEntity, PMUser, PolicyRule
 from axe.db.uow import UnitOfWork
 from axe.security.context import RequestContext
-from axe.services.policy import PolicyEngine
 
 
 @pytest.fixture
@@ -89,14 +88,9 @@ class TestGuardrailChecks:
         assert "self_consistency_issue" in result.violated_rules
         assert result.severity == "medium"
 
-    async def test_aggregated_severity_takes_worst(
-        self, settings: Settings
-    ) -> None:
+    async def test_aggregated_severity_takes_worst(self, settings: Settings) -> None:
         runner = GuardrailRunner(settings=settings)
-        output = (
-            "We received confidential, non-public information. "
-            "The PM's SSN is 123-45-6789."
-        )
+        output = "We received confidential, non-public information. The PM's SSN is 123-45-6789."
         result = await runner.check(output)
 
         assert result.severity == "critical"
@@ -108,16 +102,18 @@ class TestGuardrailChecks:
         settings.guardrail_policy_check_enabled = False
         settings.guardrail_self_consistency_enabled = False
         runner = GuardrailRunner(settings=settings)
-        result = await runner.check(
-            "We received confidential, non-public information."
-        )
+        result = await runner.check("We received confidential, non-public information.")
 
         assert result.passed is True
         assert "mnpi_language_detected" not in result.violated_rules
 
     async def test_policy_check_matches_rule(
-        self, uow: UnitOfWork, settings: Settings
+        self,
+        uow: UnitOfWork,
+        settings: Settings,
+        fund_and_pm: tuple[FundEntity, PMUser],
     ) -> None:
+        _fund, _pm = fund_and_pm
         ctx = RequestContext(pm_id="pm-1", fund_id="fund-1", role="pm")
         token = RequestContext.set_current(ctx)
         try:
@@ -183,9 +179,7 @@ class TestGuardrailEscalation:
         escalation = await runner.escalate(result)
         assert escalation is None
 
-    async def test_escalate_requires_fund(
-        self, uow: UnitOfWork, settings: Settings
-    ) -> None:
+    async def test_escalate_requires_fund(self, uow: UnitOfWork, settings: Settings) -> None:
         ctx = RequestContext(pm_id="pm-1", fund_id="", role="pm")
         token = RequestContext.set_current(ctx)
         try:

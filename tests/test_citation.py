@@ -6,7 +6,6 @@ import pytest
 
 from axe.agents.citation import Citation, CitationExtractor, CitationVerifier
 
-
 SAMPLE_SOURCE = {
     "id": "1",
     "source_type": "earnings_release",

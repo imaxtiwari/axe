@@ -9,14 +9,15 @@ from __future__ import annotations
 
 import asyncio
 import re
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 from axe.config import Settings, get_settings
 from axe.db.models import ComplianceEscalation
 from axe.db.uow import UnitOfWork
 from axe.security.context import RequestContext
-from axe.services.policy import PolicyAction, PolicyEngine, PolicyEvent
+from axe.services.policy import PolicyEngine, PolicyEvent
 
 
 @dataclass
@@ -92,7 +93,11 @@ class GuardrailRunner:
         metadata = metadata or {}
 
         enabled = self._enabled_checks()
-        coros = [check(output, raw_sources=raw_sources, metadata=metadata) for name, check in self._checks if name in enabled]
+        coros = [
+            check(output, raw_sources=raw_sources, metadata=metadata)
+            for name, check in self._checks
+            if name in enabled
+        ]
         results = await asyncio.gather(*coros, return_exceptions=True)
 
         aggregated: list[GuardrailResult] = []
@@ -303,9 +308,7 @@ class GuardrailRunner:
                 contradictions.append({"terms": [a, b]})
 
         if not contradictions:
-            return GuardrailResult(
-                passed=True, details={"checks": {"self_consistency": "clean"}}
-            )
+            return GuardrailResult(passed=True, details={"checks": {"self_consistency": "clean"}})
 
         return GuardrailResult(
             passed=False,

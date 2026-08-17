@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 import pytest_asyncio
@@ -12,9 +11,9 @@ import pytest_asyncio
 from axe.agents.citation import Citation, CitationExtractor, CitationVerifier
 from axe.agents.hallucination_guard import HallucinationGuard
 from axe.config import Settings
+from axe.db.models import FundEntity, PMUser
 from axe.db.uow import UnitOfWork
 from axe.security.context import RequestContext
-
 from tests.hallucination_eval_dataset import EVAL_PAIRS
 
 
@@ -36,6 +35,21 @@ def guard(settings: Settings) -> HallucinationGuard:
 async def uow(db_session: Any) -> AsyncGenerator[UnitOfWork, None]:
     async with UnitOfWork(session=db_session) as uow:
         yield uow
+
+
+@pytest_asyncio.fixture
+async def fund_and_pm(uow: UnitOfWork) -> tuple[FundEntity, PMUser]:
+    fund = FundEntity(legal_name="Test Fund", id="fund-1")
+    pm = PMUser(
+        id="pm-1",
+        fund_entity_id=fund.id,
+        email="pm@example.com",
+        role="pm",
+    )
+    uow.session.add(fund)
+    uow.session.add(pm)
+    await uow.session.flush()
+    return fund, pm
 
 
 class TestHallucinationGuardScore:
@@ -121,7 +135,10 @@ class TestHallucinationGuardRouting:
         assert result["severity"] == "high"
 
     async def test_route_review_creates_escalation(
-        self, guard: HallucinationGuard, uow: UnitOfWork
+        self,
+        guard: HallucinationGuard,
+        uow: UnitOfWork,
+        fund_and_pm: tuple[FundEntity, PMUser],
     ) -> None:
         ctx = RequestContext(pm_id="pm-1", fund_id="fund-1", role="pm")
         token = RequestContext.set_current(ctx)

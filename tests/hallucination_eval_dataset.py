@@ -10,13 +10,11 @@ from __future__ import annotations
 
 from typing import Any
 
-
 EVAL_PAIRS: list[dict[str, Any]] = [
     {
         "name": "fully_cited_and_verified",
         "output": (
-            "Apple's Q1 revenue was $123.9 billion. [1] "
-            "iPhone revenue grew 6% year over year. [1]"
+            "Apple's Q1 revenue was $123.9 billion. [1] iPhone revenue grew 6% year over year. [1]"
         ),
         "sources": [
             {
@@ -68,10 +66,7 @@ EVAL_PAIRS: list[dict[str, Any]] = [
     },
     {
         "name": "partial_overlap_one_unverified",
-        "output": (
-            "Microsoft cloud revenue grew 29%. [1] "
-            "Azure specifically grew 35%. [1]"
-        ),
+        "output": ("Microsoft cloud revenue grew 29%. [1] Azure specifically grew 35%. [1]"),
         "sources": [
             {
                 "id": "1",
