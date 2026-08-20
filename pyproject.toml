@@ -113,5 +113,12 @@ show_missing = true
 skip_covered = false
 fail_under = 0
 
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+]
+
 # Re-enable once repository-wide test coverage reaches 85%.
 # [tool.pytest.ini_options] currently sets cov-fail-under globally.
