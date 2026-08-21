@@ -56,7 +56,7 @@ class ComplianceEscalationService:
     ) -> None:
         self.settings = settings or get_settings()
         if isinstance(session_or_uow, UnitOfWork):
-            self.uow = session_or_uow
+            self.uow: UnitOfWork | None = session_or_uow
             self.session = session_or_uow.session
         else:
             self.uow = None

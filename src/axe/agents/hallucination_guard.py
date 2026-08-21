@@ -60,12 +60,16 @@ class HallucinationGuard:
         # Penalize outputs that make claims without any sources available.
         no_source_penalty = 0.15 if not raw_sources else 0.0
 
+        # Penalize verified citations whose numeric facts disagree with source.
+        numeric_mismatch_penalty = self._numeric_mismatch_penalty(citations, raw_sources)
+
         # Weighted combination; each term is in [0, 1].
         score = (
             (1.0 - coverage) * 0.45
             + (1.0 - verification_ratio) * 0.30
             + (1.0 - overlap) * 0.10
             + no_source_penalty
+            + numeric_mismatch_penalty
         )
         return round(min(1.0, max(0.0, score)), 3)
 
@@ -183,6 +187,116 @@ class HallucinationGuard:
         if not citations:
             return 0.0
         return sum(c.confidence for c in citations) / len(citations)
+
+    @staticmethod
+    def _numeric_mismatch_penalty(citations: list[Citation], raw_sources: list[Any]) -> float:
+        """Penalize cited claims that contain different numbers than their source.
+
+        This catches misattributed values (e.g. 124% vs 115%) and incompatible
+        unit suffixes (e.g. $1.2 billion vs $1.2 million, 300% vs 300 basis
+        points) while leaving purely qualitative claims untouched.
+        """
+        if not citations or not raw_sources:
+            return 0.0
+
+        # Capture a numeric value plus an optional unit suffix. We accept both
+        # compact suffixes (bn, m, k, x, %) and full words (billion, million,
+        # thousand, basis points) so unit-only mismatches are visible.
+        _NUM_RE = re.compile(
+            r"(-?\d+(?:\.\d+)?)\s*(?:"
+            r"(basis points|bps)|"
+            r"(billion|million|thousand)|"
+            r"(bn|m|k)|"
+            r"(x)|"
+            r"(%)"
+            r")?",
+            re.IGNORECASE,
+        )
+
+        source_map: dict[str, str] = {}
+        for source in raw_sources:
+            if isinstance(source, dict):
+                sid = source.get("id")
+                if sid is not None:
+                    source_map[str(sid)] = source.get("content") or source.get("text") or ""
+
+        _WORD_TO_COMPACT: dict[str, str] = {
+            "billion": "bn",
+            "million": "m",
+            "thousand": "k",
+            "basis points": "bp",
+            "bps": "bp",
+        }
+
+        def _normalize_unit(unit: str | None) -> str | None:
+            if not unit:
+                return None
+            lower = unit.lower().strip()
+            return _WORD_TO_COMPACT.get(lower, lower)
+
+        def _extract_quantities(text: str) -> set[tuple[str, str | None]]:
+            """Return (value, normalized_unit) tuples found in ``text``."""
+            result: set[tuple[str, str | None]] = set()
+            for match in _NUM_RE.finditer(text):
+                value = match.group(1)
+                unit = (
+                    match.group(2)
+                    or match.group(3)
+                    or match.group(4)
+                    or match.group(5)
+                    or match.group(6)
+                )
+                result.add((value, _normalize_unit(unit)))
+            return result
+
+        mismatches = 0
+        for c in citations:
+            if not c.verified or not c.snippet or not c.source_id:
+                continue
+            source_content = source_map.get(str(c.source_id), "")
+            if not source_content:
+                continue
+            snippet_qty = _extract_quantities(c.snippet)
+            source_qty = _extract_quantities(source_content)
+            if not snippet_qty:
+                # No numeric claims in the snippet; nothing to penalize.
+                continue
+
+            mismatch_found = False
+            for value, unit in snippet_qty:
+                # Exact match is fully compatible.
+                if (value, unit) in source_qty:
+                    continue
+
+                # Gather all units that appear with this value in the source.
+                source_units_for_value = {
+                    u for v, u in source_qty if v == value
+                }
+
+                if not source_units_for_value:
+                    # The numeric value is not present in the source at all.
+                    mismatch_found = True
+                    break
+
+                if unit is None:
+                    # The snippet has a bare number. If the source attaches any
+                    # unit to the same value, the claim is under-specified and
+                    # we treat it as a mismatch to force review.
+                    if any(u is not None for u in source_units_for_value):
+                        mismatch_found = True
+                        break
+                else:
+                    # The snippet specifies a unit, but the exact (value, unit)
+                    # pair wasn't found. Any other unit for the same value is a
+                    # unit mismatch (e.g. billion vs million, % vs bp).
+                    if unit not in source_units_for_value:
+                        mismatch_found = True
+                        break
+
+            if mismatch_found:
+                mismatches += 1
+
+        return min(1.0, mismatches / len(citations) * 0.6)
 
 
 __all__ = ["HallucinationGuard"]

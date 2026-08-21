@@ -1,244 +1,80 @@
-# AXE — Wall Street AI Co-pilot
+# AXE v2.1 — Investment Intelligence OS
 
-[![Tests](https://github.com/imaxtiwari/axe/actions/workflows/ci.yml/badge.svg)](https://github.com/imaxtiwari/axe/actions/workflows/ci.yml)
+AXE is an async FastAPI platform for small/mid-size public-market funds. It connects the dots between investment theses, inbound signals, meeting notes, decks, and compliance, while keeping every PM's data isolated and auditable.
 
-> **AI co-pilot for portfolio managers, investment teams, and GPs.**
->
-> AXE tracks your investment theses, monitors thesis-breaking signals, and surfaces a daily morning brief — all while keeping each PM's memory, permissions, and audit trail isolated.
+> **Version:** 2.1 (Use-Case Expansion)  
+> **Stack:** Python 3.12+, FastAPI, async SQLAlchemy + aiosqlite (WAL), ChromaDB, Alembic, Pydantic, OpenAI/Anthropic-compatible LLM providers.
 
----
+## What AXE does
 
-## What It Does
+| Capability | What it gives you | Key files |
+|---|---|---|
+| **Thesis & Memory** | Capture versioned theses, track key assumptions, and build a long-term memory profile per PM. | `src/axe/services/thesis.py`, `src/axe/db/models.py` |
+| **Signal Ingestion & Connectors** | Pull in broker feeds, research APIs, expert-network transcripts, PDF decks, and CRM activity. Deduplicate, hash, and persist raw payloads. | `src/axe/connectors/`, `src/axe/services/connector.py`, `src/axe/routers/connectors.py` |
+| **Specialist Signal Agents** | Convert raw ingestion into structured signals (earnings, research, expert, broker, PDF, CRM) with stance and confidence. | `src/axe/agents/specialist_signal.py` |
+| **Drift & Alerts** | Detect when new signals contradict or confirm thesis assumptions; route breakages to morning briefs. | `src/axe/agents/drift_detect.py`, `src/axe/services/alert.py` |
+| **Morning Briefs** | Generate a daily focus-one brief with catalysts, decision prompts, and citation links delivered via Slack/email. | `src/axe/agents/morning_brief.py`, `src/axe/services/brief_delivery.py` |
+| **Persona Layer** | Opt-in synthesis of a PM's writing style, decision triggers, trusted peers/sources, and confidence language from communications history. | `src/axe/agents/persona.py`, `src/axe/services/persona.py`, `src/axe/routers/persona.py` |
+| **Interactive Artifacts** | Turn any artifact (thesis, deck, memo) into executable actions and decision prompts; route cross-agent requests to the PM. | `src/axe/agents/interactive_artifact.py`, `src/axe/services/interactive.py`, `src/axe/routers/interactive.py` |
+| **Cross-Agent Collaboration** | Fund-isolated message bus lets agents request input, escalate, or delegate across PMs. | `src/axe/agents/agent_collaboration.py` |
+| **Guardrails & Anti-Hallucination** | Every LLM output is checked for MNPI, PII, securities language, self-contradiction, and citation grounding. | `src/axe/agents/guardrails.py`, `src/axe/agents/hallucination_guard.py` |
+| **Compliance Escalation** | Auto-open, assign, and audit escalations triggered by guardrails, MNPI review, or hallucination review. | `src/axe/services/compliance_escalation.py`, `src/axe/routers/compliance.py` |
+| **IC Memos & Sign-off** | Draft Investment Committee memos, collect e-signature sign-offs, and version content/markdown outputs. | `src/axe/services/ic_memo.py`, `src/axe/routers/deals.py` |
+| **LP Communications** | Generate quarterly LP updates with vehicle-scoped content, rendered markdown/HTML, and read receipts. | `src/axe/agents/lp_update.py`, `src/axe/services/lp_comms.py` |
+| **Model Tracing & Audit** | Every LLM completion is traced; every state change is append-only audited with `trace_id` correlation. | `src/axe/agents/model_trace.py`, `src/axe/security/audit.py` |
 
-| Capability | Description |
-|------------|-------------|
-| **Thesis Capture** | Turn memos, emails, or direct input into versioned theses with falsifiable assumptions. |
-| **Signal Drift Detection** | Compare transcripts, filings, and news against your assumptions and flag contradictions. |
-| **Earnings Alerts** | Get Slack + email alerts within 30 minutes of a conflicting Polygon earnings transcript. |
-| **Morning Brief** | Receive a daily brief with one focus thesis, supporting signals, and a 7-day catalyst calendar. |
-| **Reply-to-Brief** | Reply via Slack/email to update a thesis or dismiss a stale signal. |
-| **Compliance First** | Audit logging, cross-PM isolation, MNPI review gate, encryption at rest, and zero-retention LLM routing. |
-
----
-
-## Status
-
-**Pre-alpha (v0.1.0).** This is an active development scaffold. Do not use for production trading or compliance-critical workflows without a fund-level review.
-
-Read the product requirements: [`docs/AXE_PRD_v2.1_Delta.md`](docs/AXE_PRD_v2.1_Delta.md).
-
----
-
-## Installation
-
-### Requirements
-
-- Python 3.12+
-- Git
-- Docker + Docker Compose (recommended)
-
-### 1. Clone the repository
+## Quick start
 
 ```bash
+# 1. Clone and enter the repo
 git clone https://github.com/imaxtiwari/axe.git
 cd axe
-```
 
-### 2. Configure environment variables
+# 2. Install Python dependencies (uv recommended)
+uv sync
 
-```bash
+# 3. Configure environment
 cp .env.example .env
+# Edit .env and set DATABASE_URL, CHROMA_PATH, and ENCRYPTION_KEY at minimum.
+
+# 4. Run migrations
+uv run alembic upgrade head
+
+# 5. Start the API server
+uv run python -m axe.main
 ```
 
-Edit `.env` and add your keys. The minimum set is:
+See [GETTING_STARTED.md](GETTING_STARTED.md) for the full onboarding workflow and [CLAUDE.md](CLAUDE.md) for developer conventions.
 
-```bash
-DATABASE_URL=sqlite+aiosqlite:///./data/axe.db          # default SQLite
-CHROMA_PERSIST_DIR=./data/chroma
-ENCRYPTION_KEY=<your-fernet-key>
+## API overview
 
-AZURE_FOUNDRY_ENDPOINT=https://<your-resource>.services.ai.azure.com
-AZURE_FOUNDRY_API_KEY=<your-key>
-AZURE_FOUNDRY_MODEL=gpt-4o-mini
+All API routes live under `/api/v1/*` and require identity headers (`X-PM-ID`, `X-Fund-ID`, `X-Role`) in production. Key routers:
 
-SLACK_BOT_TOKEN=xoxb-<your-token>
-SLACK_SIGNING_SECRET=<your-secret>
-RESEND_API_KEY=<your-key>
-AXE_EMAIL_DOMAIN=<your-domain>
+- `/api/v1/thesis` — thesis capture and versioning
+- `/api/v1/signals` — signal ingestion, drift, and feedback
+- `/api/v1/briefs` — morning brief generation and delivery
+- `/api/v1/connectors` — connector configuration and manual runs
+- `/api/v1/persona` — persona refresh, get, delete, citations, peers
+- `/api/v1/artifacts` — interactive artifact actions and decision prompts
+- `/api/v1/compliance` — compliance escalation lifecycle
+- `/api/v1/deals` — deal rooms, IC memos, sign-offs
+- `/api/v1/lp` — LP updates and vehicles
 
-POLYGON_API_KEY=<your-key>
-GOOGLE_CLIENT_ID=<your-client-id>
-GOOGLE_CLIENT_SECRET=<your-secret>
-```
+## Security highlights
 
-Generate a Fernet key:
+- **Tenant isolation:** every row is scoped by `pm_id` or `fund_entity_id` via `IsolationService`.
+- **Encryption at rest:** OAuth tokens and connector credentials are stored as Fernet-encrypted JSON (`EncryptedJSON`).
+- **Audit log:** append-only `audit_log` table blocks ORM UPDATE/DELETE and records before/after state.
+- **Role-based access:** routers require `pm`, `compliance`, or `admin` roles as appropriate.
+- **No secrets in logs:** connector credentials and token payloads are never logged in plaintext.
 
-```bash
-python - <<'PY'
-from cryptography.fernet import Fernet
-print(Fernet.generate_key().decode())
-PY
-```
+## Evaluation datasets
 
-### 3. Install dependencies
+- `tests/drift_eval_dataset.py` — 50+ labeled signal/assumption pairs for stance evaluation.
+- `tests/hallucination_eval_dataset.py` — labeled citation/grounding pairs for hallucination scoring.
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev,ocr]"
-```
+Run the suites with `pytest tests/test_drift*.py tests/test_hallucination_guard.py tests/test_guardrails.py`.
 
-### 4. Run migrations
+## License
 
-```bash
-alembic upgrade head
-```
-
-### 5. Start the server
-
-```bash
-uvicorn axe.main:app --reload
-```
-
-Check health:
-
-```bash
-curl http://localhost:8000/healthz
-```
-
----
-
-## Quick Start Workflow
-
-After the server is running:
-
-### 1. Create a PM user
-
-In production this is handled by an upstream identity flow. For local testing, seed a PM directly or use a small script that inserts into `pm_users`.
-
-### 2. Onboard the PM
-
-```bash
-http POST http://localhost:8000/api/v1/onboarding/start \
-  pm_id=<pm_id>
-```
-
-Answer the five cold-start questions:
-
-```bash
-http POST http://localhost:8000/api/v1/onboarding/answer \
-  pm_id=<pm_id> \
-  question_number=1 \
-  answer="3-5 years"
-```
-
-Repeat for `question_number` 2 through 5.
-
-### 3. Capture tickers
-
-```bash
-http POST http://localhost:8000/api/v1/onboarding/thesis-capture \
-  pm_id=<pm_id> \
-  tickers:='["AAPL","MSFT","NVDA"]'
-```
-
-### 4. Create a thesis with assumptions
-
-```bash
-# Create a deal room
-http POST http://localhost:8000/api/v1/deals \
-  name="NVDA Long" \
-  asset_class="equity" \
-  target_ticker_or_private_name="NVDA"
-
-# Add a versioned thesis
-http POST http://localhost:8000/api/v1/deals/<deal_id>/thesis \
-  stage="conviction" \
-  key_assumptions:='[
-    "Revenue grows at least 10% YoY through 2025",
-    "Data center revenue share stays above 40%"
-  ]'
-```
-
-> **Tip:** Make assumptions falsifiable. Use numbers, dates, or clear thresholds, and avoid words like "strong" or "good".
-
-### 5. Trigger a drift alert
-
-```bash
-http POST http://localhost:8000/api/v1/transcripts \
-  pm_id=<pm_id> \
-  ticker="NVDA" \
-  source_type="polygon" \
-  signal_text="Q3 revenue fell 5% year over year, missing consensus."
-```
-
-If the signal contradicts an assumption and passes the MNPI screen, a Slack DM and email alert will fire.
-
-For the complete walkthrough — Docker Compose, ingestion worker, troubleshooting, and more — see [`GETTING_STARTED.md`](GETTING_STARTED.md).
-
----
-
-## Docker Compose
-
-Run the API, worker, and optional ChromaDB server in one command:
-
-```bash
-docker compose up --build
-```
-
-Then apply migrations:
-
-```bash
-docker compose exec axe alembic upgrade head
-```
-
-The API is available at `http://localhost:8000`.
-
----
-
-## Testing
-
-```bash
-pytest                  # full suite with coverage
-pytest -q               # quiet mode
-pytest tests/test_drift.py  # drift-specific tests
-```
-
-Current state: **111 tests passing**.
-
----
-
-## Project Structure
-
-```
-axe/
-├── alembic/              Database migrations
-├── docs/                 PRD and design documents
-├── scripts/              Helper scripts
-├── src/axe/
-│   ├── agents/           LLM agents (thesis extraction, drift detection, morning brief, brief replies)
-│   ├── config.py         Pydantic settings
-│   ├── db/               SQLAlchemy models, sessions, migrations
-│   ├── ingestion/        Gmail, Slack, Polygon, PDF ingestion + ingest worker
-│   ├── main.py           FastAPI entry point
-│   ├── memory/           PM memory synthesis and injection
-│   ├── models/           Pydantic domain models
-│   ├── routers/          API routes
-│   ├── security/         Audit, encryption, isolation
-│   └── services/         Business logic services (alerts, onboarding, scheduling)
-└── tests/                Test suite and evaluation datasets
-```
-
----
-
-## Documentation
-
-- **[Getting Started](GETTING_STARTED.md)** — Full install, run, and first-use walkthrough.
-- **[Developer Guide](CLAUDE.md)** — Architecture, conventions, agents, ingestion, and production notes.
-- **[Product Requirements](docs/AXE_PRD_v2.1_Delta.md)** — v2.1 PRD and gap analysis.
-
----
-
-## Compliance Note
-
-AXE is designed for regulated investment workflows. v1 includes audit logging, MNPI flagging, cross-PM isolation, and zero-retention LLM routing via Azure Foundry. Fund-level compliance review is required before production deployment.
+Proprietary — see repository owner for licensing terms.

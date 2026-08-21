@@ -18,12 +18,12 @@ from typing import Any, cast
 from urllib.parse import urlparse
 
 with suppress(ImportError):
-    from cryptography.fernet import Fernet as _Fernet  # type: ignore[import-untyped]
+    from cryptography.fernet import Fernet as _Fernet
 
     Fernet = _Fernet
 
 with suppress(ImportError):
-    from botocore.config import Config as _BotoConfig  # type: ignore[import-untyped]
+    from botocore.config import Config as _BotoConfig
 
     BotoConfig = _BotoConfig
 

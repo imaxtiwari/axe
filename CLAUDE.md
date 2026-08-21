@@ -63,6 +63,11 @@ docker compose exec axe alembic upgrade head
 | `src/axe/ingestion/` | Parsers, handlers, dedup, retry, and the ingest worker |
 | `src/axe/main.py` | FastAPI app factory and middleware wiring |
 | `src/axe/models/` | Pydantic request/response models shared by routers and agents |
+| `src/axe/connectors/` | Source-specific ingestion connectors (broker, research, expert, PDF, CRM) |
+| `src/axe/services/connector.py` | Connector orchestration: fetch, dedup, persist, enqueue specialist |
+| `src/axe/services/persona.py` | Persona synthesis orchestration |
+| `src/axe/services/compliance_escalation.py` | Compliance escalation lifecycle |
+| `src/axe/services/interactive.py` | Artifact action and decision prompt execution |
 | `src/axe/routers/` | FastAPI route modules (`onboarding.py`, `transcripts.py`) |
 | `src/axe/security/` | Encryption, audit, isolation |
 | `src/axe/services/` | Business logic that sits between routers and agents (alerts, onboarding, scheduling) |
@@ -70,7 +75,7 @@ docker compose exec axe alembic upgrade head
 
 ## Conventions
 
-- **Formatting**: `ruff` + `black`, line length 100.
+- **Formatting**: `ruff format` + `ruff check`, line length 100. CI runs both; prefer `ruff format` over `black`.
 - **Imports**: Use `from __future__ import annotations`, then stdlib, third-party, first-party.
 - **Types**: Full type hints required. `mypy --strict` in CI.
 - **Async**: All DB access is async via `sqlalchemy.ext.asyncio`. Services/agents should be `async` if they touch IO.
@@ -160,6 +165,40 @@ Parses a PM reply to a morning brief and either:
 - Dismisses a signal (`SignalFeedback`).
 - Records a follow-up question.
 
+### SpecialistSignalAgent
+
+File: `src/axe/agents/specialist_signal.py`
+
+Source-specific agents that convert a `RawIngest` row into one or more `SpecialistSignalOutput` records. Each subclass sets `source_type`, `specialist_name`, and `default_signal_type`. The registry at `default_registry()` maps source types to agent classes.
+
+Key classes:
+- `EarningsSpecialist` (`polygon`)
+- `ResearchEdgeSpecialist` (`research_edge`)
+- `ExpertNetworkSpecialist` (`expert_network`)
+- `BrokerSpecialist` (`broker_feed`)
+- `PDFDeckSpecialist` (`pdf_deck`)
+- `CRMSpecialist` (`crm`)
+
+Use `build_agent_context()` to construct the `AgentContext` passed to `process()`.
+
+### InteractiveArtifactAgent
+
+File: `src/axe/agents/interactive_artifact.py`
+
+Generates artifact-specific actions (`focus_one_buy_more`, `share_with_team`, etc.) and decision prompts from a persisted artifact. The service layer (`services/interactive.py`) persists `ArtifactAction` and `DecisionPrompt` rows and executes or resolves them.
+
+### GuardrailRunner
+
+File: `src/axe/agents/guardrails.py`
+
+Multi-layer guardrail suite applied to every LLM output. Checks: MNPI, fund policy, PII, securities regulation, and self-consistency. High/critical severities auto-open a `ComplianceEscalation` via `GuardrailRunner.escalate()`.
+
+### HallucinationGuard
+
+File: `src/axe/agents/hallucination_guard.py`
+
+Scores an output based on citation coverage, verification ratio, and source overlap. Scores above configured thresholds route the trace to human review and may open a compliance escalation.
+
 ## Database & Migrations
 
 Models: `src/axe/db/models.py`
@@ -167,12 +206,21 @@ Models: `src/axe/db/models.py`
 Key tables:
 - `pm_users`, `fund_entities`
 - `ticker_registry`
-- `thesis_version` (JSON `key_assumptions`, versioned)
+- `thesis_versions` (JSON `key_assumptions`, versioned)
 - `signal_log` (raw ingested signals, foreign keys to PM/thesis; `mnpi_flag` for review state)
 - `mnpi_review_queue` (pending compliance review items; holds blocked alert payloads)
 - `signal_feedback` (PM dismissals / confirmations)
 - `broken_assumptions` (alert deduplication)
 - `morning_briefs`, `brief_replies`
+- `connector_config` (encrypted credentials per PM/source)
+- `raw_ingest` (connector payloads before specialist processing)
+- `specialist_signal` (structured signals from specialist agents)
+- `pm_persona`, `memory_citation`, `pm_peer_map` (persona layer)
+- `artifact_action`, `decision_prompt` (interactive artifacts)
+- `agent_messages` (cross-agent collaboration bus)
+- `model_trace` (LLM completion traces with hallucination scores)
+- `policy_rule` (fund-scoped guardrail/compliance rules)
+- `compliance_escalation` (compliance escalation queue)
 
 Create a migration after any model change:
 
@@ -203,6 +251,55 @@ Approval/rejection flow:
 4. Each decision writes an `AuditLog` entry (`mnpi_review_approved` or `mnpi_review_rejected`).
 
 Tests: `tests/test_security.py` contains MNPI service and handler tests under the `mnpi` keyword.
+
+## Connectors & Specialist Signals
+
+Connectors live in `src/axe/connectors/`. Each implements `BaseConnector` and produces `IngestCandidate` objects via `fetch()`.
+
+The `ConnectorService` (`src/axe/services/connector.py`) orchestrates a run:
+1. Build the connector from `ConnectorConfig.credentials_encrypted`.
+2. Fetch candidates.
+3. Deduplicate by content hash and idempotency key.
+4. Persist `RawIngest` rows.
+5. Enqueue specialist processing (`specialist_signal` task).
+6. Audit the run.
+
+Credentials are stored encrypted at rest using `EncryptedJSON` (`src/axe/security/encryption.py`). Never log `credentials_encrypted` or decrypted payloads.
+
+To add a new source:
+1. Implement `BaseConnector` in `src/axe/connectors/<source>.py`.
+2. Add a `SpecialistSignalAgent` subclass in `src/axe/agents/specialist_signal.py`.
+3. Register both in `ConnectorService._build_connector()` and `default_registry()`.
+4. Add tests in `tests/test_connectors.py` and `tests/test_specialist_signal.py`.
+
+## Persona Opt-In
+
+The persona layer is opt-in. A PM must explicitly call `POST /api/v1/persona/refresh` or an admin must trigger it. The refresh mines `CommunicationArchive` history via `MemoryMinerAgent`, synthesizes a writing style and trusted sources via `PersonaAgent`, and persists:
+- `PMPersona` — writing style summary, decision triggers, confidence language.
+- `MemoryCitation` — quoted snippets linked to tickers/deals.
+- `PMPeerMap` — trusted peer relationships.
+
+Privacy controls:
+- `include_dms=False` excludes direct messages.
+- `allowed_dm_participants` limits which peers can be mined.
+- Persona data is scoped to the PM and never shared across funds.
+
+## Compliance Escalation Workflow
+
+File: `src/axe/services/compliance_escalation.py`
+
+Escalations are opened by:
+- `GuardrailRunner.escalate()` for high/critical guardrail failures.
+- `HallucinationGuard.route_for_review()` for rejected/review hallucination scores.
+- `MNPIService` for MNPI review items (when configured).
+
+Lifecycle:
+1. `ComplianceEscalationService.open(trigger)` creates the row, picks severity, and auto-assigns a reviewer via round-robin.
+2. Compliance/admin users call `POST /api/v1/compliance/{escalation_id}/assign` to assign or reassign.
+3. `POST /api/v1/compliance/{escalation_id}/resolve` records the resolution and audit trail.
+4. `GET /api/v1/compliance/` lists open escalations scoped to the fund.
+
+All transitions write `AuditLog` entries. The router requires `compliance` or `admin` role.
 
 ## Ingestion Pipeline
 
@@ -265,10 +362,27 @@ agent = DriftDetectionAgent(
 )
 ```
 
+### Add a new connector
+
+1. Create `src/axe/connectors/<source>.py` implementing `BaseConnector`.
+2. Add a matching `SpecialistSignalAgent` in `src/axe/agents/specialist_signal.py`.
+3. Wire the connector in `ConnectorService._build_connector()`.
+4. Register the specialist in `default_registry()`.
+5. Add tests and an eval case in `tests/drift_eval_dataset.py` if the source produces stance-bearing signals.
+
+### Add a new compliance escalation trigger
+
+1. Define a new `trigger_type` string.
+2. Call `ComplianceEscalationService.open()` from the trigger site.
+3. Add the trigger type to compliance router tests.
+
 ## Production Notes
 
 - Azure Foundry endpoint + API key are required.
 - Use a managed Postgres instead of SQLite; set `DATABASE_URL` accordingly.
 - Run migrations as a startup job.
-- Secrets (API keys, SMTP) should be injected via env, never committed.
-- Review MNPI flags and audit logs before enabling live trading workflows.
+- Secrets (API keys, SMTP, OAuth client secrets) should be injected via env, never committed.
+- Encryption key rotation: decrypt/re-encrypt `PMOAuthToken` and `ConnectorConfig` rows with the new key; never store more than one active key in env.
+- Review MNPI flags, compliance escalations, and audit logs before enabling live trading workflows.
+- Enable guardrail checks (`guardrail_*_enabled` in `Settings`) and set `hallucination_score_threshold` / `hallucination_auto_reject_threshold` before production use.
+- Set `compliance_escalation_auto_assign_enabled=True` and configure `compliance_reviewers` for round-robin assignment.

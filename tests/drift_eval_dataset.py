@@ -1,4 +1,4 @@
-"""Helper module for 50-label drift detection evaluation dataset."""
+"""Helper module for 82-label drift detection evaluation dataset."""
 
 from __future__ import annotations
 
@@ -59,6 +59,39 @@ DRIFT_DATASET: list[dict[str, str]] = [
     {"assumption": "Air travel demand fully recovers", "signal": "A new airline partnership was announced.", "label": "UNCERTAIN"},
     {"assumption": "Semiconductor inventory normalizes", "signal": "An analyst upgraded the sector to overweight.", "label": "UNCERTAIN"},
     {"assumption": "Housing starts recover", "signal": "Mortgage rates were unchanged this week.", "label": "UNCERTAIN"},
+    # CONNECTOR / SPECIALIST SIGNAL CONTRADICTIONS (8)
+    {"assumption": "Palantir government revenue grows 15% YoY", "signal": "ResearchEdge: Palantir government revenue fell 3% YoY in Q3.", "label": "CONTRADICTS"},
+    {"assumption": "Snowflake net revenue retention stays above 120%", "signal": "BrokerFeed: Snowflake NRR declined to 115%, below 120%.", "label": "CONTRADICTS"},
+    {"assumption": "CRWD endpoint growth reaccelerates to 25%", "signal": "ExpertNetwork call: CRWD new logo growth slowed to 12% this quarter.", "label": "CONTRADICTS"},
+    {"assumption": "UBER mobility EBITDA margin reaches 8%", "signal": "PDF deck excerpt: UBER mobility EBITDA margin was 6.2% in Q2.", "label": "CONTRADICTS"},
+    {"assumption": "COIN trading volumes exceed $200bn in Q2", "signal": "CRM notes: COIN retail trading volumes came in at $185bn.", "label": "CONTRADICTS"},
+    {"assumption": "ZS billings growth accelerates above 30%", "signal": "Polygon.io: ZS billings grew 28%, decelerating from 35% last quarter.", "label": "CONTRADICTS"},
+    {"assumption": "DDOG cloud cost optimization headwinds abate", "signal": "ResearchEdge: DDOG seat growth slowed further as customers optimize.", "label": "CONTRADICTS"},
+    {"assumption": "MDB Atlas revenue growth re-accelerates", "signal": "BrokerFeed: MDB Atlas grew 22%, the slowest pace in three years.", "label": "CONTRADICTS"},
+    # CONNECTOR / SPECIALIST SIGNAL CONFIRMS (7)
+    {"assumption": "Palantir government revenue grows 15% YoY", "signal": "ResearchEdge: Palantir government revenue grew 18% YoY in Q3.", "label": "CONFIRMS"},
+    {"assumption": "Snowflake net revenue retention stays above 120%", "signal": "BrokerFeed: Snowflake NRR was 124% this quarter.", "label": "CONFIRMS"},
+    {"assumption": "UBER mobility EBITDA margin reaches 8%", "signal": "PDF deck excerpt: UBER mobility EBITDA margin reached 8.1% in Q2.", "label": "CONFIRMS"},
+    {"assumption": "COIN trading volumes exceed $200bn in Q2", "signal": "CRM notes: COIN trading volumes totaled $210bn in Q2.", "label": "CONFIRMS"},
+    {"assumption": "ZS billings growth accelerates above 30%", "signal": "Polygon.io: ZS billings grew 31% this quarter.", "label": "CONFIRMS"},
+    {"assumption": "MDB Atlas revenue growth re-accelerates", "signal": "BrokerFeed: MDB Atlas grew 32%, up from 28% last quarter.", "label": "CONFIRMS"},
+    {"assumption": "CRWD endpoint growth reaccelerates to 25%", "signal": "ExpertNetwork call: CRWD endpoint growth reached 26% in Q3.", "label": "CONFIRMS"},
+    # ADDITIONAL CONNECTOR / SPECIALIST SIGNALS (Sprint 8 expansion)
+    # Contradictions
+    {"assumption": "OKTA identity revenue grows 20% YoY", "signal": "ExpertNetwork call: OKTA identity revenue growth slowed to 14% YoY amid enterprise deal scrutiny.", "label": "CONTRADICTS"},
+    {"assumption": "SNOW product revenue reaches $1bn in Q4", "signal": "BrokerFeed: Snowflake product revenue came in at $940m in Q4, missing the $1bn mark.", "label": "CONTRADICTS"},
+    {"assumption": "NET security revenue grows above 35%", "signal": "ResearchEdge: Cloudflare security revenue grew 31%, a deceleration from 38% last quarter.", "label": "CONTRADICTS"},
+    {"assumption": "PLTR commercial revenue exceeds $1bn in 2024", "signal": "PDF deck excerpt: Palantir commercial revenue was $945m for full year 2024.", "label": "CONTRADICTS"},
+    {"assumption": "SHOP gross merchandise value grows 30% YoY", "signal": "CRM notes: Shopify GMV grew 24% YoY during the holiday period.", "label": "CONTRADICTS"},
+    # Confirms
+    {"assumption": "OKTA identity revenue grows 20% YoY", "signal": "ExpertNetwork call: OKTA identity revenue grew 22% YoY on strong enterprise adoption.", "label": "CONFIRMS"},
+    {"assumption": "SNOW product revenue reaches $1bn in Q4", "signal": "BrokerFeed: Snowflake product revenue was $1.02bn in Q4.", "label": "CONFIRMS"},
+    {"assumption": "NET security revenue grows above 35%", "signal": "ResearchEdge: Cloudflare security revenue grew 36% this quarter.", "label": "CONFIRMS"},
+    {"assumption": "PLTR commercial revenue exceeds $1bn in 2024", "signal": "PDF deck excerpt: Palantir commercial revenue reached $1.05bn for full year 2024.", "label": "CONFIRMS"},
+    {"assumption": "SHOP gross merchandise value grows 30% YoY", "signal": "CRM notes: Shopify GMV grew 31% YoY during the holiday period.", "label": "CONFIRMS"},
+    # Neutral / Uncertain
+    {"assumption": "OKTA identity revenue grows 20% YoY", "signal": "ResearchEdge published a sector note on identity and access management trends.", "label": "NEUTRAL"},
+    {"assumption": "SNOW product revenue reaches $1bn in Q4", "signal": "ExpertNetwork call: Snowflake remains a key player in the data cloud market.", "label": "UNCERTAIN"},
 ]
 # fmt: on
 

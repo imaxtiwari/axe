@@ -8,7 +8,7 @@ structured decision prompts scoped to the PM.
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -127,7 +127,7 @@ class InteractiveArtifactAgent:
             return None
 
         if artifact_type == "morning_brief":
-            model = MorningBrief
+            model: type[MorningBrief | LPUpdate | DeckOutput] = MorningBrief
         elif artifact_type == "lp_update":
             model = LPUpdate
         elif artifact_type == "deck_output":
@@ -148,7 +148,7 @@ class InteractiveArtifactAgent:
             return None
         if hasattr(model, "pm_id") or hasattr(model, "fund_entity_id"):
             IsolationService.require_isolated(row)
-        return row  # type: ignore[return-value]
+        return cast(MorningBrief | LPUpdate | DeckOutput | None, row)
 
     # ------------------------------------------------------------------
     # Morning brief

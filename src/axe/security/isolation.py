@@ -16,6 +16,9 @@ from axe.security.context import RequestContext
 IsolationError = IsolationError
 
 
+__all__ = ["IsolationError", "IsolationService"]
+
+
 class IsolationService:
     """Ensures every read is filtered by the active request context.
 

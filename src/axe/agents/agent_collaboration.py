@@ -274,7 +274,7 @@ class AgentCollaborationBus:
             if message.expires_at is not None and message.expires_at <= now:
                 continue
             filtered.append(message)
-        filtered.sort(key=lambda m: m.created_at or now, reverse=True)  # type: ignore[arg-type]
+        filtered.sort(key=lambda m: m.created_at or now, reverse=True)
         return filtered[:limit]
 
     async def _persist_message(self, message: AgentMessage) -> None:

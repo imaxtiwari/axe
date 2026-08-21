@@ -184,7 +184,7 @@ async def create_escalation_trigger(
     trigger = ComplianceEscalationTrigger(
         trigger_type=body.get("trigger_type", "manual"),
         severity=body.get("severity", "medium"),
-        fund_entity_id=body.get("fund_entity_id", ctx.fund_id),
+        fund_entity_id=body.get("fund_entity_id") or ctx.fund_id or "",
         pm_id=body.get("pm_id", ctx.pm_id),
         details=body.get("details", {}),
     )

@@ -16,13 +16,16 @@ This guide walks you through installing, configuring, and running AXE from scrat
 6. [Run Database Migrations](#6-run-database-migrations)
 7. [Verify the Installation](#7-verify-the-installation)
 8. [Run the Ingestion Worker](#8-run-the-ingestion-worker)
-9. [First-Time Use: Create a PM & Capture a Thesis](#9-first-time-use-create-a-pm--capture-a-thesis)
-10. [Trigger a Drift Alert](#10-trigger-a-drift-alert)
-11. [Generate a Morning Brief](#11-generate-a-morning-brief)
-12. [Run the Test Suite](#12-run-the-test-suite)
-13. [Linting, Formatting & Type Checks](#13-linting-formatting--type-checks)
-14. [Troubleshooting](#14-troubleshooting)
-15. [Next Steps](#15-next-steps)
+9. [First-Time Use: Create a PM & Complete Onboarding](#9-first-time-use-create-a-pm--complete-onboarding)
+10. [Configure a Connector](#10-configure-a-connector)
+11. [Opt In to Persona Synthesis](#11-opt-in-to-persona-synthesis)
+12. [Trigger a Drift Alert](#12-trigger-a-drift-alert)
+13. [Generate a Morning Brief](#13-generate-a-morning-brief)
+14. [Resolve a Compliance Escalation](#14-resolve-a-compliance-escalation)
+15. [Run the Test Suite](#15-run-the-test-suite)
+16. [Linting, Formatting & Type Checks](#16-linting-formatting--type-checks)
+17. [Troubleshooting](#17-troubleshooting)
+18. [Next Steps](#18-next-steps)
 
 ---
 
@@ -41,6 +44,7 @@ You need the following before you begin:
   - **Resend** (required for email alerts)
   - **Polygon.io** (required for earnings transcript ingestion)
   - **Google Cloud Console** (required for Gmail / Calendar OAuth)
+  - **Broker / CRM / Research provider credentials** (required for corresponding connectors)
 
 > For pure local testing you can skip the external services and rely on the `MockProvider`, but core features such as drift detection, brief generation, and alerts will not run end to end without an LLM provider.
 
@@ -80,6 +84,13 @@ Open `.env` in your editor and update every `replace-with-...` or `your-...` val
 | `POLYGON_API_KEY` | Polygon.io API key. | Yes for market data |
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID. | Yes for Gmail / Calendar |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret. | Yes for Gmail / Calendar |
+| `GUARDRAIL_MNPI_CHECK_ENABLED` | Enable MNPI guardrail check. | No (default `True`) |
+| `GUARDRAIL_POLICY_CHECK_ENABLED` | Enable fund policy guardrail check. | No (default `True`) |
+| `GUARDRAIL_SELF_CONSISTENCY_ENABLED` | Enable self-consistency check. | No (default `True`) |
+| `HALLUCINATION_SCORE_THRESHOLD` | Score at which output is routed to human review. | No (default `0.5`) |
+| `HALLUCINATION_AUTO_REJECT_THRESHOLD` | Score at which output is auto-rejected. | No (default `0.8`) |
+| `COMPLIANCE_ESCALATION_AUTO_ASSIGN_ENABLED` | Auto-assign escalations round-robin. | No (default `False`) |
+| `COMPLIANCE_REVIEWERS` | JSON list of reviewer PM IDs for round-robin. | No |
 
 ### Generate an encryption key
 
@@ -322,7 +333,94 @@ http POST http://localhost:8000/api/v1/deals/<deal_id>/thesis \
 
 ---
 
-## 10. Trigger a Drift Alert
+## 10. Configure a Connector
+
+Connectors pull external data into AXE. Each connector is scoped to a PM and stores its credentials encrypted at rest.
+
+### 10.1 List supported source types
+
+```bash
+http GET http://localhost:8000/api/v1/connectors/source-types \
+  X-PM-ID:<pm_id> \
+  X-Fund-ID:<fund_id> \
+  X-Role:pm
+```
+
+### 10.2 Create or update a connector
+
+```bash
+http PUT http://localhost:8000/api/v1/connectors \
+  X-PM-ID:<pm_id> \
+  X-Fund-ID:<fund_id> \
+  X-Role:pm \
+  source_type="polygon" \
+  credentials:='{"api_key": "your-polygon-key"}' \
+  schedule="0 9 * * *" \
+  enabled:=true
+```
+
+Supported `source_type` values include `polygon`, `research_edge`, `expert_network`, `broker_feed`, `pdf_deck`, and `crm`. The `credentials` dict is encrypted before storage; do not include it in logs or screenshots.
+
+### 10.3 Run a connector manually
+
+```bash
+http POST http://localhost:8000/api/v1/connectors/polygon/run \
+  X-PM-ID:<pm_id> \
+  X-Fund-ID:<fund_id> \
+  X-Role:pm \
+  limit:=10
+```
+
+The run returns counts of fetched, new, and deduplicated items. New items are persisted as `RawIngest` rows and enqueued for specialist processing.
+
+## 11. Opt In to Persona Synthesis
+
+The persona layer is opt-in. When enabled, AXE mines your communications history to synthesize a writing-style profile, trusted sources, and peer relationships.
+
+### 11.1 Refresh your persona
+
+```bash
+http POST http://localhost:8000/api/v1/persona/refresh \
+  X-PM-ID:<pm_id> \
+  X-Fund-ID:<fund_id> \
+  X-Role:pm \
+  lookback_days:=180 \
+  include_dms:=false
+```
+
+Privacy controls:
+- `include_dms=false` excludes direct messages.
+- `allowed_dm_participants` limits which peers can be mined (JSON list of email/Slack IDs).
+
+### 11.2 Inspect persona output
+
+```bash
+http GET http://localhost:8000/api/v1/persona \
+  X-PM-ID:<pm_id> \
+  X-Fund-ID:<fund_id> \
+  X-Role:pm
+
+http GET http://localhost:8000/api/v1/persona/citations \
+  X-PM-ID:<pm_id> \
+  X-Fund-ID:<fund_id> \
+  X-Role:pm
+
+http GET http://localhost:8000/api/v1/persona/peers \
+  X-PM-ID:<pm_id> \
+  X-Fund-ID:<fund_id> \
+  X-Role:pm
+```
+
+To remove the persona and citations:
+
+```bash
+http DELETE http://localhost:8000/api/v1/persona \
+  X-PM-ID:<pm_id> \
+  X-Fund-ID:<fund_id> \
+  X-Role:pm
+```
+
+## 12. Trigger a Drift Alert
 
 If Polygon earnings transcripts are configured, AXE will automatically detect contradictions and fire alerts. To test locally without Polygon, call the transcript router directly (the route is `POST /api/v1/transcripts`):
 
@@ -349,7 +447,7 @@ http POST http://localhost:8000/api/v1/transcripts \
 
 ---
 
-## 11. Generate a Morning Brief
+## 13. Generate a Morning Brief
 
 The brief scheduler runs on APScheduler, but you can also trigger generation manually by using the underlying agent or, depending on the build, a scheduler endpoint. The standard path is to schedule the job at market open.
 
@@ -362,7 +460,45 @@ Check your configured Slack channel or email inbox for the brief. A brief contai
 
 ---
 
-## 12. Run the Test Suite
+## 14. Resolve a Compliance Escalation
+
+Guardrails, MNPI review, and hallucination scoring can open compliance escalations. Compliance or admin users manage them via the API.
+
+### 14.1 List open escalations
+
+```bash
+http GET http://localhost:8000/api/v1/compliance \
+  X-PM-ID:<compliance_user_pm_id> \
+  X-Fund-ID:<fund_id> \
+  X-Role:compliance
+```
+
+### 14.2 Assign an escalation
+
+```bash
+http POST http://localhost:8000/api/v1/compliance/<escalation_id>/assign \
+  X-PM-ID:<compliance_user_pm_id> \
+  X-Fund-ID:<fund_id> \
+  X-Role:compliance \
+  reviewer_id="<reviewer_pm_id>"
+```
+
+If `COMPLIANCE_ESCALATION_AUTO_ASSIGN_ENABLED` is `True`, new escalations are auto-assigned round-robin from `COMPLIANCE_REVIEWERS`.
+
+### 14.3 Resolve an escalation
+
+```bash
+http POST http://localhost:8000/api/v1/compliance/<escalation_id>/resolve \
+  X-PM-ID:<compliance_user_pm_id> \
+  X-Fund-ID:<fund_id> \
+  X-Role:compliance \
+  resolution="approved_after_review" \
+  notes="Verified citations; no MNPI."
+```
+
+All resolution actions are append-only audited.
+
+## 15. Run the Test Suite
 
 ```bash
 # Run the full test suite with coverage
@@ -382,15 +518,14 @@ The repository currently targets 111+ passing tests. Coverage is reported but do
 
 ---
 
-## 13. Linting, Formatting & Type Checks
+## 16. Linting, Formatting & Type Checks
 
 ```bash
 # Format code
-black src tests
+ruff format src tests
 
 # Lint and fix imports
 ruff check --fix src tests
-ruff format src tests
 
 # Strict type check
 mypy --strict src
@@ -400,7 +535,7 @@ CI runs these automatically on every pull request.
 
 ---
 
-## 14. Troubleshooting
+## 17. Troubleshooting
 
 ### `ModuleNotFoundError: No module named 'axe'`
 
@@ -448,15 +583,18 @@ Verify:
 
 ---
 
-## 15. Next Steps
+## 18. Next Steps
 
 After the basics are working:
 
 1. Read the full architecture and development guide in [`CLAUDE.md`](CLAUDE.md).
 2. Review the product requirements and gap analysis in [`docs/AXE_PRD_v2.1_Delta.md`](docs/AXE_PRD_v2.1_Delta.md).
 3. Explore the API routes in `src/axe/routers/`.
-4. Configure the ingestion worker for Polygon, Gmail, and Slack sources.
-5. Review compliance settings: audit logging, MNPI thresholds, retention policies, and cross-PM isolation.
-6. For production deployment, see [`fly.toml`](fly.toml) and the Dockerfile, or deploy to your own Kubernetes cluster.
+4. Configure connectors for Polygon, broker feeds, research APIs, expert networks, PDF decks, and CRM.
+5. Opt in to persona synthesis and review mined citations and peer maps for accuracy.
+6. Configure guardrail thresholds and hallucination scoring thresholds in `.env`.
+7. Set up compliance reviewers and auto-assignment for escalations.
+8. Review compliance settings: audit logging, MNPI thresholds, retention policies, and cross-PM isolation.
+9. For production deployment, see [`fly.toml`](fly.toml) and the Dockerfile, or deploy to your own Kubernetes cluster.
 
 If you hit issues not covered here, open an issue on GitHub or check the existing test files for usage examples.
