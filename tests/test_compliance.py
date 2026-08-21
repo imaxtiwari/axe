@@ -1016,7 +1016,8 @@ async def test_audit_log_non_blocking_creates_task(db_session: AsyncSession) -> 
     audit = AuditService(db_session)
     created_tasks: list[asyncio.Task[Any]] = []
 
-    def _capture(task: asyncio.Task[Any]) -> asyncio.Task[Any]:
+    def _capture(coro: Any) -> asyncio.Task[Any]:
+        task: asyncio.Task[Any] = asyncio.ensure_future(coro)
         created_tasks.append(task)
         return task
 
@@ -1029,6 +1030,9 @@ async def test_audit_log_non_blocking_creates_task(db_session: AsyncSession) -> 
         )
 
     assert len(created_tasks) == 1
+    # Let the background task finish so it is not garbage-collected with a
+    # never-awaited coroutine warning.
+    await created_tasks[0]
 
 
 @pytest.mark.asyncio

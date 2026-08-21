@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from datetime import UTC, datetime
 from typing import Any, Literal
 
@@ -126,10 +127,10 @@ class MNPIService:
             return
 
         severity: str = "high"
-        if review.mnpi_score is not None and review.mnpi_score >= 0.7:
-            severity = "critical"
-        elif (
-            review.materiality_score is not None
+        if (
+            review.mnpi_score is not None
+            and review.mnpi_score >= 0.7
+            or review.materiality_score is not None
             and review.materiality_score >= 0.7
         ):
             severity = "critical"
@@ -146,11 +147,8 @@ class MNPIService:
                 "ticker": review.ticker,
             },
         )
-        try:
+        with contextlib.suppress(BelowAutoEscalationThreshold):
             await service.open(trigger)
-        except BelowAutoEscalationThreshold:
-            pass
-
 
     async def decide(
         self,

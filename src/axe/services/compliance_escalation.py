@@ -105,8 +105,7 @@ class ComplianceEscalationService:
                 non_blocking=False,
             )
             raise BelowAutoEscalationThreshold(
-                f"Severity '{trigger.severity}' is below configured threshold "
-                f"'{min_auto_severity}'"
+                f"Severity '{trigger.severity}' is below configured threshold '{min_auto_severity}'"
             )
 
         reviewer_id: str | None = None
@@ -167,8 +166,7 @@ class ComplianceEscalationService:
             raise ValueError("Reviewer does not belong to the escalation fund")
         if reviewer.role != self.settings.compliance_reviewer_role:
             raise ValueError(
-                f"Reviewer role '{reviewer.role}' is not "
-                f"'{self.settings.compliance_reviewer_role}'"
+                f"Reviewer role '{reviewer.role}' is not '{self.settings.compliance_reviewer_role}'"
             )
 
         escalation.reviewer_id = reviewer_id
@@ -210,11 +208,7 @@ class ComplianceEscalationService:
 
         before_state = self._state(escalation)
 
-        new_status: Status
-        if decision == "dismissed":
-            new_status = "dismissed"
-        else:
-            new_status = "resolved"
+        new_status: Status = "dismissed" if decision == "dismissed" else "resolved"
 
         escalation.status = new_status
         escalation.closed_at = datetime.now(UTC)
@@ -254,9 +248,7 @@ class ComplianceEscalationService:
         escalations for that PM within the fund. Compliance officers and admins
         see all open escalations in the fund.
         """
-        stmt = select(ComplianceEscalation).where(
-            ComplianceEscalation.status.in_(_OPEN_STATUSES)
-        )
+        stmt = select(ComplianceEscalation).where(ComplianceEscalation.status.in_(_OPEN_STATUSES))
 
         effective_fund_id = fund_id
         if effective_fund_id is None:
@@ -291,9 +283,7 @@ class ComplianceEscalationService:
         return escalation
 
     async def _get_reviewer(self, reviewer_id: str) -> PMUser | None:
-        result = await self.session.execute(
-            select(PMUser).where(PMUser.id == reviewer_id)
-        )
+        result = await self.session.execute(select(PMUser).where(PMUser.id == reviewer_id))
         return result.scalar_one_or_none()
 
     async def _next_reviewer(self, fund_entity_id: str) -> str | None:
@@ -322,8 +312,7 @@ class ComplianceEscalationService:
         best_count: int | None = None
         for candidate in candidates:
             count_result = await self.session.execute(
-                select(ComplianceEscalation)
-                .where(
+                select(ComplianceEscalation).where(
                     ComplianceEscalation.reviewer_id == candidate.id,
                     ComplianceEscalation.status.in_(_OPEN_STATUSES),
                 )
@@ -351,12 +340,8 @@ class ComplianceEscalationService:
             "status": escalation.status,
             "reviewer_id": escalation.reviewer_id,
             "details": escalation.details,
-            "opened_at": (
-                escalation.opened_at.isoformat() if escalation.opened_at else None
-            ),
-            "closed_at": (
-                escalation.closed_at.isoformat() if escalation.closed_at else None
-            ),
+            "opened_at": (escalation.opened_at.isoformat() if escalation.opened_at else None),
+            "closed_at": (escalation.closed_at.isoformat() if escalation.closed_at else None),
         }
 
 

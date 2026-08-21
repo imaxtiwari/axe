@@ -135,9 +135,11 @@ class TraceableProvider(LLMProvider):
         # Persist the final human-review status so callers (e.g. drift_detect)
         # can rely on the trace row reflecting guardrail and hallucination
         # routing decisions together.
-        if self.last_trace is not None:
-            if guardrail_result.suggested_action in {"review", "reject"}:
-                self.last_trace.human_review_status = "pending"
+        if self.last_trace is not None and guardrail_result.suggested_action in {
+            "review",
+            "reject",
+        }:
+            self.last_trace.human_review_status = "pending"
         if guardrail_result.severity in {"high", "critical"}:
             await guardrail_runner.escalate(guardrail_result, trace_id=trace_id)
 

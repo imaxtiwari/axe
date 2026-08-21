@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from datetime import UTC, date, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
@@ -193,7 +195,11 @@ async def test_brief_generated_and_saved(db_session: AsyncSession, mock_llm, moc
         patch.object(agent, "_pick_focus_one", new=MagicMock(return_value=None)),
     ):
         brief = await agent.generate(pm.id)
-        saved = await agent.save_and_deliver(pm.id, brief, deliver_fn=lambda _: mock_delivery())
+
+        async def _deliver(_brief: MorningBriefOutput) -> dict[str, Any]:
+            return await mock_delivery()
+
+        saved = await agent.save_and_deliver(pm.id, brief, deliver_fn=_deliver)
 
     assert saved is not None
     assert saved.pm_id == pm.id

@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncGenerator
-from typing import Any
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -34,9 +33,7 @@ async def app_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, No
         yield db_session
 
     app.dependency_overrides[get_async_session] = _override_get_async_session
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
     app.dependency_overrides.clear()
 

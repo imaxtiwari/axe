@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from axe.db.session import get_async_session
@@ -40,6 +40,8 @@ class ResolveRequest(BaseModel):
 class EscalationOut(BaseModel):
     """Minimal serialization of a compliance escalation."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     pm_id: str | None
     fund_entity_id: str
@@ -50,9 +52,6 @@ class EscalationOut(BaseModel):
     details: dict[str, Any]
     opened_at: str | None
     closed_at: str | None
-
-    class Config:
-        from_attributes = True
 
 
 class EscalationListResponse(BaseModel):
@@ -79,12 +78,8 @@ def _serialize(escalation: Any) -> dict[str, Any]:
         "status": escalation.status,
         "reviewer_id": escalation.reviewer_id,
         "details": escalation.details,
-        "opened_at": (
-            escalation.opened_at.isoformat() if escalation.opened_at else None
-        ),
-        "closed_at": (
-            escalation.closed_at.isoformat() if escalation.closed_at else None
-        ),
+        "opened_at": (escalation.opened_at.isoformat() if escalation.opened_at else None),
+        "closed_at": (escalation.closed_at.isoformat() if escalation.closed_at else None),
     }
 
 

@@ -428,7 +428,7 @@ async def upload_document(
         file_content = base64.b64decode(body.file_content_b64)
     except (ValueError, TypeError) as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="file_content_b64 is not valid base64",
         ) from exc
 
@@ -602,7 +602,7 @@ async def run_underwriting_scenarios(
             )
         except ValueError as exc:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=str(exc),
             ) from exc
     return ScenarioRunResponse(
@@ -720,7 +720,7 @@ async def generate_ic_memo(
             memo = await service.generate_memo(deal_id)
         except ValueError as exc:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=str(exc),
             ) from exc
     return memo
@@ -826,7 +826,7 @@ async def sign_ic_memo(
             )
         except ValueError as exc:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=str(exc),
             ) from exc
     return memo
@@ -882,7 +882,7 @@ async def update_ic_memo(
             memo = await service.update_memo(memo_id, **body)
         except ValueError as exc:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=str(exc),
             ) from exc
     return memo

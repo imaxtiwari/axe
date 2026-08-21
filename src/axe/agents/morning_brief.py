@@ -180,8 +180,14 @@ class MorningBriefAgent:
 
         if deliver_fn is not None:
             delivery_result = await deliver_fn(brief)
-            brief_record.delivered_slack = bool(delivery_result.get("slack_ok"))
-            brief_record.delivered_email = bool(delivery_result.get("email_ok"))
+            delivered_slack = delivery_result.get("slack_ok")
+            if isinstance(delivered_slack, Awaitable):
+                delivered_slack = await delivered_slack
+            brief_record.delivered_slack = bool(delivered_slack)
+            delivered_email = delivery_result.get("email_ok")
+            if isinstance(delivered_email, Awaitable):
+                delivered_email = await delivered_email
+            brief_record.delivered_email = bool(delivered_email)
 
         await self._attach_interactive_layer(pm_id, brief_record)
 

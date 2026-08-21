@@ -140,7 +140,7 @@ async def send_lp_update_endpoint(
         except Exception as exc:
             # Compliance gate errors and unexpected issues surface as 422.
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=str(exc),
             ) from exc
     return update

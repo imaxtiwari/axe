@@ -81,9 +81,11 @@ class PolicyEngine:
         content = event.content.lower()
 
         # Artifact type condition
-        if "artifact_types" in conditions:
-            if event.artifact_type not in conditions["artifact_types"]:
-                return False
+        if (
+            "artifact_types" in conditions
+            and event.artifact_type not in conditions["artifact_types"]
+        ):
+            return False
 
         # Keyword / phrase presence condition
         if "contains_any" in conditions:

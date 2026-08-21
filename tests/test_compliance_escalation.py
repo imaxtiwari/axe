@@ -7,7 +7,6 @@ and trigger wiring from guardrails, MNPI, and hallucination review.
 from __future__ import annotations
 
 import uuid
-from typing import Any
 from unittest import mock
 
 import pytest
@@ -84,9 +83,7 @@ class TestOpenLifecycle:
         assert escalation.severity == "high"
         assert escalation.status in {"open", "assigned"}
 
-    async def test_open_auto_assigns_reviewer(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_open_auto_assigns_reviewer(self, db_session: AsyncSession) -> None:
         fund = await _fund(db_session)
         officer = await _compliance_officer(db_session, fund.id)
         service = ComplianceEscalationService(db_session)
@@ -101,9 +98,7 @@ class TestOpenLifecycle:
         assert escalation.status == "assigned"
         assert escalation.reviewer_id == officer.id
 
-    async def test_open_no_reviewer_when_no_officer(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_open_no_reviewer_when_no_officer(self, db_session: AsyncSession) -> None:
         fund = await _fund(db_session)
         service = ComplianceEscalationService(db_session)
 
@@ -117,9 +112,7 @@ class TestOpenLifecycle:
         assert escalation.status == "open"
         assert escalation.reviewer_id is None
 
-    async def test_open_below_threshold_is_suppressed(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_open_below_threshold_is_suppressed(self, db_session: AsyncSession) -> None:
         fund = await _fund(db_session)
         settings = Settings(compliance_auto_escalation_severity="high")
         service = ComplianceEscalationService(db_session, settings=settings)
@@ -134,15 +127,11 @@ class TestOpenLifecycle:
 
         # Audit suppression record is written.
         result = await db_session.execute(
-            select(AuditLog).where(
-                AuditLog.action_type == "compliance_escalation_suppressed"
-            )
+            select(AuditLog).where(AuditLog.action_type == "compliance_escalation_suppressed")
         )
         assert result.scalar_one_or_none() is not None
 
-    async def test_open_invalid_severity_fails(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_open_invalid_severity_fails(self, db_session: AsyncSession) -> None:
         fund = await _fund(db_session)
         service = ComplianceEscalationService(db_session)
 
@@ -175,18 +164,14 @@ class TestAssignReviewer:
 
         # Audit log records the assignment with before/after state.
         result = await db_session.execute(
-            select(AuditLog).where(
-                AuditLog.action_type == "compliance_escalation_assigned"
-            )
+            select(AuditLog).where(AuditLog.action_type == "compliance_escalation_assigned")
         )
         entry = result.scalar_one()
         assert entry.before_state["status"] == "open"
         assert entry.after_state["status"] == "assigned"
         assert entry.after_state["reviewer_id"] == officer.id
 
-    async def test_assign_reviewer_wrong_fund_fails(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_assign_reviewer_wrong_fund_fails(self, db_session: AsyncSession) -> None:
         fund_a = await _fund(db_session)
         fund_b = await _fund(db_session)
         officer_b = await _compliance_officer(db_session, fund_b.id)
@@ -202,9 +187,7 @@ class TestAssignReviewer:
         with pytest.raises(ValueError, match="does not belong"):
             await service.assign_reviewer(escalation.id, officer_b.id)
 
-    async def test_assign_non_officer_fails(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_assign_non_officer_fails(self, db_session: AsyncSession) -> None:
         fund = await _fund(db_session)
         pm = await _pm_user(db_session, fund.id)
         service = ComplianceEscalationService(db_session)
@@ -223,7 +206,7 @@ class TestAssignReviewer:
 class TestResolve:
     async def test_resolve_approved(self, db_session: AsyncSession) -> None:
         fund = await _fund(db_session)
-        officer = await _compliance_officer(db_session, fund.id)
+        await _compliance_officer(db_session, fund.id)
         service = ComplianceEscalationService(db_session)
 
         trigger = ComplianceEscalationTrigger(
@@ -234,18 +217,14 @@ class TestResolve:
         escalation = await service.open(trigger)
         escalation_id = escalation.id
 
-        resolved = await service.resolve(
-            escalation_id, "approved", note="looks fine"
-        )
+        resolved = await service.resolve(escalation_id, "approved", note="looks fine")
         assert resolved.status == "resolved"
         assert resolved.closed_at is not None
         assert resolved.details["decision"] == "approved"
         assert resolved.details["resolution_note"] == "looks fine"
 
         result = await db_session.execute(
-            select(AuditLog).where(
-                AuditLog.action_type == "compliance_escalation_approved"
-            )
+            select(AuditLog).where(AuditLog.action_type == "compliance_escalation_approved")
         )
         entry = result.scalar_one()
         assert entry.before_state["status"] in {"open", "assigned"}
@@ -265,9 +244,7 @@ class TestResolve:
         resolved = await service.resolve(escalation.id, "dismissed")
         assert resolved.status == "dismissed"
 
-    async def test_resolve_already_resolved_fails(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_resolve_already_resolved_fails(self, db_session: AsyncSession) -> None:
         fund = await _fund(db_session)
         service = ComplianceEscalationService(db_session)
 
@@ -284,9 +261,7 @@ class TestResolve:
 
 
 class TestListOpen:
-    async def test_list_open_scoped_by_fund(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_list_open_scoped_by_fund(self, db_session: AsyncSession) -> None:
         fund_a = await _fund(db_session)
         fund_b = await _fund(db_session)
         service = ComplianceEscalationService(db_session)
@@ -310,9 +285,7 @@ class TestListOpen:
         assert len(open_items) == 1
         assert open_items[0].id == escalation_a.id
 
-    async def test_list_open_pm_sees_own_only(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_list_open_pm_sees_own_only(self, db_session: AsyncSession) -> None:
         fund = await _fund(db_session)
         pm_a = await _pm_user(db_session, fund.id)
         pm_b = await _pm_user(db_session, fund.id)
@@ -333,9 +306,7 @@ class TestListOpen:
         await service.open(trigger_a)
         await service.open(trigger_b)
 
-        with RequestContext.bind(
-            pm_id=pm_a.id, fund_id=fund.id, role="pm"
-        ):
+        with RequestContext.bind(pm_id=pm_a.id, fund_id=fund.id, role="pm"):
             open_items = await service.list_open(role="pm")
 
         assert len(open_items) == 1
@@ -343,9 +314,7 @@ class TestListOpen:
 
 
 class TestReviewerAssignmentRoundRobin:
-    async def test_round_robin_load_balances(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_round_robin_load_balances(self, db_session: AsyncSession) -> None:
         fund = await _fund(db_session)
         officer_a = await _compliance_officer(db_session, fund.id)
         officer_b = await _compliance_officer(db_session, fund.id)
@@ -385,9 +354,7 @@ class TestTriggerWiring:
                 assert escalation.trigger_type == "guardrail"
                 await uow.commit()
 
-    async def test_hallucination_escalation(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_hallucination_escalation(self, db_session: AsyncSession) -> None:
         fund = await _fund(db_session)
         await _compliance_officer(db_session, fund.id)
 
@@ -399,17 +366,13 @@ class TestTriggerWiring:
                         hallucination_auto_reject_threshold=0.7,
                     )
                 )
-                routing = await guard.route_for_review(
-                    score=0.75, trace_id="trace-1", uow=uow
-                )
+                routing = await guard.route_for_review(score=0.75, trace_id="trace-1", uow=uow)
                 assert routing["action"] == "reject"
                 assert routing["escalation_id"] is not None
                 await uow.commit()
 
         result = await db_session.execute(
-            select(ComplianceEscalation).where(
-                ComplianceEscalation.id == routing["escalation_id"]
-            )
+            select(ComplianceEscalation).where(ComplianceEscalation.id == routing["escalation_id"])
         )
         escalation = result.scalar_one()
         assert escalation.trigger_type == "hallucination"
@@ -458,9 +421,7 @@ class TestTriggerWiring:
 
         assert outcome.blocked is True
         result = await db_session.execute(
-            select(ComplianceEscalation).where(
-                ComplianceEscalation.trigger_type == "mnpi_review"
-            )
+            select(ComplianceEscalation).where(ComplianceEscalation.trigger_type == "mnpi_review")
         )
         escalation = result.scalar_one()
         assert escalation.fund_entity_id == fund.id

@@ -64,7 +64,7 @@ async def receive_transcript(
         processed = await process_transcript_handler(session, payload_dict)
         if not processed:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Failed to process transcript",
             )
         await session.commit()
