@@ -91,6 +91,9 @@ Open `.env` in your editor and update every `replace-with-...` or `your-...` val
 | `HALLUCINATION_AUTO_REJECT_THRESHOLD` | Score at which output is auto-rejected. | No (default `0.8`) |
 | `COMPLIANCE_ESCALATION_AUTO_ASSIGN_ENABLED` | Auto-assign escalations round-robin. | No (default `False`) |
 | `COMPLIANCE_REVIEWERS` | JSON list of reviewer PM IDs for round-robin. | No |
+| `GUARDRAIL_PII_CHECK_ENABLED` | Enable PII detection in guardrail runner. | No (default `True`) |
+| `GUARDRAIL_SECURITIES_REG_CHECK_ENABLED` | Enable securities regulation language check. | No (default `True`) |
+| `MODEL_TRACE_ENABLED` | Persist an LLM trace for every generation. | No (default `True`) |
 
 ### Generate an encryption key
 
@@ -359,7 +362,7 @@ http PUT http://localhost:8000/api/v1/connectors \
   enabled:=true
 ```
 
-Supported `source_type` values include `polygon`, `research_edge`, `expert_network`, `broker_feed`, `pdf_deck`, and `crm`. The `credentials` dict is encrypted before storage; do not include it in logs or screenshots.
+Supported `source_type` values include `polygon`, `research_edge`, `expert_network`, `broker_feed`, `pdf_deck`, and `crm`. The `credentials` dict is encrypted before storage; do not include it in logs or screenshots. Required credential keys per source are documented in [`CLAUDE.md`](CLAUDE.md).
 
 ### 10.3 Run a connector manually
 
@@ -522,20 +525,37 @@ The repository currently targets 111+ passing tests. Coverage is reported but do
 
 ```bash
 # Format code
-ruff format src tests
+ruff format src tests scripts
 
 # Lint and fix imports
-ruff check --fix src tests
+ruff check --fix src tests scripts
 
-# Strict type check
-mypy --strict src
+# Type check (uses the project's mypy config)
+mypy src scripts
 ```
 
-CI runs these automatically on every pull request.
+CI runs these automatically on every pull request. Before opening a PR, also run the full test suite:
+
+```bash
+pytest -q
+```
 
 ---
 
-## 17. Troubleshooting
+## 17. Security & Privacy Checklist
+
+Before enabling any live workflows or processing real PM data, verify:
+
+1. **Encryption at rest** — `ENCRYPTION_KEY` is set and OAuth tokens / connector credentials are stored as `EncryptedJSON`.
+2. **No secrets in logs** — decrypted credentials, `raw_payload_json`, and OAuth tokens are never logged.
+3. **Tenant isolation** — every router endpoint that reads or writes PM/fund data uses `IsolationService` or relies on scoped repositories.
+4. **RBAC** — compliance/admin endpoints require the `compliance` or `admin` role; PM endpoints require `pm` or `admin`.
+5. **MNPI review** — `MNPI_THRESHOLD` is calibrated for your fund and a human review process exists.
+6. **Hallucination thresholds** — `HALLUCINATION_SCORE_THRESHOLD` and `HALLUCINATION_AUTO_REJECT_THRESHOLD` are set before production use.
+7. **Audit** — `audit_log` is append-only and reviewed regularly; sensitive actions carry `trace_id` correlation.
+8. **Persona opt-in** — persona synthesis is only triggered by explicit PM or admin action, with DMs off by default.
+
+## 18. Troubleshooting
 
 ### `ModuleNotFoundError: No module named 'axe'`
 
@@ -583,7 +603,7 @@ Verify:
 
 ---
 
-## 18. Next Steps
+## 19. Next Steps
 
 After the basics are working:
 

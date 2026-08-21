@@ -269,9 +269,7 @@ class HallucinationGuard:
                     continue
 
                 # Gather all units that appear with this value in the source.
-                source_units_for_value = {
-                    u for v, u in source_qty if v == value
-                }
+                source_units_for_value = {u for v, u in source_qty if v == value}
 
                 if not source_units_for_value:
                     # The numeric value is not present in the source at all.

@@ -44,13 +44,20 @@ class CitationExtractor:
     )
 
     # Real sentence terminators followed by whitespace or end-of-string.
+    # Also split on citation markers such as [1] / (source: x) because each
+    # marker typically terminates the claim it supports, and treating markers as
+    # boundaries keeps per-citation snippets scoped to a single sentence/claim.
     # Avoid splitting on punctuation inside numbers/currency/percentages.
     _SENTENCE_SPLIT_RE = re.compile(
+        r"(?:"
         r"(?<![a-zA-Z])"  # don't break after abbreviations/short words
         r"(?<![$€£¥₹])"  # don't break immediately after currency symbols
         r"(?<!\d)"  # don't break immediately after a digit
         r"[.!?]+"
-        r"(?=\s|$)",
+        r"(?=\s|$)"
+        r"|"
+        r"(?:\[[^\]]+\]|【[^】]+】|\(source:\s*[^)]+\))"  # citation markers
+        r")",
         re.DOTALL,
     )
 

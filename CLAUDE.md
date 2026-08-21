@@ -68,10 +68,10 @@ docker compose exec axe alembic upgrade head
 | `src/axe/services/persona.py` | Persona synthesis orchestration |
 | `src/axe/services/compliance_escalation.py` | Compliance escalation lifecycle |
 | `src/axe/services/interactive.py` | Artifact action and decision prompt execution |
-| `src/axe/routers/` | FastAPI route modules (`onboarding.py`, `transcripts.py`) |
-| `src/axe/security/` | Encryption, audit, isolation |
-| `src/axe/services/` | Business logic that sits between routers and agents (alerts, onboarding, scheduling) |
-| `tests/` | Pytest suite. `conftest.py` holds async DB fixtures. |
+| `src/axe/routers/` | FastAPI route modules (`onboarding.py`, `transcripts.py`, `connectors.py`, `compliance.py`, etc.) |
+| `src/axe/security/` | Encryption, audit, isolation, RBAC (`authz.py`) |
+| `src/axe/services/` | Business logic that sits between routers and agents (alerts, onboarding, scheduling, policy) |
+| `tests/` | Pytest suite. `conftest.py` holds async DB fixtures and reusable factories. |
 
 ## Conventions
 
@@ -82,6 +82,9 @@ docker compose exec axe alembic upgrade head
 - **LLM Providers**: Abstracted behind `axe.agents.llm.LLMProvider`. `MockProvider` is used in tests. Production uses `AzureFoundryProvider`.
 - **Settings**: All env vars flow through `axe.config.Settings` (Pydantic settings).
 - **Observability**: Metrics via Prometheus, tracing via OpenTelemetry, structured logging with `python-json-logger`.
+- **Encryption at rest**: `EncryptedJSON` stores OAuth tokens and connector credentials. Decrypted values are never logged.
+- **Audit**: `AuditService` records before/after state for every security-relevant transition with `trace_id` correlation.
+- **Tenant isolation**: `IsolationService` enforces PM/fund-scoped reads; cross-tenant access raises `IsolationError` and writes an audit record.
 
 ## Exceptions & Error Handling
 
@@ -187,6 +190,12 @@ File: `src/axe/agents/interactive_artifact.py`
 
 Generates artifact-specific actions (`focus_one_buy_more`, `share_with_team`, etc.) and decision prompts from a persisted artifact. The service layer (`services/interactive.py`) persists `ArtifactAction` and `DecisionPrompt` rows and executes or resolves them.
 
+### AgentCollaborationBus
+
+File: `src/axe/agents/agent_collaboration.py`
+
+Fund-isolated, async message bus that lets agents request input, escalate, or delegate across PMs. Messages are persisted in `agent_messages` and routed via `role`/`topic`. All cross-agent traffic is scoped to the sender's fund and audited.
+
 ### GuardrailRunner
 
 File: `src/axe/agents/guardrails.py`
@@ -266,11 +275,23 @@ The `ConnectorService` (`src/axe/services/connector.py`) orchestrates a run:
 
 Credentials are stored encrypted at rest using `EncryptedJSON` (`src/axe/security/encryption.py`). Never log `credentials_encrypted` or decrypted payloads.
 
+Connector credential schema by source type:
+
+| Source type | Required credentials keys | Specialist agent |
+|---|---|---|
+| `polygon` | `api_key` | `EarningsSpecialist` |
+| `research_edge` | `api_key`, `endpoint` (optional) | `ResearchEdgeSpecialist` |
+| `expert_network` | `api_key`, `provider` (e.g. `glg`, `alphasights`) | `ExpertNetworkSpecialist` |
+| `broker_feed` | `feed_url`, `api_key` | `BrokerSpecialist` |
+| `pdf_deck` | `storage_bucket`, `api_key` (optional) | `PDFDeckSpecialist` |
+| `crm` | `api_key`, `endpoint`, `provider` (optional) | `CRMSpecialist` |
+
 To add a new source:
 1. Implement `BaseConnector` in `src/axe/connectors/<source>.py`.
 2. Add a `SpecialistSignalAgent` subclass in `src/axe/agents/specialist_signal.py`.
 3. Register both in `ConnectorService._build_connector()` and `default_registry()`.
 4. Add tests in `tests/test_connectors.py` and `tests/test_specialist_signal.py`.
+5. Add an eval case in `tests/drift_eval_dataset.py` if the source produces stance-bearing signals.
 
 ## Persona Opt-In
 
@@ -279,10 +300,22 @@ The persona layer is opt-in. A PM must explicitly call `POST /api/v1/persona/ref
 - `MemoryCitation` — quoted snippets linked to tickers/deals.
 - `PMPeerMap` — trusted peer relationships.
 
+Opt-in endpoint:
+
+```bash
+POST /api/v1/persona/refresh
+{
+  "lookback_days": 180,
+  "include_dms": false,
+  "allowed_dm_participants": ["peer@fund.com"]
+}
+```
+
 Privacy controls:
 - `include_dms=False` excludes direct messages.
 - `allowed_dm_participants` limits which peers can be mined.
 - Persona data is scoped to the PM and never shared across funds.
+- Persona refresh is audited (`persona_refresh` action) and a full delete is available via `DELETE /api/v1/persona`.
 
 ## Compliance Escalation Workflow
 
@@ -305,14 +338,18 @@ All transitions write `AuditLog` entries. The router requires `compliance` or `a
 
 Entry points:
 - `src/axe/ingestion/worker.py` — background worker that polls/handles new items.
-- `src/axe/routers/transcripts.py` — `POST /transcripts/polygon` for real-time Polygon transcripts.
+- `src/axe/ingestion/handlers.py` — router-agnostic ingestion handlers, including connector processing.
+- `src/axe/routers/transcripts.py` — `POST /api/v1/transcripts` for real-time Polygon transcripts.
+- `src/axe/routers/connectors.py` — `POST /api/v1/connectors/{source_type}/run` for manual connector runs.
 
 Flow:
 1. Raw input is hashed and deduplicated.
-2. Signal extraction: text/earnings transcript → structured signal.
-3. Relevant theses are loaded.
-4. `DriftDetectionAgent` classifies signal vs each assumption.
-5. Polygon + contradiction triggers `AlertService.maybe_fire_earnings_alert`.
+2. Connector output is converted to `RawIngest` and enqueued for specialist processing.
+3. Specialist agents convert `RawIngest` into `SpecialistSignal` records.
+4. Relevant theses are loaded.
+5. `DriftDetectionAgent` classifies signal vs each assumption.
+6. Polygon + contradiction triggers `AlertService.maybe_fire_earnings_alert`.
+7. Every signal is traced via `ModelTrace`; high hallucination scores route to review.
 
 ## Alerting
 
@@ -329,10 +366,13 @@ File: `src/axe/services/alert.py`
 pytest                  # all tests, with coverage
 pytest tests/test_drift.py  # drift eval
 pytest -k earnings      # alert SLA tests
+pytest tests/test_hallucination_guard.py  # hallucination scoring
+pytest tests/test_guardrails.py  # guardrail suite
 ```
 
 Evaluation datasets:
-- `tests/drift_eval_dataset.py` — 50 labeled signal/assumption pairs used by `test_drift_eval_dataset`.
+- `tests/drift_eval_dataset.py` — 82 labeled signal/assumption pairs used by drift tests.
+- `tests/hallucination_eval_dataset.py` — labeled citation/grounding pairs used by `test_hallucination_guard.py`.
 
 Coverage is reported in CI but does not currently fail the build; the `fail_under` target is 0 until the suite crosses 85%.
 
@@ -362,6 +402,8 @@ agent = DriftDetectionAgent(
 )
 ```
 
+Specialist signals participate in drift detection automatically: `classify_assumptions` can accept a `SpecialistSignal` and its `stance`/`confidence` fields are merged into the embedding pre-filter.
+
 ### Add a new connector
 
 1. Create `src/axe/connectors/<source>.py` implementing `BaseConnector`.
@@ -381,8 +423,10 @@ agent = DriftDetectionAgent(
 - Azure Foundry endpoint + API key are required.
 - Use a managed Postgres instead of SQLite; set `DATABASE_URL` accordingly.
 - Run migrations as a startup job.
-- Secrets (API keys, SMTP, OAuth client secrets) should be injected via env, never committed.
+- Secrets (API keys, SMTP, OAuth client secrets) should be injected via env, never committed. `EncryptedJSON` stores OAuth tokens and connector credentials; decrypted values must never be logged.
 - Encryption key rotation: decrypt/re-encrypt `PMOAuthToken` and `ConnectorConfig` rows with the new key; never store more than one active key in env.
 - Review MNPI flags, compliance escalations, and audit logs before enabling live trading workflows.
 - Enable guardrail checks (`guardrail_*_enabled` in `Settings`) and set `hallucination_score_threshold` / `hallucination_auto_reject_threshold` before production use.
 - Set `compliance_escalation_auto_assign_enabled=True` and configure `compliance_reviewers` for round-robin assignment.
+- Ensure routers enforce RBAC (`require_role`) and tenant isolation (`IsolationService`) on every mutating endpoint.
+- Enable structured logging and ship logs to a SIEM; never log raw `credentials_encrypted`, OAuth tokens, or `raw_payload_json`.

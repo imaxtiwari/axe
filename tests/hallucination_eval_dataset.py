@@ -185,9 +185,7 @@ EVAL_PAIRS: list[dict[str, Any]] = [
     },
     {
         "name": "numeric_unit_mismatch_millions_vs_billions",
-        "output": (
-            "CRM notes show COIN quarterly revenue was $1.2 billion. [1]"
-        ),
+        "output": ("CRM notes show COIN quarterly revenue was $1.2 billion. [1]"),
         "sources": [
             {
                 "id": "1",
