@@ -23,6 +23,7 @@ def settings() -> Settings:
         hallucination_score_threshold=0.3,
         hallucination_auto_reject_threshold=0.7,
         citation_coverage_threshold=0.8,
+        compliance_auto_escalation_severity="medium",
     )
 
 

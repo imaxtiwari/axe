@@ -138,9 +138,10 @@ async def test_process_specialist_signal_human_review_on_high_hallucination_scor
             is_draft=False,
         )
 
-    # We need two responses because classify_assumptions may call the LLM once
-    # per assumption. The second response is unused when the first trace already
-    # forces human review, but keep the queue sized defensively.
+    # We need two responses because the test performs two processing passes.
+    # The second response's content is intentionally an uncited claim so the
+    # captured ModelTrace scores above the hallucination review threshold and
+    # routes the classification to human review.
     inner_provider = MockProvider(
         responses=[
             {
@@ -149,8 +150,18 @@ async def test_process_specialist_signal_human_review_on_high_hallucination_scor
                     "reasoning": "Deliveries missed.",
                     "confidence": 0.9,
                     "evidence_quote": "Deliveries dropped.",
-                }
-            }
+                },
+                "content": "Tesla delivered 2.5 million vehicles this quarter.",
+            },
+            {
+                "parsed": {
+                    "stance": "CONTRADICTS",
+                    "reasoning": "Deliveries missed.",
+                    "confidence": 0.9,
+                    "evidence_quote": "Deliveries dropped.",
+                },
+                "content": "Tesla delivered 2.5 million vehicles this quarter.",
+            },
         ]
     )
     embed = ThresholdMockEmbedding(similarity=0.85)
@@ -168,7 +179,10 @@ async def test_process_specialist_signal_human_review_on_high_hallucination_scor
             inner_provider,
             agent="SpecialistDrift.ReviewTest",
             uow=uow,
-            settings=Settings(app_env="test"),
+            settings=Settings(
+                app_env="test",
+                hallucination_score_threshold=0.3,
+            ),
         )
         service = EarningsAlertService(
             uow=uow,
@@ -178,15 +192,9 @@ async def test_process_specialist_signal_human_review_on_high_hallucination_scor
             await service.process_specialist_signals(pm_id, [signal])
         await uow.commit()
 
-        # Manually bump the hallucination score on the persisted trace so the
-        # service routes the classification to human review instead of alerting.
-        if traceable.last_trace is not None:
-            traceable.last_trace.hallucination_score = 0.95
-            traceable.last_trace.human_review_status = "required"
-            await uow.commit()
-
-    # Re-run processing with a fresh service tied to the same traceable provider so
-    # ``last_trace`` already has a high hallucination score and forces escalation.
+    # Re-run processing with a fresh service tied to the same traceable provider.
+    # The second mock response makes an uncited factual claim, so the captured
+    # ModelTrace scores above the hallucination threshold and forces escalation.
     async with UnitOfWork(db_session) as uow:
         service2 = EarningsAlertService(
             uow=uow,

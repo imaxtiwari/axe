@@ -597,11 +597,17 @@ class EarningsAlertService:
             signal_text = _specialist_signal_text(signal)
 
             # Wrap the provider for each signal to capture a per-signal ModelTrace.
-            provider = TraceableProvider(
-                self.drift_agent.provider,
-                agent=f"SpecialistDrift.{signal.specialist_agent}",
-                uow=self.uow,
-            )
+            # Avoid double-wrapping an already-traceable provider so tests and
+            # callers that supply their own TraceableProvider can read its
+            # ``last_trace`` consistently.
+            if isinstance(self.drift_agent.provider, TraceableProvider):
+                provider = self.drift_agent.provider
+            else:
+                provider = TraceableProvider(
+                    self.drift_agent.provider,
+                    agent=f"SpecialistDrift.{signal.specialist_agent}",
+                    uow=self.uow,
+                )
             drift_agent = DriftDetectionAgent(
                 provider=provider,
                 embedding_model=self.drift_agent.embedding_model,

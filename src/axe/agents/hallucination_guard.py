@@ -129,7 +129,7 @@ class HallucinationGuard:
             # Cannot create an escalation without a fund scope.
             return None
 
-        service = ComplianceEscalationService(uow)
+        service = ComplianceEscalationService(uow, settings=self.settings)
         trigger = ComplianceEscalationTrigger(
             trigger_type="hallucination",
             severity=severity,  # type: ignore[arg-type]

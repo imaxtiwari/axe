@@ -416,16 +416,21 @@ class TestTriggerWiring:
         assert escalation.severity == "high"
 
     async def test_mnpi_escalation(self, db_session: AsyncSession) -> None:
+        import hashlib
+
         fund = await _fund(db_session)
         pm = await _pm_user(db_session, fund.id)
         await _compliance_officer(db_session, fund.id)
 
         # Seed a signal log row.
+        raw = "insider confidential"
         signal = SignalLog(
             id=str(uuid.uuid4()),
             pm_id=pm.id,
             ticker="AAPL",
             source_type="manual",
+            content_hash=hashlib.sha256(raw.encode()).hexdigest(),
+            raw_content=raw,
         )
         db_session.add(signal)
         await db_session.flush()
