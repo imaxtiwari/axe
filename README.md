@@ -9,19 +9,24 @@ AXE is an async FastAPI platform for small/mid-size public-market funds. It conn
 
 | Capability | What it gives you | Key files |
 |---|---|---|
-| **Thesis & Memory** | Capture versioned theses, track key assumptions, and build a long-term memory profile per PM. | `src/axe/services/thesis.py`, `src/axe/db/models.py` |
-| **Signal Ingestion & Connectors** | Pull in broker feeds, research APIs, expert-network transcripts, PDF decks, and CRM activity. Deduplicate, hash, and persist raw payloads. | `src/axe/connectors/`, `src/axe/services/connector.py`, `src/axe/routers/connectors.py` |
-| **Specialist Signal Agents** | Convert raw ingestion into structured signals (earnings, research, expert, broker, PDF, CRM) with stance and confidence. | `src/axe/agents/specialist_signal.py` |
-| **Drift & Alerts** | Detect when new signals contradict or confirm thesis assumptions; route breakages to morning briefs. | `src/axe/agents/drift_detect.py`, `src/axe/services/alert.py` |
-| **Morning Briefs** | Generate a daily focus-one brief with catalysts, decision prompts, and citation links delivered via Slack/email. | `src/axe/agents/morning_brief.py`, `src/axe/services/brief_delivery.py` |
+| **Thesis & Memory** | Capture versioned theses, track falsifiable assumptions, and link related signals and deals. | `src/axe/services/thesis.py`, `src/axe/db/models.py` |
+| **Signal Ingestion & Connectors** | Pull in broker feeds, research APIs, expert-network transcripts, PDF decks, and CRM activity. Deduplicate by content hash, persist raw payloads, and enqueue for specialist parsing. | `src/axe/connectors/`, `src/axe/services/connector.py`, `src/axe/routers/connectors.py` |
+| **Specialist Signal Agents** | Convert raw ingestion into structured signals (earnings, research, expert, broker, PDF, CRM) with stance, confidence, and source attribution. | `src/axe/agents/specialist_signal.py`, `src/axe/db/models.py` |
+| **Drift & Alerts** | Detect when new signals contradict or confirm thesis assumptions; suppress duplicates and route breakages to morning briefs and real-time alerts. | `src/axe/agents/drift_detect.py`, `src/axe/services/alert.py`, `src/axe/db/models.py` |
+| **MNPI Review Gate** | Hold potentially material non-public signals in a compliance queue before any alert is dispatched; audit approve/reject decisions. | `src/axe/agents/mnpi_review.py`, `src/axe/services/mnpi.py`, `src/axe/routers/mnpi.py` |
+| **Morning Briefs** | Generate a daily focus-one brief with top signals, catalyst calendar, decision prompts, and citation links delivered via Slack/email. | `src/axe/agents/morning_brief.py`, `src/axe/services/brief_delivery.py`, `src/axe/services/brief_scheduler.py` |
+| **Brief Reply Actions** | Parse PM replies to a brief to update assumptions, dismiss signals, or record follow-ups. | `src/axe/agents/brief_reply.py`, `src/axe/routers/deals.py` |
 | **Persona Layer** | Opt-in synthesis of a PM's writing style, decision triggers, trusted peers/sources, and confidence language from communications history. | `src/axe/agents/persona.py`, `src/axe/services/persona.py`, `src/axe/routers/persona.py` |
+| **Memory Miner** | Mine communications archives for ticker-linked memory citations and peer maps under persona opt-in controls. | `src/axe/agents/memory_miner.py`, `src/axe/services/persona.py` |
 | **Interactive Artifacts** | Turn any artifact (thesis, deck, memo) into executable actions and decision prompts; route cross-agent requests to the PM. | `src/axe/agents/interactive_artifact.py`, `src/axe/services/interactive.py`, `src/axe/routers/interactive.py` |
-| **Cross-Agent Collaboration** | Fund-isolated message bus lets agents request input, escalate, or delegate across PMs. | `src/axe/agents/agent_collaboration.py` |
-| **Guardrails & Anti-Hallucination** | Every LLM output is checked for MNPI, PII, securities language, self-contradiction, and citation grounding. | `src/axe/agents/guardrails.py`, `src/axe/agents/hallucination_guard.py` |
-| **Compliance Escalation** | Auto-open, assign, and audit escalations triggered by guardrails, MNPI review, or hallucination review. | `src/axe/services/compliance_escalation.py`, `src/axe/routers/compliance.py` |
+| **Cross-Agent Collaboration** | Fund-isolated, async message bus lets agents request input, escalate, or delegate across PMs with full audit trails. | `src/axe/agents/agent_collaboration.py`, `src/axe/db/models.py` |
+| **Guardrails & Policy Engine** | Multi-layer guardrails check every LLM output for MNPI, PII, securities regulation language, fund policy, and self-contradiction. | `src/axe/agents/guardrails.py`, `src/axe/services/policy.py` |
+| **Anti-Hallucination Scoring** | Score every output on citation coverage, verification, source overlap, and numeric unit consistency; route high scores to human review. | `src/axe/agents/hallucination_guard.py`, `src/axe/agents/citation.py`, `src/axe/agents/model_trace.py` |
+| **Compliance Escalation** | Auto-open, round-robin assign, and audit escalations triggered by guardrails, MNPI review, or hallucination review. | `src/axe/services/compliance_escalation.py`, `src/axe/routers/compliance.py` |
 | **IC Memos & Sign-off** | Draft Investment Committee memos, collect e-signature sign-offs, and version content/markdown outputs. | `src/axe/services/ic_memo.py`, `src/axe/routers/deals.py` |
-| **LP Communications** | Generate quarterly LP updates with vehicle-scoped content, rendered markdown/HTML, and read receipts. | `src/axe/agents/lp_update.py`, `src/axe/services/lp_comms.py` |
-| **Model Tracing & Audit** | Every LLM completion is traced; every state change is append-only audited with `trace_id` correlation. | `src/axe/agents/model_trace.py`, `src/axe/security/audit.py` |
+| **LP Communications** | Generate quarterly LP updates with vehicle-scoped content, rendered markdown/HTML, and read receipts. | `src/axe/agents/lp_update.py`, `src/axe/services/lp_comms.py`, `src/axe/routers/lp.py` |
+| **Export & Retention** | Export deal rooms, theses, and memos; apply retention policies with exemption flags. | `src/axe/services/export.py`, `src/axe/services/retention.py` |
+| **Model Tracing & Audit** | Every LLM completion is traced with latency, cost, and hallucination score; every state change is append-only audited with `trace_id` correlation. | `src/axe/agents/model_trace.py`, `src/axe/security/audit.py`, `src/axe/routers/audit.py` |
 
 ## Quick start
 
@@ -70,8 +75,8 @@ All API routes live under `/api/v1/*` and require identity headers (`X-PM-ID`, `
 
 ## Evaluation datasets
 
-- `tests/drift_eval_dataset.py` — 50+ labeled signal/assumption pairs for stance evaluation.
-- `tests/hallucination_eval_dataset.py` — labeled citation/grounding pairs for hallucination scoring.
+- `tests/drift_eval_dataset.py` — 82 labeled signal/assumption pairs for stance evaluation, including connector/specialist examples.
+- `tests/hallucination_eval_dataset.py` — labeled citation/grounding pairs for hallucination scoring, including numeric unit-mismatch and source-spoofing edge cases.
 
 Run the suites with `pytest tests/test_drift*.py tests/test_hallucination_guard.py tests/test_guardrails.py`.
 

@@ -80,7 +80,9 @@ class FundEntity(Base):
     mnpi_policy: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
-    pm_users: Mapped[list["PMUser"]] = relationship("PMUser", back_populates="fund_entity")
+    pm_users: Mapped[list["PMUser"]] = relationship(
+        "PMUser", back_populates="fund_entity", lazy="selectin"
+    )
 
 
 class PMUser(Base):
@@ -102,7 +104,9 @@ class PMUser(Base):
 
     __table_args__ = (Index("ix_pm_users_pm_created", "id", "created_at"),)
 
-    fund_entity: Mapped["FundEntity"] = relationship("FundEntity", back_populates="pm_users")
+    fund_entity: Mapped["FundEntity"] = relationship(
+        "FundEntity", back_populates="pm_users", lazy="selectin"
+    )
 
 
 class TickerRegistry(Base):
@@ -628,7 +632,9 @@ class DealRoom(Base):
     thesis_versions: Mapped[list["DealThesisVersion"]] = relationship(
         "DealThesisVersion", back_populates="deal", lazy="selectin"
     )
-    ic_memos: Mapped[list["ICMemo"]] = relationship("ICMemo", back_populates="deal")
+    ic_memos: Mapped[list["ICMemo"]] = relationship(
+        "ICMemo", back_populates="deal", lazy="selectin"
+    )
 
 
 class DealDocument(Base):
@@ -671,7 +677,9 @@ class DealThesisVersion(Base):
         Index("ix_deal_thesis_versions_pm_created", "pm_id", "created_at"),
     )
 
-    deal: Mapped["DealRoom"] = relationship("DealRoom", back_populates="thesis_versions")
+    deal: Mapped["DealRoom"] = relationship(
+        "DealRoom", back_populates="thesis_versions", lazy="selectin"
+    )
 
 
 class UnderwritingChecklist(Base):
@@ -729,7 +737,7 @@ class ICMemo(Base):
         Index("ix_ic_memos_pm_created", "pm_id", "created_at"),
     )
 
-    deal: Mapped["DealRoom"] = relationship("DealRoom", back_populates="ic_memos")
+    deal: Mapped["DealRoom"] = relationship("DealRoom", back_populates="ic_memos", lazy="selectin")
     signoffs: Mapped[list["ICSignOff"]] = relationship(
         "ICSignOff", back_populates="memo", lazy="selectin"
     )
@@ -753,7 +761,7 @@ class ICSignOff(Base):
         Index("ix_ic_signoffs_memo_created", "memo_id", "created_at"),
     )
 
-    memo: Mapped["ICMemo"] = relationship("ICMemo", back_populates="signoffs")
+    memo: Mapped["ICMemo"] = relationship("ICMemo", back_populates="signoffs", lazy="selectin")
 
 
 class DeckTemplate(Base):

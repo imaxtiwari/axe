@@ -307,17 +307,28 @@ class ComplianceEscalationService:
         if not candidates:
             return None
 
-        # Fewest open assigned escalations among candidates.
+        # Fewest open assigned escalations among candidates in a single query.
+        from sqlalchemy import func
+
+        candidate_ids = [c.id for c in candidates]
+        count_stmt = (
+            select(
+                ComplianceEscalation.reviewer_id,
+                func.count(ComplianceEscalation.id).label("open_count"),
+            )
+            .where(
+                ComplianceEscalation.reviewer_id.in_(candidate_ids),
+                ComplianceEscalation.status.in_(_OPEN_STATUSES),
+            )
+            .group_by(ComplianceEscalation.reviewer_id)
+        )
+        count_result = await self.session.execute(count_stmt)
+        open_counts: dict[str | None, int] = {row[0]: row[1] for row in count_result.all()}
+
         best: PMUser | None = None
         best_count: int | None = None
         for candidate in candidates:
-            count_result = await self.session.execute(
-                select(ComplianceEscalation).where(
-                    ComplianceEscalation.reviewer_id == candidate.id,
-                    ComplianceEscalation.status.in_(_OPEN_STATUSES),
-                )
-            )
-            count = len(count_result.scalars().all())
+            count = open_counts.get(candidate.id, 0)
             if best is None or count < best_count:  # type: ignore[operator]
                 best = candidate
                 best_count = count

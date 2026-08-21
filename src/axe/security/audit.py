@@ -68,7 +68,29 @@ class AuditService:
                 await audit_session.commit()
 
         if non_blocking:
-            asyncio.create_task(_persist())
+            # Capture a detached snapshot so the closure does not reference a
+            # model instance bound to the caller's session. The AuditLog row is
+            # rebuilt inside the dedicated audit session.
+            entry_kwargs = {
+                "pm_id": entry.pm_id,
+                "fund_entity_id": entry.fund_entity_id,
+                "action_type": entry.action_type,
+                "object_type": entry.object_type,
+                "object_id": entry.object_id,
+                "before_state": entry.before_state,
+                "after_state": entry.after_state,
+                "source_ip": entry.source_ip,
+                "session_id": entry.session_id,
+                "retention_class": entry.retention_class,
+                "trace_id": entry.trace_id,
+            }
+
+            async def _persist_detached() -> None:
+                async with AsyncSession(self.session.bind) as audit_session:
+                    audit_session.add(AuditLog(**entry_kwargs))
+                    await audit_session.commit()
+
+            asyncio.create_task(_persist_detached())
             return
         await _persist()
 

@@ -634,12 +634,17 @@ class ModelTraceRepository(_BaseRepo):
         )
         return result.scalar_one_or_none()
 
-    async def get_by_prompt_hash(self, prompt_hash: str) -> list[ModelTrace]:
-        result = await self.session.execute(
+    async def get_by_prompt_hash(
+        self, prompt_hash: str, *, limit: int | None = 100
+    ) -> list[ModelTrace]:
+        stmt = (
             IsolationService.select_for(ModelTrace)
             .where(ModelTrace.prompt_hash == prompt_hash)
             .order_by(ModelTrace.created_at.desc())
         )
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
     async def list_for_pm(self, *, limit: int | None = None) -> list[ModelTrace]:
