@@ -1,0 +1,19 @@
+unformatted: File would be reformatted
+   --> src/axe/config.py:180:40
+    |
+179 |     )
+    -     clerk_audience: str | None = Field(
+    -         default=None, description="Optional expected JWT aud claim"
+    -     )
+180 +     clerk_audience: str | None = Field(default=None, description="Optional expected JWT aud claim")
+181 |     clerk_authorized_parties: list[str] = Field(
+--------------------------------------------------------------------------------
+188 |     )
+    -     clerk_jwks_ttl_seconds: int = Field(
+    -         default=300, description="JWKS cache TTL in seconds"
+    -     )
+189 +     clerk_jwks_ttl_seconds: int = Field(default=300, description="JWKS cache TTL in seconds")
+190 |
+    |
+
+1 file would be reformatted, 120 files already formatted

@@ -36,12 +36,14 @@ def child(stage: str) -> int:
     plugins = ["-p", "pytest_asyncio.plugin", "-p", "pytest_cov.plugin", "-p", "respx.plugin"]
     common = ["-c", "/app/pyproject.toml", *plugins, "-o", f"cache_dir=/scratch/cache/{stage}",
               f"--basetemp=/scratch/tmp/{stage}", f"--junitxml=/scratch/reports/{stage}.xml"]
-    if stage in {"focused", "full", "compliance", "worker"}:
+    if stage in {"focused", "full", "compliance", "worker", "identity"}:
         import pytest
 
         os.environ["COVERAGE_FILE"] = f"/scratch/reports/.coverage-{stage}"
         if stage == "focused":
             return int(pytest.main([*common, "/harness/test_settings.py"]))
+        if stage == "identity":
+            return int(pytest.main([*common, "tests/test_step04_identity.py", "-v"]))
         if stage == "worker":
             return int(pytest.main([*common, "tests/test_ingestion.py", "-v"]))
         if stage == "full":
@@ -83,6 +85,7 @@ def main() -> int:
         "types": ("mypy", "pyright"),
         "policy": ("policy",),
         "worker": ("focused", "worker", "lint", "format"),
+        "identity": ("focused", "identity", "lint", "format"),
     }
     if len(sys.argv) != 3 or sys.argv[1] != "--group" or sys.argv[2] not in groups:
         raise ValueError("An explicit validation group is required")

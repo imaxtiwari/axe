@@ -1,40 +1,31 @@
-"""Request-scoped security context for AXE.
-
-Every production request carries identity metadata (pm_id, fund_id, role, etc.)
-so that audit, isolation, and authorization decisions can be made without
-threading ad-hoc dictionaries through every call chain.
-"""
+"""Request-scoped security context; HTTP identity comes only from verified membership."""
 
 from __future__ import annotations
 
 import contextlib
 import contextvars
-import logging
 import uuid
-from collections.abc import AsyncGenerator, Callable
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from typing import Any
 
-from fastapi import Header, Request
+from fastapi import Request
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from axe.config import Settings, get_settings
 
-logger = logging.getLogger(__name__)
-
-# Module-level contextvar cache for request identity. Stored outside the
-# dataclass to avoid ClassVar/frozen dataclass conflicts.
 _ctx_var: contextvars.ContextVar[RequestContext | None] = contextvars.ContextVar(
     "axe_request_context", default=None
+)
+# Internal bind() deliberately cannot establish this request-specific proof.
+_http_context: contextvars.ContextVar[tuple[Scope, RequestContext] | None] = contextvars.ContextVar(
+    "axe_verified_http_context", default=None
 )
 
 
 @dataclass(frozen=True, slots=True)
 class RequestContext:
-    """Identity and provenance metadata for a single request.
-
-    The context is stored in a contextvar by middleware and can be retrieved
-    anywhere within the request lifecycle via ``RequestContext.current()``.
-    """
+    """Identity and provenance metadata for a single request or internal operation."""
 
     pm_id: str | None = None
     fund_id: str | None = None
@@ -42,100 +33,30 @@ class RequestContext:
     client_ip: str | None = None
     request_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     user_agent: str | None = None
-    is_bypass: bool = False
 
     @classmethod
     def current(cls) -> RequestContext:
-        """Return the active request context.
-
-        Raises ``RuntimeError`` when called outside a request and no test context
-        has been explicitly set.
-        """
         ctx = _ctx_var.get()
         if ctx is None:
-            raise RuntimeError(
-                "No RequestContext is active. "
-                "This code must run inside an HTTP request or a context managed by RequestContext."
-            )
+            raise RuntimeError("No RequestContext is active.")
         return ctx
 
     @classmethod
     def current_or_none(cls) -> RequestContext | None:
-        """Return the active context, or ``None`` outside a request."""
         return _ctx_var.get()
 
     @classmethod
     def set_current(cls, ctx: RequestContext) -> Any:
-        """Set the active context for the current asyncio task.
-
-        Returns the contextvars token so callers can restore the previous value.
-        """
+        """Return a contextvars token so callers can restore the previous value."""
         return _ctx_var.set(ctx)
 
     @classmethod
     def reset_current(cls, token: Any) -> None:
-        """Reset the contextvar using a token returned by ``set_current``."""
         _ctx_var.reset(token)
 
-    @classmethod
-    def from_headers(
-        cls,
-        request: Request | None,
-        *,
-        settings: Settings | None = None,
-    ) -> RequestContext:
-        """Build a context from HTTP headers or request state.
-
-        Header names are intentionally simple for reverse-proxy/front-door
-        compatibility:
-          - X-PM-ID
-          - X-Fund-ID
-          - X-Role
-          - X-Request-ID
-        """
-        settings = settings or get_settings()
-
-        headers: dict[str, str] = {}
-        if request is not None:
-            headers = {k.lower(): v for k, v in request.headers.items()}
-
-        pm_id = headers.get("x-pm-id")
-        fund_id = headers.get("x-fund-id")
-        role = headers.get("x-role") or "pm"
-        user_agent = headers.get("user-agent")
-        request_id = headers.get("x-request-id") or uuid.uuid4().hex
-
-        client_ip = None
-        if request is not None:
-            client_ip = request.client.host if request.client else None
-
-        is_bypass = False
-        if pm_id is None and not settings.is_production:
-            # Development/test bypass: allow the context to exist without identity
-            # so local exploration and unit tests are not blocked. This path is
-            # explicitly logged at WARNING and never used in production.
-            is_bypass = True
-            logger.warning(
-                "RequestContext running in dev bypass mode: "
-                "pm_id/fund_id are missing. Production would reject this request."
-            )
-
-        return cls(
-            pm_id=pm_id,
-            fund_id=fund_id,
-            role=role,
-            client_ip=client_ip,
-            request_id=request_id,
-            user_agent=user_agent,
-            is_bypass=is_bypass,
-        )
-
     def ensure_identity(self) -> RequestIdentity:
-        """Return a non-optional identity view, raising if identity is missing."""
         if not self.pm_id:
-            raise RuntimeError(
-                "RequestContext has no pm_id; identity is required for this operation"
-            )
+            raise RuntimeError("RequestContext has no pm_id; identity is required")
         return RequestIdentity(pm_id=self.pm_id, fund_id=self.fund_id, role=self.role)
 
     @classmethod
@@ -150,11 +71,7 @@ class RequestContext:
         request_id: str | None = None,
         user_agent: str | None = None,
     ) -> Any:
-        """Temporarily bind a ``RequestContext`` for the current asyncio task.
-
-        Intended for tests, background workers, and any non-request code path
-        that still needs isolation or audit identity.
-        """
+        """Bind internal/test context. This is never evidence of HTTP authentication."""
         ctx = cls(
             pm_id=pm_id,
             fund_id=fund_id,
@@ -162,7 +79,6 @@ class RequestContext:
             client_ip=client_ip,
             request_id=request_id or uuid.uuid4().hex,
             user_agent=user_agent,
-            is_bypass=False,
         )
         token = cls.set_current(ctx)
         try:
@@ -173,88 +89,110 @@ class RequestContext:
 
 @dataclass(frozen=True, slots=True)
 class RequestIdentity:
-    """Guaranteed identity subset of ``RequestContext``.
-
-    Use this when the operation absolutely requires a known user.
-    """
+    """Guaranteed identity subset of RequestContext."""
 
     pm_id: str
     fund_id: str | None
     role: str
 
 
-async def get_request_context(
-    request: Request,
-    x_pm_id: str | None = Header(None, alias="X-PM-ID"),
-    x_fund_id: str | None = Header(None, alias="X-Fund-ID"),
-    x_role: str | None = Header(None, alias="X-Role"),
-    x_request_id: str | None = Header(None, alias="X-Request-ID"),
-) -> RequestContext:
-    """FastAPI dependency that injects the current ``RequestContext``.
+def verified_http_context(request: Request) -> RequestContext:
+    from axe.exceptions import AuthError
 
-    Reads headers from the request. Explicit parameters are declared so OpenAPI
-    documents them.
-    """
-    ctx = RequestContext.from_headers(request)
-    # Rebuild from explicit header values when present to keep OpenAPI-informed
-    # defaults aligned with the actual context.
-    if x_pm_id:
-        ctx = RequestContext(
-            pm_id=x_pm_id,
-            fund_id=x_fund_id or ctx.fund_id,
-            role=x_role or ctx.role,
-            client_ip=ctx.client_ip,
-            request_id=x_request_id or ctx.request_id,
-            user_agent=ctx.user_agent,
-            is_bypass=False,
-        )
-    return ctx
+    proof = _http_context.get()
+    if proof is None or proof[0] is not request.scope or _ctx_var.get() is not proof[1]:
+        raise AuthError("Verified HTTP membership required")
+    return proof[1]
 
 
-def require_identity() -> RequestIdentity:
-    """FastAPI dependency that returns a guaranteed ``RequestIdentity``."""
-    return RequestContext.current().ensure_identity()
+async def get_request_context(request: Request) -> RequestContext:
+    """Consume middleware's one verified context; do not re-resolve identity."""
+    return verified_http_context(request)
 
 
-async def request_context_middleware(
-    request: Request,
-    call_next: Callable[[Request], Any],
-) -> Any:
-    """ASGI middleware that installs ``RequestContext`` for each request.
-
-    The context is bound to a contextvar so code can call
-    ``RequestContext.current()`` without carrying the request object around.
-    """
-    ctx = RequestContext.from_headers(request)
-    token = RequestContext.set_current(ctx)
-    try:
-        response = await call_next(request)
-        response.headers["X-Request-ID"] = ctx.request_id
-        return response
-    finally:
-        RequestContext.reset_current(token)
+def require_identity(request: Request) -> RequestIdentity:
+    return verified_http_context(request).ensure_identity()
 
 
-def install_middleware(app: Any) -> None:
-    """Register request-context middleware on a FastAPI app."""
+async def request_context_dependency(request: Request) -> AsyncGenerator[RequestContext, None]:
+    yield verified_http_context(request)
+
+
+class RequestContextMiddleware:
+    """Default-deny HTTP boundary, including future routers, docs and metrics."""
+
+    def __init__(self, app: ASGIApp, settings: Settings) -> None:
+        from axe.security.jwt import JWTVerifier
+
+        self.app = app
+        self.verifier = JWTVerifier(settings)
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] not in {"http", "websocket"}:
+            await self.app(scope, receive, send)
+            return
+        if scope["type"] == "websocket":
+            await send({"type": "websocket.close", "code": 1008})
+            return
+        from axe.db.session import AsyncSessionLocal
+        from axe.exceptions import AuthError
+        from axe.security.identity import resolve_identity
+
+        request = Request(scope, receive)
+        request_id = request.headers.get("x-request-id") or uuid.uuid4().hex
+        ctx_token = _ctx_var.set(None)
+        proof_token = _http_context.set(None)
+        try:
+            exempt = scope["method"] in {"GET", "HEAD"} and scope["path"] in {
+                "/", "/healthz", "/ready"
+            }
+            if not exempt:
+                try:
+                    authorization = request.headers.getlist("authorization")
+                    if len(authorization) != 1:
+                        raise AuthError("Bearer token required")
+                    parts = authorization[0].split()
+                    if len(parts) != 2 or parts[0].lower() != "bearer":
+                        raise AuthError("Bearer token required")
+                    verified = await self.verifier.verify(parts[1])
+                    factory = getattr(request.app.state, "identity_session_factory", AsyncSessionLocal)
+                    async with factory() as session:
+                        user = await resolve_identity(session, verified.email)
+                        ctx = RequestContext(
+                            pm_id=user.id,
+                            fund_id=user.fund_entity_id,
+                            role=user.role,
+                            client_ip=request.client.host if request.client else None,
+                            request_id=request_id,
+                            user_agent=request.headers.get("user-agent"),
+                        )
+                    _ctx_var.set(ctx)
+                    _http_context.set((scope, ctx))
+                except Exception:
+                    # Never expose tokens, provider failures, or DB errors. No handler effects.
+                    response = AuthError(request_id=request_id).to_response()
+                    response.headers["WWW-Authenticate"] = "Bearer"
+                    response.headers["X-Request-ID"] = request_id
+                    await response(scope, receive, send)
+                    return
+
+            async def send_with_id(message: Any) -> None:
+                if message["type"] == "http.response.start":
+                    message["headers"] = [
+                        *message.get("headers", []),
+                        (b"x-request-id", request_id.encode("latin-1")),
+                    ]
+                await send(message)
+
+            await self.app(scope, receive, send_with_id)
+        finally:
+            _http_context.reset(proof_token)
+            _ctx_var.reset(ctx_token)
+
+
+def install_middleware(app: Any, settings: Settings | None = None) -> None:
     from fastapi import FastAPI
 
     if not isinstance(app, FastAPI):
         raise TypeError("install_middleware expects a FastAPI app")
-    app.middleware("http")(request_context_middleware)
-
-
-async def request_context_dependency(
-    request: Request,
-) -> AsyncGenerator[RequestContext, None]:
-    """Alternative FastAPI dependency that yields the installed context.
-
-    This is the canonical dependency used by routers. It reuses the middleware
-    context so there is only one source of truth per request.
-    """
-    ctx = RequestContext.from_headers(request)
-    token = RequestContext.set_current(ctx)
-    try:
-        yield ctx
-    finally:
-        RequestContext.reset_current(token)
+    app.add_middleware(RequestContextMiddleware, settings=settings or get_settings())

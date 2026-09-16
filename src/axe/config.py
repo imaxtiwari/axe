@@ -173,6 +173,26 @@ class Settings(BaseSettings):
         default="compliance_officer", description="Role to assign compliance escalations"
     )
 
+    # Clerk JWT identity boundary
+    clerk_issuer: str | None = Field(
+        default=None, description="Clerk issuer URL, e.g. https://<domain>.clerk.accounts.dev"
+    )
+    clerk_audience: str | None = Field(default=None, description="Optional expected JWT aud claim")
+    clerk_jwks_url: str | None = Field(
+        default=None, description="Explicit trusted HTTPS public JWKS URL"
+    )
+    clerk_authorized_parties: list[str] = Field(
+        default_factory=list,
+        description="Allowed azp values. Empty means no business access.",
+    )
+    clerk_jwks_json: str | None = Field(
+        default=None,
+        description="Offline JWKS override as a JSON string; accepted only in test env",
+    )
+    clerk_jwks_ttl_seconds: int = Field(
+        default=300, ge=1, le=300, description="JWKS cache TTL in seconds"
+    )
+
     @field_validator("chroma_persist_dir", mode="before")
     @classmethod
     def ensure_data_dir(cls, value: str) -> str:

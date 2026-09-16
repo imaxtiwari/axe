@@ -10,7 +10,7 @@ for path in /var/empty/config.json /var/empty/contexts /var/empty/cli-plugins; d
     [ ! -e "$path" ] && [ ! -L "$path" ]
 done
 MODE=${1:-all}
-case "$MODE" in all|worker) ;; *) exit 2 ;; esac
+case "$MODE" in all|worker|identity) ;; *) exit 2 ;; esac
 TASK=axe-step03c-$(/usr/bin/uuidgen | /usr/bin/tr '[:upper:]' '[:lower:]')
 OUT=validation/step03c/evidence-$TASK
 /bin/mkdir "$OUT"
@@ -22,13 +22,13 @@ printf '%s\n' pyproject.toml scripts/check_isolation_policy.py \
     validation/step03c/Dockerfile validation/step03c/runner.py validation/step03c/test_settings.py \
     validation/step03b/installed-18fb41f9-526b-4423-a7b1-c64b99759f0c/dependencies >> "$OUT/context-files.txt"
 /usr/bin/tar --format=gnutar -cf "$OUT/context.tar" -T "$OUT/context-files.txt"
-docker_clean build --platform linux/arm64 --pull=false --network none --rm=false --force-rm=false \
+docker_clean build --no-cache --platform linux/arm64 --pull=false --network none --rm=false --force-rm=false \
     -f validation/step03c/Dockerfile -t "$TASK:local" - < "$OUT/context.tar" > "$OUT/build.log" 2>&1
 IMAGE=$(docker_clean image inspect "$TASK:local" --format '{{.Id}}')
 ROOT_OUT=$OUT
 ROOT_TASK=$TASK
 GROUPS_TO_RUN='baseline types policy'
-[ "$MODE" != worker ] || GROUPS_TO_RUN=worker
+[ "$MODE" = all ] || GROUPS_TO_RUN=$MODE
 FAILED=0
 for GROUP in $GROUPS_TO_RUN; do
 TASK=$ROOT_TASK-$GROUP

@@ -54,7 +54,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.readiness_dir = settings.readiness_dir
     install_global_error_middleware(app)
-    install_middleware(app)
+    install_middleware(app, settings)
     instrument_fastapi(app)
     register_exception_handlers(app)
 

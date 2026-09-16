@@ -1,0 +1,218 @@
+unformatted: File would be reformatted
+   --> src/axe/security/context.py:147:21
+    |
+146 |             exempt = scope["method"] in {"GET", "HEAD"} and scope["path"] in {
+    -                 "/", "/healthz", "/ready"
+147 +                 "/",
+148 +                 "/healthz",
+149 +                 "/ready",
+150 |             }
+--------------------------------------------------------------------------------
+159 |                     verified = await self.verifier.verify(parts[1])
+    -                     factory = getattr(request.app.state, "identity_session_factory", AsyncSessionLocal)
+160 +                     factory = getattr(
+161 +                         request.app.state, "identity_session_factory", AsyncSessionLocal
+162 +                     )
+163 |                     async with factory() as session:
+    |
+
+unformatted: File would be reformatted
+   --> src/axe/security/jwt.py:157:20
+    |
+156 |                 value = claims.get(name)
+    -                 if not isinstance(value, str) or not value.startswith(prefix) or len(value) <= len(prefix):
+157 +                 if (
+158 +                     not isinstance(value, str)
+159 +                     or not value.startswith(prefix)
+160 +                     or len(value) <= len(prefix)
+161 +                 ):
+162 |                     raise AuthError("Invalid session identity")
+    |
+
+unformatted: File would be reformatted
+   --> tests/test_step04_identity.py:31:16
+    |
+30  |     def encode(value: int) -> str:
+    -         return base64.urlsafe_b64encode(value.to_bytes((value.bit_length() + 7) // 8, "big")).decode().rstrip("=")
+31  +         return (
+32  +             base64.urlsafe_b64encode(value.to_bytes((value.bit_length() + 7) // 8, "big"))
+33  +             .decode()
+34  +             .rstrip("=")
+35  +         )
+36  |
+    -     public = {"kty": "RSA", "kid": "synthetic", "alg": "RS256", "use": "sig",
+    -               "n": encode(numbers.n), "e": encode(numbers.e)}
+    -     pem = private.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+    -                                 serialization.NoEncryption()).decode()
+37  +     public = {
+38  +         "kty": "RSA",
+39  +         "kid": "synthetic",
+40  +         "alg": "RS256",
+41  +         "use": "sig",
+42  +         "n": encode(numbers.n),
+43  +         "e": encode(numbers.e),
+44  +     }
+45  +     pem = private.private_bytes(
+46  +         serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
+47  +     ).decode()
+48  |     return pem, public
+--------------------------------------------------------------------------------
+52  | def auth_settings(signing_key: tuple[str, dict[str, Any]]) -> Settings:
+    -     return Settings(app_env="test", clerk_issuer="https://issuer.example.invalid",
+    -                     clerk_authorized_parties=["https://signin.example.invalid"],
+    -                     clerk_jwks_json=json.dumps({"keys": [signing_key[1]]}))
+53  +     return Settings(
+54  +         app_env="test",
+55  +         clerk_issuer="https://issuer.example.invalid",
+56  +         clerk_authorized_parties=["https://signin.example.invalid"],
+57  +         clerk_jwks_json=json.dumps({"keys": [signing_key[1]]}),
+58  +     )
+59  |
+60  |
+61  | def token(signing_key: tuple[str, dict[str, Any]], **overrides: Any) -> str:
+62  |     now = int(time.time())
+    -     claims = {"iss": "https://issuer.example.invalid", "sub": "user_synthetic",
+    -               "sid": "sess_synthetic", "iat": now - 1, "nbf": now - 1, "exp": now + 60,
+    -               "azp": "https://signin.example.invalid", "email": "member@example.invalid",
+    -               "email_verified": True}
+63  +     claims = {
+64  +         "iss": "https://issuer.example.invalid",
+65  +         "sub": "user_synthetic",
+66  +         "sid": "sess_synthetic",
+67  +         "iat": now - 1,
+68  +         "nbf": now - 1,
+69  +         "exp": now + 60,
+70  +         "azp": "https://signin.example.invalid",
+71  +         "email": "member@example.invalid",
+72  +         "email_verified": True,
+73  +     }
+74  |     claims.update(overrides)
+75  |     return jwt.encode(claims, signing_key[0], algorithm="RS256", headers={"kid": "synthetic"})
+76  |
+77  |
+    - async def test_signed_email(auth_settings: Settings, signing_key: tuple[str, dict[str, Any]]) -> None:
+78  + async def test_signed_email(
+79  +     auth_settings: Settings, signing_key: tuple[str, dict[str, Any]]
+80  + ) -> None:
+81  |     identity = await JWTVerifier(auth_settings).verify(token(signing_key))
+--------------------------------------------------------------------------------
+86  |
+    - @pytest.mark.parametrize("overrides", [
+    -     {"email_verified": False}, {"email_verified": "true"}, {"email_verified": 1},
+    -     {"email_verified": None}, {"email": " member@example.invalid"}, {"email": "a@@b"},
+    -     {"email": "@b"}, {"email": None}, {"azp": None}, {"azp": "https://attacker.invalid"},
+    -     {"iss": "https://attacker.invalid"}, {"sub": "user_"}, {"sub": None},
+    -     {"sid": "sess_"}, {"sid": None}, {"exp": 0}, {"exp": True},
+    -     {"iat": 9999999999}, {"iat": "1"}, {"nbf": 9999999999}, {"nbf": None},
+    - ])
+    - async def test_invalid_claims(auth_settings: Settings, signing_key: tuple[str, dict[str, Any]],
+    -                               overrides: dict[str, Any]) -> None:
+87  + @pytest.mark.parametrize(
+88  +     "overrides",
+89  +     [
+90  +         {"email_verified": False},
+91  +         {"email_verified": "true"},
+92  +         {"email_verified": 1},
+93  +         {"email_verified": None},
+94  +         {"email": " member@example.invalid"},
+95  +         {"email": "a@@b"},
+96  +         {"email": "@b"},
+97  +         {"email": None},
+98  +         {"azp": None},
+99  +         {"azp": "https://attacker.invalid"},
+100 +         {"iss": "https://attacker.invalid"},
+101 +         {"sub": "user_"},
+102 +         {"sub": None},
+103 +         {"sid": "sess_"},
+104 +         {"sid": None},
+105 +         {"exp": 0},
+106 +         {"exp": True},
+107 +         {"iat": 9999999999},
+108 +         {"iat": "1"},
+109 +         {"nbf": 9999999999},
+110 +         {"nbf": None},
+111 +     ],
+112 + )
+113 + async def test_invalid_claims(
+114 +     auth_settings: Settings, signing_key: tuple[str, dict[str, Any]], overrides: dict[str, Any]
+115 + ) -> None:
+116 |     with pytest.raises(AuthError):
+--------------------------------------------------------------------------------
+121 | async def test_missing_origin_blocks_every_environment(
+    -     auth_settings: Settings, signing_key: tuple[str, dict[str, Any]], environment: str,
+122 +     auth_settings: Settings,
+123 +     signing_key: tuple[str, dict[str, Any]],
+124 +     environment: str,
+125 | ) -> None:
+    -     settings = auth_settings.model_copy(update={"app_env": environment, "clerk_authorized_parties": []})
+126 +     settings = auth_settings.model_copy(
+127 +         update={"app_env": environment, "clerk_authorized_parties": []}
+128 +     )
+129 |     with pytest.raises(AuthError):
+--------------------------------------------------------------------------------
+133 | async def test_audience_optional_but_enforced_when_configured(
+    -     auth_settings: Settings, signing_key: tuple[str, dict[str, Any]],
+134 +     auth_settings: Settings,
+135 +     signing_key: tuple[str, dict[str, Any]],
+136 | ) -> None:
+--------------------------------------------------------------------------------
+154 | async def test_http_membership_is_authoritative_and_fresh(
+    -     auth_settings: Settings, signing_key: tuple[str, dict[str, Any]],
+    -     db_session: AsyncSession, db_session_factory: async_sessionmaker[AsyncSession],
+155 +     auth_settings: Settings,
+156 +     signing_key: tuple[str, dict[str, Any]],
+157 +     db_session: AsyncSession,
+158 +     db_session_factory: async_sessionmaker[AsyncSession],
+159 | ) -> None:
+--------------------------------------------------------------------------------
+170 |     @app.get("/__identity")
+    -     async def identity(ctx: RequestContext = Depends(require_role("pm")),
+    -                        same: RequestContext = Depends(get_request_context)) -> dict[str, Any]:
+171 +     async def identity(
+172 +         ctx: RequestContext = Depends(require_role("pm")),
+173 +         same: RequestContext = Depends(get_request_context),
+174 +     ) -> dict[str, Any]:
+175 |         assert ctx is same is RequestContext.current()
+176 |         calls.append(ctx.pm_id)
+177 |         return {"pm_id": ctx.pm_id, "fund_id": ctx.fund_id, "role": ctx.role}
+178 |
+    -     headers = {"Authorization": f"Bearer {token(signing_key, role='admin', pm_id='forged')}",
+    -                "X-PM-ID": "forged", "X-Fund-ID": "forged", "X-Role": "admin"}
+179 +     headers = {
+180 +         "Authorization": f"Bearer {token(signing_key, role='admin', pm_id='forged')}",
+181 +         "X-PM-ID": "forged",
+182 +         "X-Fund-ID": "forged",
+183 +         "X-Role": "admin",
+184 +     }
+185 |     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+--------------------------------------------------------------------------------
+197 |
+    - @pytest.mark.parametrize("path", [
+    -     "/onboarding/start", "/api/v1/persona", "/api/v1/transcripts", "/api/v1/mnpi",
+    -     "/api/v1/audit/log", "/api/v1/compliance", "/api/v1/deals", "/api/v1/lp",
+    -     "/api/v1/artifacts", "/api/v1/connectors", "/docs", "/openapi.json", "/metrics",
+    -     "/future-business-route",
+    - ])
+198 + @pytest.mark.parametrize(
+199 +     "path",
+200 +     [
+201 +         "/onboarding/start",
+202 +         "/api/v1/persona",
+203 +         "/api/v1/transcripts",
+204 +         "/api/v1/mnpi",
+205 +         "/api/v1/audit/log",
+206 +         "/api/v1/compliance",
+207 +         "/api/v1/deals",
+208 +         "/api/v1/lp",
+209 +         "/api/v1/artifacts",
+210 +         "/api/v1/connectors",
+211 +         "/docs",
+212 +         "/openapi.json",
+213 +         "/metrics",
+214 +         "/future-business-route",
+215 +     ],
+216 + )
+217 | async def test_every_business_path_denies_raw_headers(auth_settings: Settings, path: str) -> None:
+    |
+
+3 files would be reformatted, 119 files already formatted
