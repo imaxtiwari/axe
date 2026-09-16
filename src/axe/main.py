@@ -33,7 +33,7 @@ from axe.security.context import install_middleware
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan events."""
-    Path("./data").mkdir(parents=True, exist_ok=True)
+    Path(app.state.readiness_dir).mkdir(parents=True, exist_ok=True)
     yield
 
 
@@ -52,6 +52,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         version="0.1.0",
         lifespan=lifespan,
     )
+    app.state.readiness_dir = settings.readiness_dir
     install_global_error_middleware(app)
     install_middleware(app)
     instrument_fastapi(app)
@@ -66,8 +67,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def readiness_check() -> JSONResponse:
         """Readiness probe; verifies required dirs are present and writable."""
         try:
-            Path("./data").mkdir(parents=True, exist_ok=True)
-            probe = Path("./data") / ".ready"
+            settings.readiness_dir.mkdir(parents=True, exist_ok=True)
+            probe = settings.readiness_dir / ".ready"
             probe.write_text("ok")
             return JSONResponse({"status": "ready"})
         except OSError as exc:

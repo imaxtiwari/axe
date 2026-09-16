@@ -1,0 +1,62 @@
+diff --git a/src/axe/config.py b/src/axe/config.py
+index 9d5a120..7bad6b3 100644
+--- a/src/axe/config.py
++++ b/src/axe/config.py
+@@ -1,7 +1,9 @@
+ """Pydantic Settings for AXE configuration."""
+ 
++import os
+ from functools import lru_cache
+ from pathlib import Path
++from typing import Any
+ 
+ from pydantic import Field, field_validator
+ from pydantic_settings import BaseSettings, SettingsConfigDict
+@@ -16,6 +18,15 @@ class Settings(BaseSettings):
+         extra="ignore",
+     )
+ 
++    def __init__(self, **values: Any) -> None:
++        # Disable file-backed sources before Pydantic constructs (and reads) them.
++        # This is a validation hook, not a substitute for process isolation.
++        if os.environ.get("AXE_VALIDATION") == "1":
++            values["_env_file"] = None
++            values["_secrets_dir"] = ()
++        super().__init__(**values)
++
++    readiness_dir: Path = Field(default=Path("./data"), description="Readiness probe directory")
+     app_env: str = Field(default="development", description="Application environment")
+     log_level: str = Field(default="INFO", description="Logging level")
+ 
+diff --git a/src/axe/main.py b/src/axe/main.py
+index a770cd0..0d51f60 100644
+--- a/src/axe/main.py
++++ b/src/axe/main.py
+@@ -33,7 +33,7 @@ from axe.security.context import install_middleware
+ @asynccontextmanager
+ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+     """Application lifespan events."""
+-    Path("./data").mkdir(parents=True, exist_ok=True)
++    Path(app.state.readiness_dir).mkdir(parents=True, exist_ok=True)
+     yield
+ 
+ 
+@@ -52,6 +52,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
+         version="0.1.0",
+         lifespan=lifespan,
+     )
++    app.state.readiness_dir = settings.readiness_dir
+     install_global_error_middleware(app)
+     install_middleware(app)
+     instrument_fastapi(app)
+@@ -66,8 +67,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
+     async def readiness_check() -> JSONResponse:
+         """Readiness probe; verifies required dirs are present and writable."""
+         try:
+-            Path("./data").mkdir(parents=True, exist_ok=True)
+-            probe = Path("./data") / ".ready"
++            settings.readiness_dir.mkdir(parents=True, exist_ok=True)
++            probe = settings.readiness_dir / ".ready"
+             probe.write_text("ok")
+             return JSONResponse({"status": "ready"})
+         except OSError as exc:

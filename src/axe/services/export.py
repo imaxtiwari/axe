@@ -20,6 +20,7 @@ from sqlalchemy.orm import DeclarativeBase
 
 from axe.config import Settings, get_settings
 from axe.db.models import AuditLog
+from axe.exceptions import IsolationError
 from axe.security.encryption import EncryptionError, encrypt_plaintext, get_fernet
 
 logger = logging.getLogger(__name__)
@@ -82,8 +83,15 @@ class ExportService:
         if object_id is not None:
             where_filters.append(AuditLog.object_id == str(object_id))
 
+        pm_id = getattr(entity, "pm_id", None)
+        fund_id = getattr(entity, "fund_entity_id", None)
+        if not pm_id and not fund_id:
+            raise IsolationError("Export entity must have a PM or fund scope")
+        stmt = select(AuditLog).where(AuditLog.pm_id == pm_id)
+        if fund_id:
+            stmt = stmt.where(AuditLog.fund_entity_id == fund_id)
         audit_result = await self.session.execute(
-            select(AuditLog).where(*where_filters).order_by(AuditLog.created_at.asc())
+            stmt.where(*where_filters).order_by(AuditLog.created_at.asc())
         )
         audit_rows = audit_result.scalars().all()
 

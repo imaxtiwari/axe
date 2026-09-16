@@ -1,0 +1,126 @@
+{"after": 2, "before": 1, "gate": "additional_filter", "passed": true}
+{"gate": "parent:process", "passed": true}
+{"errno": 30, "gate": "parent:outside_write", "passed": true}
+{"errno": 30, "gate": "parent:source_write", "passed": true}
+{"errno": 13, "gate": "parent:secret_read", "passed": true}
+{"gate": "parent:scratch_sqlite", "passed": true}
+{"gate": "parent:unix_sockets", "passed": true}
+{"errno": 1, "gate": "parent:socket:AF_INET:SOCK_STREAM", "passed": true}
+{"errno": 1, "gate": "parent:socket:AF_INET:SOCK_DGRAM", "passed": true}
+{"errno": 1, "gate": "parent:socket:AF_INET6:SOCK_STREAM", "passed": true}
+{"errno": 1, "gate": "parent:socket:AF_INET6:SOCK_DGRAM", "passed": true}
+{"gate": "child:process", "passed": true}
+{"errno": 30, "gate": "child:outside_write", "passed": true}
+{"errno": 30, "gate": "child:source_write", "passed": true}
+{"errno": 13, "gate": "child:secret_read", "passed": true}
+{"gate": "child:scratch_sqlite", "passed": true}
+{"gate": "child:unix_sockets", "passed": true}
+{"errno": 1, "gate": "child:socket:AF_INET:SOCK_STREAM", "passed": true}
+{"errno": 1, "gate": "child:socket:AF_INET:SOCK_DGRAM", "passed": true}
+{"errno": 1, "gate": "child:socket:AF_INET6:SOCK_STREAM", "passed": true}
+{"errno": 1, "gate": "child:socket:AF_INET6:SOCK_DGRAM", "passed": true}
+{"gate": "complete", "passed": true, "phase": "child"}
+{"gate": "child_inheritance", "passed": true}
+{"gate": "complete", "passed": true, "phase": "parent"}
+{"after": 2, "before": 1, "gate": "additional_filter", "passed": true}
+{"pytest_arguments": ["-c", "/app/pyproject.toml", "-p", "pytest_asyncio.plugin", "-p", "pytest_cov.plugin", "-o", "cache_dir=/scratch/cache/pytest", "--basetemp=/scratch/tmp/pytest", "--junitxml=/scratch/reports/focused.xml", "/harness/test_settings.py"]}
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0
+cachedir: /scratch/cache/pytest
+rootdir: /app
+configfile: pyproject.toml
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 2 items
+
+. ..                                                                     [100%]
+
+--------------- generated xml file: /scratch/reports/focused.xml ---------------
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.14-final-0 _______________
+
+Name                                        Stmts   Miss Branch BrPart  Cover   Missing
+---------------------------------------------------------------------------------------
+src/axe/__init__.py                             1      0      0      0   100%
+src/axe/agents/__init__.py                      0      0      0      0   100%
+src/axe/agents/agent_collaboration.py         169    169     64      0     0%   8-364
+src/axe/agents/brief_reply.py                  73     73     16      0     0%   3-180
+src/axe/agents/citation.py                    161    161     72      0     0%   9-335
+src/axe/agents/deck.py                        124    124     30      0     0%   3-421
+src/axe/agents/drift_detect.py                266    266     90      0     0%   3-746
+src/axe/agents/embedding.py                    63     63     10      0     0%   3-111
+src/axe/agents/fund_comms.py                    4      4      0      0     0%   3-12
+src/axe/agents/guardrails.py                  134    134     44      0     0%   8-359
+src/axe/agents/hallucination_guard.py         141    141     58      0     0%   8-300
+src/axe/agents/interactive_artifact.py        103    103     38      0     0%   8-378
+src/axe/agents/llm.py                          69     69     18      0     0%   3-159
+src/axe/agents/lp_update.py                   211    211     48      0     0%   8-627
+src/axe/agents/memory_miner.py                169    169     38      0     0%   8-343
+src/axe/agents/mnpi_review.py                  47     47      4      0     0%   3-172
+src/axe/agents/model_trace.py                  60     60      8      0     0%   8-144
+src/axe/agents/morning_brief.py               255    255     56      0     0%   3-629
+src/axe/agents/persona.py                      69     69     14      0     0%   3-188
+src/axe/agents/persona_models.py               35     35     10      0     0%   9-60
+src/axe/agents/specialist_signal.py           277    277     68      0     0%   9-633
+src/axe/agents/thesis_extract.py               72     72     24      0     0%   7-183
+src/axe/agents/underwriting.py                 58     58     10      0     0%   3-261
+src/axe/config.py                              76      2      2      0    97%   184, 188
+src/axe/connectors/__init__.py                 24     24      2      0     0%   3-57
+src/axe/connectors/base.py                     49     49      4      0     0%   9-137
+src/axe/connectors/broker_feed.py             135    135     64      0     0%   11-271
+src/axe/connectors/crm.py                      47     47     24      0     0%   7-107
+src/axe/connectors/expert_network.py           77     77     32      0     0%   8-178
+src/axe/connectors/pdf_deck.py                 68     68     20      0     0%   8-157
+src/axe/connectors/research_edge.py            65     65     28      0     0%   7-137
+src/axe/db/__init__.py                          3      3      0      0     0%   3-6
+src/axe/db/base.py                              3      3      0      0     0%   3-15
+src/axe/db/models.py                          691    691      4      0     0%   3-1148
+src/axe/db/session.py                          17     17      0      0     0%   3-41
+src/axe/db/uow.py                             394    394     28      0     0%   11-860
+src/axe/exceptions.py                         128    128     24      0     0%   3-280
+src/axe/ingestion/__init__.py                   4      4      0      0     0%   3-7
+src/axe/ingestion/cli.py                       18     18      2      0     0%   3-31
+src/axe/ingestion/dedup.py                     21     21      4      0     0%   3-49
+src/axe/ingestion/handlers.py                 103    103     26      0     0%   3-254
+src/axe/ingestion/hashing.py                   22     22      4      0     0%   3-48
+src/axe/ingestion/retry.py                     67     67     18      0     0%   3-130
+src/axe/ingestion/worker.py                   180    180     32      0     0%   3-331
+src/axe/main.py                                66     66      2      0     0%   3-100
+src/axe/observability.py                       87     87     18      0     0%   3-173
+src/axe/routers/__init__.py                     0      0      0      0   100%
+src/axe/routers/audit.py                       20     20      0      0     0%   3-68
+src/axe/routers/compliance.py                  69     69      0      0     0%   8-203
+src/axe/routers/connectors.py                  98     98     18      0     0%   3-209
+src/axe/routers/deals.py                      384    384     24      0     0%   3-927
+src/axe/routers/interactive.py                 87     87      6      0     0%   3-208
+src/axe/routers/lp.py                          60     60      4      0     0%   3-149
+src/axe/routers/mnpi.py                        27     27      0      0     0%   3-72
+src/axe/routers/onboarding.py                  65     65      6      0     0%   3-123
+src/axe/routers/persona.py                     92     92     12      0     0%   3-219
+src/axe/routers/transcripts.py                 40     40      6      0     0%   3-80
+src/axe/security/__init__.py                    2      2      0      0     0%   3-5
+src/axe/security/audit.py                      76     76     18      0     0%   3-181
+src/axe/security/authz.py                      18     18      2      0     0%   7-49
+src/axe/security/context.py                    98     98     14      0     0%   8-260
+src/axe/security/encryption.py                 55     55     14      0     0%   3-93
+src/axe/security/isolation.py                 108    108     42      0     0%   3-239
+src/axe/services/__init__.py                    0      0      0      0   100%
+src/axe/services/alert.py                      74     74     22      0     0%   3-196
+src/axe/services/brief_delivery.py             51     51     16      0     0%   3-87
+src/axe/services/brief_scheduler.py            68     68     12      0     0%   3-146
+src/axe/services/compliance_escalation.py     135    135     42      0     0%   8-363
+src/axe/services/connector.py                  91     91     22      0     0%   9-247
+src/axe/services/deal.py                      211    211     38      0     0%   3-464
+src/axe/services/deck.py                       62     62     12      0     0%   3-135
+src/axe/services/export.py                     59     59     10      0     0%   9-145
+src/axe/services/ic_memo.py                   185    185     42      0     0%   3-407
+src/axe/services/interactive.py               152    152     46      0     0%   3-333
+src/axe/services/lp_comms.py                  102    102     22      0     0%   3-226
+src/axe/services/mnpi.py                       92     92     24      0     0%   3-253
+src/axe/services/onboarding.py                137    137     50      0     0%   3-296
+src/axe/services/persona.py                    82     82     22      0     0%   9-211
+src/axe/services/policy.py                     77     77     34      0     0%   8-173
+src/axe/services/retention.py                  51     51     12      0     0%   8-147
+src/axe/services/thesis.py                    167    167     36      0     0%   3-444
+---------------------------------------------------------------------------------------
+TOTAL                                        8001   7926   1686      0     1%
+============================== 2 passed in 1.34s ===============================

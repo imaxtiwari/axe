@@ -1,0 +1,219 @@
+{"after": 2, "before": 1, "gate": "additional_filter", "passed": true}
+{"command": ["/usr/local/bin/python", "-I", "-S", "-B", "-u", "-c", "import sys,runpy; sys.path.append('/usr/local/lib/python3.12/site-packages'); runpy.run_module('pip', run_name='__main__')", "--isolated", "--disable-pip-version-check", "--no-cache-dir", "install", "--no-index", "--only-binary=:all:", "--require-hashes", "--no-deps", "--no-compile", "--find-links", "/wheels", "--target", "/scratch/dependencies", "--requirement", "/scratch/selected-requirements.txt"]}
+Looking in links: /wheels
+Processing /wheels/aiofiles-25.1.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 1))
+Processing /wheels/aiohappyeyeballs-2.7.1-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 2))
+Processing /wheels/aiohttp-3.14.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (from -r /scratch/selected-requirements.txt (line 3))
+Processing /wheels/aiosignal-1.4.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 4))
+Processing /wheels/aiosqlite-0.22.1-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 5))
+Processing /wheels/alembic-1.19.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 6))
+Processing /wheels/annotated_doc-0.0.5-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 7))
+Processing /wheels/annotated_types-0.8.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 8))
+Processing /wheels/anyio-4.14.2-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 9))
+Processing /wheels/apscheduler-3.11.3-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 10))
+Processing /wheels/asgiref-3.12.1-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 11))
+Processing /wheels/ast_serialize-0.6.0-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (from -r /scratch/selected-requirements.txt (line 12))
+Processing /wheels/attrs-26.1.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 13))
+Processing /wheels/bcrypt-5.0.0-cp39-abi3-manylinux_2_34_aarch64.whl (from -r /scratch/selected-requirements.txt (line 14))
+Processing /wheels/black-26.5.1-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 15))
+Processing /wheels/boto3-1.43.65-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 16))
+Processing /wheels/botocore-1.43.65-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 17))
+Processing /wheels/build-1.5.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 18))
+Processing /wheels/certifi-2026.7.22-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 19))
+Processing /wheels/cffi-2.1.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl (from -r /scratch/selected-requirements.txt (line 20))
+Processing /wheels/charset_normalizer-3.4.9-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (from -r /scratch/selected-requirements.txt (line 21))
+Processing /wheels/chromadb-1.5.9-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (from -r /scratch/selected-requirements.txt (line 22))
+Processing /wheels/click-8.4.2-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 23))
+Processing /wheels/coverage-7.15.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (from -r /scratch/selected-requirements.txt (line 24))
+Processing /wheels/cryptography-50.0.0-cp311-abi3-manylinux_2_34_aarch64.whl (from -r /scratch/selected-requirements.txt (line 25))
+Processing /wheels/distro-1.9.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 26))
+Processing /wheels/durationpy-0.10-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 27))
+Processing /wheels/ecdsa-0.19.2-py2.py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 28))
+Processing /wheels/fastapi-0.141.1-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 29))
+Processing /wheels/filelock-3.32.2-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 30))
+Processing /wheels/flatbuffers-25.12.19-py2.py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 31))
+Processing /wheels/frozenlist-1.8.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (from -r /scratch/selected-requirements.txt (line 32))
+Processing /wheels/fsspec-2026.7.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 33))
+Processing /wheels/googleapis_common_protos-1.75.1-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 34))
+Processing /wheels/greenlet-3.5.4-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl (from -r /scratch/selected-requirements.txt (line 35))
+Processing /wheels/grpcio-1.83.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl (from -r /scratch/selected-requirements.txt (line 36))
+Processing /wheels/h11-0.16.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 37))
+Processing /wheels/hf_xet-1.6.0-cp38-abi3-manylinux_2_28_aarch64.whl (from -r /scratch/selected-requirements.txt (line 38))
+Processing /wheels/httpcore-1.0.9-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 39))
+Processing /wheels/httptools-0.8.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (from -r /scratch/selected-requirements.txt (line 40))
+Processing /wheels/httpx-0.28.1-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 41))
+Processing /wheels/huggingface_hub-1.26.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 42))
+Processing /wheels/idna-3.18-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 43))
+Processing /wheels/importlib_resources-7.1.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 44))
+Processing /wheels/iniconfig-2.3.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 45))
+Processing /wheels/jiter-0.16.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (from -r /scratch/selected-requirements.txt (line 46))
+Processing /wheels/jmespath-1.1.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 47))
+Processing /wheels/jsonschema-4.26.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 48))
+Processing /wheels/jsonschema_specifications-2025.9.1-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 49))
+Processing /wheels/kubernetes-36.0.3-py2.py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 50))
+Processing /wheels/librt-0.13.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (from -r /scratch/selected-requirements.txt (line 51))
+Processing /wheels/mako-1.4.1-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 52))
+Processing /wheels/markdown_it_py-4.2.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 53))
+Processing /wheels/markupsafe-3.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (from -r /scratch/selected-requirements.txt (line 54))
+Processing /wheels/mdurl-0.1.2-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 55))
+Processing /wheels/mmh3-5.2.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (from -r /scratch/selected-requirements.txt (line 56))
+Processing /wheels/multidict-6.7.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (from -r /scratch/selected-requirements.txt (line 57))
+Processing /wheels/mypy-2.3.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (from -r /scratch/selected-requirements.txt (line 58))
+Processing /wheels/mypy_extensions-1.1.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 59))
+Processing /wheels/nodeenv-1.10.0-py2.py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 60))
+Processing /wheels/numpy-2.5.1-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl (from -r /scratch/selected-requirements.txt (line 61))
+Processing /wheels/oauthlib-3.3.1-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 62))
+Processing /wheels/onnxruntime-1.28.0-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl (from -r /scratch/selected-requirements.txt (line 63))
+Processing /wheels/openai-2.53.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 64))
+Processing /wheels/opentelemetry_api-1.44.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 65))
+Processing /wheels/opentelemetry_exporter_otlp_proto_common-1.44.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 66))
+Processing /wheels/opentelemetry_exporter_otlp_proto_grpc-1.44.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 67))
+Processing /wheels/opentelemetry_instrumentation-0.65b0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 68))
+Processing /wheels/opentelemetry_instrumentation_asgi-0.65b0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 69))
+Processing /wheels/opentelemetry_instrumentation_fastapi-0.65b0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 70))
+Processing /wheels/opentelemetry_proto-1.44.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 71))
+Processing /wheels/opentelemetry_sdk-1.44.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 72))
+Processing /wheels/opentelemetry_semantic_conventions-0.65b0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 73))
+Processing /wheels/opentelemetry_util_http-0.65b0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 74))
+Processing /wheels/orjson-3.11.9-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (from -r /scratch/selected-requirements.txt (line 75))
+Processing /wheels/overrides-7.7.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 76))
+Processing /wheels/packaging-26.3-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 77))
+Processing /wheels/pathspec-1.1.1-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 78))
+Processing /wheels/pdfminer_six-20260107-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 79))
+Processing /wheels/pdfplumber-0.11.10-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 80))
+Processing /wheels/pillow-12.3.0-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl (from -r /scratch/selected-requirements.txt (line 81))
+Processing /wheels/platformdirs-4.11.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 82))
+Processing /wheels/pluggy-1.6.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 83))
+Processing /wheels/prometheus_client-0.26.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 84))
+Processing /wheels/propcache-0.5.2-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (from -r /scratch/selected-requirements.txt (line 85))
+Processing /wheels/protobuf-7.35.1-cp310-abi3-manylinux2014_aarch64.whl (from -r /scratch/selected-requirements.txt (line 86))
+Processing /wheels/pyasn1-0.6.4-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 87))
+Processing /wheels/pybase64-1.4.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl (from -r /scratch/selected-requirements.txt (line 88))
+Processing /wheels/pycparser-3.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 89))
+Processing /wheels/pydantic-2.13.4-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 90))
+Processing /wheels/pydantic_core-2.46.4-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (from -r /scratch/selected-requirements.txt (line 91))
+Processing /wheels/pydantic_settings-2.14.2-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 92))
+Processing /wheels/pygments-2.20.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 93))
+Processing /wheels/pymupdf-1.28.0-cp310-abi3-manylinux_2_28_aarch64.whl (from -r /scratch/selected-requirements.txt (line 94))
+Processing /wheels/pypdfium2-5.13.0-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (from -r /scratch/selected-requirements.txt (line 95))
+Processing /wheels/pypika-0.51.1-py2.py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 96))
+Processing /wheels/pyproject_hooks-1.2.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 97))
+Processing /wheels/pyright-1.1.411-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 98))
+Processing /wheels/pytesseract-0.3.13-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 99))
+Processing /wheels/pytest-9.1.1-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 100))
+Processing /wheels/pytest_asyncio-1.4.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 101))
+Processing /wheels/pytest_cov-7.1.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 102))
+Processing /wheels/python_dateutil-2.9.0.post0-py2.py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 103))
+Processing /wheels/python_dotenv-1.2.2-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 104))
+Processing /wheels/python_jose-3.5.0-py2.py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 105))
+Processing /wheels/python_json_logger-4.1.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 106))
+Processing /wheels/python_multipart-0.0.32-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 107))
+Processing /wheels/pytokens-0.4.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (from -r /scratch/selected-requirements.txt (line 108))
+Processing /wheels/pytz-2026.3.post1-py2.py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 109))
+Processing /wheels/pyyaml-6.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (from -r /scratch/selected-requirements.txt (line 110))
+Processing /wheels/referencing-0.37.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 111))
+Processing /wheels/requests-2.34.2-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 112))
+Processing /wheels/requests_oauthlib-2.0.0-py2.py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 113))
+Processing /wheels/respx-0.23.1-py2.py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 114))
+Processing /wheels/rich-15.0.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 115))
+Processing /wheels/rpds_py-2026.6.3-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (from -r /scratch/selected-requirements.txt (line 116))
+Processing /wheels/rsa-4.9.1-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 117))
+Processing /wheels/ruff-0.16.1-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (from -r /scratch/selected-requirements.txt (line 118))
+Processing /wheels/s3transfer-0.19.2-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 119))
+Processing /wheels/sentry_sdk-2.66.1-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 120))
+Processing /wheels/shellingham-1.5.4-py2.py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 121))
+Processing /wheels/six-1.17.0-py2.py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 122))
+Processing /wheels/sniffio-1.3.1-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 123))
+Processing /wheels/sqlalchemy-2.0.51-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (from -r /scratch/selected-requirements.txt (line 124))
+Processing /wheels/starlette-1.4.1-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 125))
+Processing /wheels/tenacity-9.1.4-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 126))
+Processing /wheels/tokenizers-0.23.1-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (from -r /scratch/selected-requirements.txt (line 127))
+Processing /wheels/tqdm-4.70.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 128))
+Processing /wheels/typer-0.27.1-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 129))
+Processing /wheels/types_pytz-2026.3.1.20260727-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 130))
+Processing /wheels/typing_extensions-4.16.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 131))
+Processing /wheels/typing_inspection-0.4.2-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 132))
+Processing /wheels/tzlocal-5.4.4-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 133))
+Processing /wheels/urllib3-2.7.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 134))
+Processing /wheels/uvicorn-0.52.1-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 135))
+Processing /wheels/uvloop-0.22.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (from -r /scratch/selected-requirements.txt (line 136))
+Processing /wheels/watchfiles-1.2.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (from -r /scratch/selected-requirements.txt (line 137))
+Processing /wheels/websocket_client-1.9.0-py3-none-any.whl (from -r /scratch/selected-requirements.txt (line 138))
+Processing /wheels/websockets-17.0.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (from -r /scratch/selected-requirements.txt (line 139))
+Processing /wheels/wrapt-2.3.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (from -r /scratch/selected-requirements.txt (line 140))
+Processing /wheels/yarl-1.24.5-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (from -r /scratch/selected-requirements.txt (line 141))
+Installing collected packages: pytz, pypika, flatbuffers, durationpy, yarl, wrapt, websockets, websocket-client, watchfiles, uvloop, uvicorn, urllib3, tzlocal, typing-inspection, typing-extensions, types-pytz, typer, tqdm, tokenizers, tenacity, starlette, sqlalchemy, sniffio, six, shellingham, sentry-sdk, s3transfer, ruff, rsa, rpds-py, rich, respx, requests-oauthlib, requests, referencing, pyyaml, pytokens, python-multipart, python-json-logger, python-jose, python-dotenv, python-dateutil, pytest-cov, pytest-asyncio, pytest, pytesseract, pyright, pyproject-hooks, pypdfium2, pymupdf, pygments, pydantic-settings, pydantic-core, pydantic, pycparser, pybase64, pyasn1, protobuf, propcache, prometheus-client, pluggy, platformdirs, pillow, pdfplumber, pdfminer-six, pathspec, packaging, overrides, orjson, opentelemetry-util-http, opentelemetry-semantic-conventions, opentelemetry-sdk, opentelemetry-proto, opentelemetry-instrumentation-fastapi, opentelemetry-instrumentation-asgi, opentelemetry-instrumentation, opentelemetry-exporter-otlp-proto-grpc, opentelemetry-exporter-otlp-proto-common, opentelemetry-api, openai, onnxruntime, oauthlib, numpy, nodeenv, mypy-extensions, mypy, multidict, mmh3, mdurl, markupsafe, markdown-it-py, mako, librt, kubernetes, jsonschema-specifications, jsonschema, jmespath, jiter, iniconfig, importlib-resources, idna, huggingface-hub, httpx, httptools, httpcore, hf-xet, h11, grpcio, greenlet, googleapis-common-protos, fsspec, frozenlist, filelock, fastapi, ecdsa, distro, cryptography, coverage, click, chromadb, charset-normalizer, cffi, certifi, build, botocore, boto3, black, bcrypt, attrs, ast-serialize, asgiref, apscheduler, anyio, annotated-types, annotated-doc, alembic, aiosqlite, aiosignal, aiohttp, aiohappyeyeballs, aiofiles
+Successfully installed aiofiles-25.1.0 aiohappyeyeballs-2.7.1 aiohttp-3.14.3 aiosignal-1.4.0 aiosqlite-0.22.1 alembic-1.19.0 annotated-doc-0.0.5 annotated-types-0.8.0 anyio-4.14.2 apscheduler-3.11.3 asgiref-3.12.1 ast-serialize-0.6.0 attrs-26.1.0 bcrypt-5.0.0 black-26.5.1 boto3-1.43.65 botocore-1.43.65 build-1.5.0 certifi-2026.7.22 cffi-2.1.1 charset-normalizer-3.4.9 chromadb-1.5.9 click-8.4.2 coverage-7.15.3 cryptography-50.0.0 distro-1.9.0 durationpy-0.10 ecdsa-0.19.2 fastapi-0.141.1 filelock-3.32.2 flatbuffers-25.12.19 frozenlist-1.8.0 fsspec-2026.7.0 googleapis-common-protos-1.75.1 greenlet-3.5.4 grpcio-1.83.0 h11-0.16.0 hf-xet-1.6.0 httpcore-1.0.9 httptools-0.8.0 httpx-0.28.1 huggingface-hub-1.26.0 idna-3.18 importlib-resources-7.1.0 iniconfig-2.3.0 jiter-0.16.0 jmespath-1.1.0 jsonschema-4.26.0 jsonschema-specifications-2025.9.1 kubernetes-36.0.3 librt-0.13.0 mako-1.4.1 markdown-it-py-4.2.0 markupsafe-3.0.3 mdurl-0.1.2 mmh3-5.2.1 multidict-6.7.1 mypy-2.3.0 mypy-extensions-1.1.0 nodeenv-1.10.0 numpy-2.5.1 oauthlib-3.3.1 onnxruntime-1.28.0 openai-2.53.0 opentelemetry-api-1.44.0 opentelemetry-exporter-otlp-proto-common-1.44.0 opentelemetry-exporter-otlp-proto-grpc-1.44.0 opentelemetry-instrumentation-0.65b0 opentelemetry-instrumentation-asgi-0.65b0 opentelemetry-instrumentation-fastapi-0.65b0 opentelemetry-proto-1.44.0 opentelemetry-sdk-1.44.0 opentelemetry-semantic-conventions-0.65b0 opentelemetry-util-http-0.65b0 orjson-3.11.9 overrides-7.7.0 packaging-26.3 pathspec-1.1.1 pdfminer-six-20260107 pdfplumber-0.11.10 pillow-12.3.0 platformdirs-4.11.0 pluggy-1.6.0 prometheus-client-0.26.0 propcache-0.5.2 protobuf-7.35.1 pyasn1-0.6.4 pybase64-1.4.3 pycparser-3.0 pydantic-2.13.4 pydantic-core-2.46.4 pydantic-settings-2.14.2 pygments-2.20.0 pymupdf-1.28.0 pypdfium2-5.13.0 pypika-0.51.1 pyproject-hooks-1.2.0 pyright-1.1.411 pytesseract-0.3.13 pytest-9.1.1 pytest-asyncio-1.4.0 pytest-cov-7.1.0 python-dateutil-2.9.0.post0 python-dotenv-1.2.2 python-jose-3.5.0 python-json-logger-4.1.0 python-multipart-0.0.32 pytokens-0.4.1 pytz-2026.3.post1 pyyaml-6.0.3 referencing-0.37.0 requests-2.34.2 requests-oauthlib-2.0.0 respx-0.23.1 rich-15.0.0 rpds-py-2026.6.3 rsa-4.9.1 ruff-0.16.1 s3transfer-0.19.2 sentry-sdk-2.66.1 shellingham-1.5.4 six-1.17.0 sniffio-1.3.1 sqlalchemy-2.0.51 starlette-1.4.1 tenacity-9.1.4 tokenizers-0.23.1 tqdm-4.70.0 typer-0.27.1 types-pytz-2026.3.1.20260727 typing-extensions-4.16.0 typing-inspection-0.4.2 tzlocal-5.4.4 urllib3-2.7.0 uvicorn-0.52.1 uvloop-0.22.1 watchfiles-1.2.0 websocket-client-1.9.0 websockets-17.0.1 wrapt-2.3.0 yarl-1.24.5
+{"installed_count": 141, "node": "v22.23.2", "exit_code": 0}
+246: 
+247:         super().__init__(**__pydantic_self__.__class__._settings_build_values(sources, init_kwargs))
+248: 
+249:     @classmethod
+250:     def settings_customise_sources(
+251:         cls,
+252:         settings_cls: type[BaseSettings],
+253:         init_settings: PydanticBaseSettingsSource,
+254:         env_settings: PydanticBaseSettingsSource,
+255:         dotenv_settings: PydanticBaseSettingsSource,
+256:         file_secret_settings: PydanticBaseSettingsSource,
+257:     ) -> tuple[PydanticBaseSettingsSource, ...]:
+258:         """
+259:         Define the sources and their order for loading the settings values.
+260: 
+261:         Args:
+262:             settings_cls: The Settings class.
+263:             init_settings: The `InitSettingsSource` instance.
+264:             env_settings: The `EnvSettingsSource` instance.
+265:             dotenv_settings: The `DotEnvSettingsSource` instance.
+266:             file_secret_settings: The `SecretsSettingsSource` instance.
+267: 
+268:         Returns:
+269:             A tuple containing the sources and their order for loading the settings values.
+391:             env_ignore_empty=env_ignore_empty,
+392:             env_parse_none_str=env_parse_none_str,
+393:             env_parse_enums=env_parse_enums,
+394:         )
+395:         dotenv_settings = DotEnvSettingsSource(
+396:             cls,
+397:             env_file=env_file,
+398:             env_file_encoding=env_file_encoding,
+399:             case_sensitive=case_sensitive,
+400:             env_prefix=env_prefix,
+401:             env_prefix_target=env_prefix_target,
+402:             env_nested_delimiter=env_nested_delimiter,
+403:             env_nested_max_split=env_nested_max_split,
+404:             env_ignore_empty=env_ignore_empty,
+405:             env_parse_none_str=env_parse_none_str,
+406:             env_parse_enums=env_parse_enums,
+407:         )
+408: 
+409:         file_secret_settings = SecretsSettingsSource(
+410:             cls,
+411:             secrets_dir=secrets_dir,
+412:             case_sensitive=case_sensitive,
+413:             env_prefix=env_prefix,
+414:             env_prefix_target=env_prefix_target,
+413:             env_prefix=env_prefix,
+414:             env_prefix_target=env_prefix_target,
+415:         )
+416:         # Provide a hook to set built-in sources priority and add / remove sources
+417:         sources = cls.settings_customise_sources(
+418:             cls,
+419:             init_settings=init_settings,
+420:             env_settings=env_settings,
+421:             dotenv_settings=dotenv_settings,
+422:             file_secret_settings=file_secret_settings,
+423:         ) + (default_settings,)
+424:         custom_cli_sources = [source for source in sources if isinstance(source, CliSettingsSource)]
+425:         if not any(custom_cli_sources):
+426:             if isinstance(cli_settings_source, CliSettingsSource):
+427:                 sources = (cli_settings_source,) + sources
+428:             elif cli_parse_args is not None:
+429:                 cli_settings = CliSettingsSource[Any](
+430:                     cls,
+431:                     cli_prog_name=cli_prog_name,
+432:                     cli_parse_args=cli_parse_args,
+433:                     cli_parse_none_str=cli_parse_none_str,
+434:                     cli_hide_none_type=cli_hide_none_type,
+435:                     cli_avoid_json=cli_avoid_json,
+436:                     cli_enforce_required=cli_enforce_required,

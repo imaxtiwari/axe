@@ -155,6 +155,8 @@ class LPCommsService:
 
         result = await self.session.execute(
             select(LPUpdate)
+            .join(InvestmentVehicle)
+            .where(InvestmentVehicle.fund_entity_id == self.fund_entity_id)
             .where(LPUpdate.vehicle_id == vehicle_id)
             .order_by(desc(LPUpdate.created_at))
         )
@@ -168,7 +170,10 @@ class LPCommsService:
         content_hash = hashlib.sha256(raw_content.encode("utf-8")).hexdigest()
 
         result = await self.session.execute(
-            select(LPRelationship.contact_email).where(
+            select(LPRelationship.contact_email)
+            .join(InvestmentVehicle)
+            .where(InvestmentVehicle.fund_entity_id == self.fund_entity_id)
+            .where(
                 LPRelationship.vehicle_id == update.vehicle_id,
                 LPRelationship.contact_email.is_not(None),
             )

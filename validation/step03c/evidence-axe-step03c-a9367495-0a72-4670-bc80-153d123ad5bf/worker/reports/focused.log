@@ -1,0 +1,106 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0
+cachedir: /scratch/cache/focused
+rootdir: /app
+configfile: pyproject.toml
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 3 items
+
+. ...                                                                    [100%]
+
+=============================== warnings summary ===============================
+::test_preimport_storage_and_readiness
+  /usr/local/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+--------------- generated xml file: /scratch/reports/focused.xml ---------------
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.14-final-0 _______________
+
+Name                                        Stmts   Miss Branch BrPart  Cover   Missing
+---------------------------------------------------------------------------------------
+src/axe/__init__.py                             1      0      0      0   100%
+src/axe/agents/__init__.py                      0      0      0      0   100%
+src/axe/agents/agent_collaboration.py         169    119     64      0    21%   50-52, 55, 72-77, 88-93, 96, 99-122, 125-129, 136-165, 168-198, 218-242, 267-278, 281-300, 303-305, 317-322, 329-340, 343-353, 356-361
+src/axe/agents/brief_reply.py                  73     73     16      0     0%   3-180
+src/axe/agents/citation.py                    161    161     72      0     0%   9-335
+src/axe/agents/deck.py                        124    103     30      0    14%   118-131, 136-143, 154-155, 163-171, 178-191, 195-216, 226-267, 279-297, 309-332, 349-397, 405-415
+src/axe/agents/drift_detect.py                266    266     90      0     0%   3-746
+src/axe/agents/embedding.py                    63     63     10      0     0%   3-111
+src/axe/agents/fund_comms.py                    4      4      0      0     0%   3-12
+src/axe/agents/guardrails.py                  134     95     44      0    22%   70-76, 95-121, 125-135, 139-156, 172-178, 194-210, 226-241, 257-267, 295-316, 330-349, 353-356
+src/axe/agents/hallucination_guard.py         141    141     58      0     0%   8-300
+src/axe/agents/interactive_artifact.py        103     69     38      0    24%   64, 73-88, 101-114, 126-151, 162-208, 220-241, 265-288, 300-317, 339-344
+src/axe/agents/llm.py                          69     44     18      0    29%   24, 53-61, 64-75, 83-111, 122-124, 132-141, 146-148, 153-159
+src/axe/agents/lp_update.py                   211    160     48      0    20%   79-83, 87-98, 123-169, 189-205, 211-217, 226-289, 293-301, 321-339, 346-360, 374-392, 412-440, 448, 473-521, 546-561, 573-587, 610-617, 622-624
+src/axe/agents/memory_miner.py                169    105     38      0    31%   64, 72-82, 97-99, 114-116, 164-166, 181-238, 244-255, 260-300, 304-329, 337
+src/axe/agents/mnpi_review.py                  47     27      4      0    39%   97-98, 106-118, 125-142, 146-164
+src/axe/agents/model_trace.py                  60     60      8      0     0%   8-144
+src/axe/agents/morning_brief.py               255    255     56      0     0%   3-629
+src/axe/agents/persona.py                      69     42     14      0    33%   38, 47-59, 75-97, 105-131, 140-155, 174
+src/axe/agents/persona_models.py               35     15     10      0    44%   40-57
+src/axe/agents/specialist_signal.py           277    277     68      0     0%   9-633
+src/axe/agents/thesis_extract.py               72     72     24      0     0%   7-183
+src/axe/agents/underwriting.py                 58     28     10      0    44%   143, 148-151, 156-163, 172-175, 179-231, 235-261
+src/axe/config.py                              76      1      2      0    99%   188
+src/axe/connectors/__init__.py                 24     10      2      0    54%   26-28, 37-40, 48-49, 54
+src/axe/connectors/base.py                     49     15      4      0    64%   31-33, 60, 64-66, 70, 88, 102, 123, 127-134
+src/axe/connectors/broker_feed.py             135    119     64      0     8%   44-80, 88-135, 138-201, 204-257, 262-268, 271
+src/axe/connectors/crm.py                      47     41     24      0     8%   35-107
+src/axe/connectors/expert_network.py           77     65     32      0    11%   39-86, 100-113, 136-156, 172-178
+src/axe/connectors/pdf_deck.py                 68     56     20      0    14%   40-94, 110-116, 130-157
+src/axe/connectors/research_edge.py            65     54     28      0    12%   39-118, 127-134, 137
+src/axe/db/__init__.py                          3      0      0      0   100%
+src/axe/db/base.py                              3      0      0      0   100%
+src/axe/db/models.py                          691     17      4      0    97%   30, 39-65, 457, 462
+src/axe/db/session.py                          17      7      0      0    59%   29-30, 36-41
+src/axe/db/uow.py                             394    273     28      0    29%   52-55, 62, 69-72, 75-81, 84-89, 102-108, 112-118, 122-127, 138-141, 159-171, 178-179, 182-185, 188-190, 193-196, 203-204, 207-210, 213-215, 222-223, 226-228, 235-238, 241-244, 247-252, 255-257, 260-264, 273-275, 282-284, 287-293, 296-301, 304-306, 313-316, 324-330, 333-335, 342-347, 350-352, 359-362, 365-370, 373-378, 381-383, 390-393, 396-399, 402-406, 409-411, 418-421, 425-428, 431-433, 440-443, 446-452, 455-460, 463-465, 472-475, 478-483, 486-489, 492-494, 501-504, 507-513, 516-521, 524-526, 533-536, 539-545, 548-550, 557-560, 563-568, 571-573, 585-588, 596-604, 612-620, 623-625, 632-635, 640-648, 651-655, 658-660, 671-674, 677-682, 685-690, 693-695, 702-707, 710-718, 721-723, 766-791, 794-821, 824-837, 843-844, 850-851, 859-860
+src/axe/exceptions.py                         128     77     24      0    36%   38-41, 46-51, 55-60, 68, 104-106, 119-128, 136-156, 163-173, 182-221, 243-259
+src/axe/ingestion/__init__.py                   4      0      0      0   100%
+src/axe/ingestion/cli.py                       18     18      2      0     0%   3-31
+src/axe/ingestion/dedup.py                     21     13      4      0    32%   15, 19-23, 36-49
+src/axe/ingestion/handlers.py                 103    103     26      0     0%   3-254
+src/axe/ingestion/hashing.py                   22     14      4      0    31%   13-17, 22-23, 34-37, 42-45
+src/axe/ingestion/retry.py                     67     50     18      0    20%   24-27, 34-35, 44-55, 65-83, 87-96, 100-113, 117-127
+src/axe/ingestion/worker.py                   179    179     32      0     0%   3-332
+src/axe/main.py                                67      6      2      0    91%   64, 74-75, 80-81, 85
+src/axe/observability.py                       87     32     18      4    56%   55-57, 60, 63, 70-72, 75, 78, 91, 96, 105, 121, 132-140, 146, 155->exit, 161-173
+src/axe/routers/__init__.py                     0      0      0      0   100%
+src/axe/routers/audit.py                       20      6      0      0    70%   33-37, 66-68
+src/axe/routers/compliance.py                  69     26      0      0    62%   72, 96-102, 116-129, 147-161, 183-200
+src/axe/routers/connectors.py                  98     45     18      0    46%   70-75, 80-83, 102-141, 156-180, 193-196, 206
+src/axe/routers/deals.py                      384    180     24      0    50%   274-284, 304-315, 328-332, 346-355, 370-380, 394-400, 424-452, 469-473, 488-497, 518-528, 542-546, 562-578, 594-608, 625-629, 650-673, 687-696, 716-726, 740-744, 758-766, 781-789, 805-832, 847-856, 872-888, 909-924
+src/axe/routers/interactive.py                 87     33      6      0    58%   92-97, 117-123, 142-156, 171-177, 195-208
+src/axe/routers/lp.py                          60     23      4      0    58%   69-79, 99-112, 127-146
+src/axe/routers/mnpi.py                        27      7      0      0    74%   51-65
+src/axe/routers/onboarding.py                  65     33      6      0    45%   44, 54-60, 70-73, 83-91, 101-111, 120-123
+src/axe/routers/persona.py                     92     32     12      0    58%   77-87, 109-127, 140-150, 163-171, 185-194, 207-216
+src/axe/routers/transcripts.py                 40     14      6      0    57%   53-80
+src/axe/security/__init__.py                    2      0      0      0   100%
+src/axe/security/audit.py                      76     61     18      0    16%   27, 51-95, 106-163, 168-181
+src/axe/security/authz.py                      18      4      2      0    70%   37-42, 49
+src/axe/security/context.py                    98     24     14      4    70%   54-60, 65, 99->102, 109->112, 113->123, 135-139, 158-171, 198-211, 216, 243, 255-260
+src/axe/security/encryption.py                 55     32     14      0    33%   18, 23-33, 38, 43-44, 49-50, 71, 75-77, 80-83, 86-93
+src/axe/security/isolation.py                 108     73     42      0    23%   46, 50, 55-57, 70-86, 96-114, 125-152, 159, 173-180, 195-200, 214-220, 236-239
+src/axe/services/__init__.py                    0      0      0      0   100%
+src/axe/services/alert.py                      74     74     22      0     0%   3-196
+src/axe/services/brief_delivery.py             51     51     16      0     0%   3-87
+src/axe/services/brief_scheduler.py            68     68     12      0     0%   3-146
+src/axe/services/compliance_escalation.py     135    103     42      0    18%   42-46, 57-64, 81-144, 159-188, 205-232, 251-274, 280-283, 286-287, 296-336, 340-341, 345
+src/axe/services/connector.py                  91     72     22      0    17%   33-34, 48-168, 179-186, 204-210, 224-244
+src/axe/services/deal.py                      211    165     38      0    18%   29-31, 34-35, 40-42, 52-55, 62-68, 71-72, 84-98, 101-104, 107-110, 113-133, 136-143, 151-161, 168-174, 177-178, 196-226, 229-232, 235-241, 248-258, 271-278, 281-282, 290-329, 332-335, 347-370, 380-422, 425-428, 433-443, 454-464
+src/axe/services/deck.py                       62     46     12      0    22%   28-34, 45-65, 76-96, 103-114, 121-123, 126-130, 133-135
+src/axe/services/export.py                     59     59     10      0     0%   9-145
+src/axe/services/ic_memo.py                   185    138     42      0    21%   55-62, 67-68, 77-105, 108, 111, 122-161, 165-187, 191-205, 208-216, 225-260, 270-279, 288-294, 297-308, 318-326, 338, 360-373, 380-382, 385-389, 392-394, 404-407
+src/axe/services/interactive.py               152    120     46      0    16%   30-32, 35-39, 42-44, 61-66, 70-71, 83-104, 112-138, 152-177, 195-208, 215-249, 261-270, 281, 287-292, 295-300, 303-308, 319-321
+src/axe/services/lp_comms.py                  102     77     22      0    20%   28-30, 33-37, 40-42, 55-62, 73-91, 95-101, 109-119, 133-149, 152-161, 165-199, 208-223
+src/axe/services/mnpi.py                       92     67     24      0    22%   35-37, 55-57, 73-120, 124-151, 165-188, 196-212, 220-222, 238
+src/axe/services/onboarding.py                137    110     50      0    14%   49-99, 123-125, 128-134, 138-145, 149-155, 164-177, 188-210, 218-235, 245-250, 258-260, 263-267, 270-278, 281-293
+src/axe/services/persona.py                    82     60     22      0    21%   37-40, 51-53, 69-78, 82-85, 92-107, 121-183, 197-208
+src/axe/services/policy.py                     77     47     34      0    27%   46, 54-75, 80-107, 122, 134, 143-145, 154-162, 166-170
+src/axe/services/retention.py                  51     34     12      0    27%   54-55, 59, 78-137, 141-147
+src/axe/services/thesis.py                    167    167     36      0     0%   3-444
+---------------------------------------------------------------------------------------
+TOTAL                                        8001   5380   1686      8    27%
+========================= 3 passed, 1 warning in 8.30s =========================

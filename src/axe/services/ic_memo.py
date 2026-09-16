@@ -209,7 +209,7 @@ class ICMemoService:
 
         result = await self.session.execute(
             select(DealThesisVersion)
-            .where(DealThesisVersion.deal_id == deal_id)
+            .where(DealThesisVersion.pm_id == self.pm_id, DealThesisVersion.deal_id == deal_id)
             .order_by(desc(DealThesisVersion.version))
             .limit(1)
         )

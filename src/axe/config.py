@@ -1,7 +1,9 @@
 """Pydantic Settings for AXE configuration."""
 
+import os
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -16,6 +18,15 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    def __init__(self, **values: Any) -> None:
+        # Disable file-backed sources before Pydantic constructs (and reads) them.
+        # This is a validation hook, not a substitute for process isolation.
+        if os.environ.get("AXE_VALIDATION") == "1":
+            values["_env_file"] = None
+            values["_secrets_dir"] = ()
+        super().__init__(**values)
+
+    readiness_dir: Path = Field(default=Path("./data"), description="Readiness probe directory")
     app_env: str = Field(default="development", description="Application environment")
     log_level: str = Field(default="INFO", description="Logging level")
 

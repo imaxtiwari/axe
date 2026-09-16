@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from axe.config import Settings, get_settings
 from axe.db.models import ComplianceEscalation, PMUser
 from axe.db.uow import UnitOfWork
+from axe.exceptions import IsolationError
 from axe.security.audit import AuditService
 from axe.security.context import RequestContext
 
@@ -248,23 +249,26 @@ class ComplianceEscalationService:
         escalations for that PM within the fund. Compliance officers and admins
         see all open escalations in the fund.
         """
-        stmt = select(ComplianceEscalation).where(ComplianceEscalation.status.in_(_OPEN_STATUSES))
-
         effective_fund_id = fund_id
         if effective_fund_id is None:
             ctx = RequestContext.current_or_none()
             if ctx is not None:
                 effective_fund_id = ctx.fund_id
 
-        if effective_fund_id is not None:
-            stmt = stmt.where(ComplianceEscalation.fund_entity_id == effective_fund_id)
+        if not effective_fund_id:
+            raise IsolationError("fund_id is required to list escalations")
+        stmt = select(ComplianceEscalation).where(
+            ComplianceEscalation.fund_entity_id == effective_fund_id,
+            ComplianceEscalation.status.in_(_OPEN_STATUSES),
+        )
 
-        if pm_id is not None and role == "pm":
-            stmt = stmt.where(ComplianceEscalation.pm_id == pm_id)
-        elif role == "pm":
-            ctx = RequestContext.current_or_none()
-            if ctx is not None and ctx.pm_id is not None:
-                stmt = stmt.where(ComplianceEscalation.pm_id == ctx.pm_id)
+        ctx = RequestContext.current_or_none()
+        effective_role = role or (ctx.role if ctx is not None else None)
+        if effective_role == "pm":
+            effective_pm_id = pm_id or (ctx.pm_id if ctx is not None else None)
+            if not effective_pm_id:
+                raise IsolationError("pm_id is required to list PM escalations")
+            stmt = stmt.where(ComplianceEscalation.pm_id == effective_pm_id)
 
         stmt = stmt.order_by(
             ComplianceEscalation.severity.desc(),
@@ -311,11 +315,10 @@ class ComplianceEscalationService:
         from sqlalchemy import func
 
         candidate_ids = [c.id for c in candidates]
+        open_count = func.count(ComplianceEscalation.id).label("open_count")
         count_stmt = (
-            select(
-                ComplianceEscalation.reviewer_id,
-                func.count(ComplianceEscalation.id).label("open_count"),
-            )
+            select(ComplianceEscalation.reviewer_id, open_count)
+            .where(ComplianceEscalation.fund_entity_id == fund_entity_id)
             .where(
                 ComplianceEscalation.reviewer_id.in_(candidate_ids),
                 ComplianceEscalation.status.in_(_OPEN_STATUSES),

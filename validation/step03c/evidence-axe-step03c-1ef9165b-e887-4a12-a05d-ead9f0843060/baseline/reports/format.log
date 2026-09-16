@@ -1,0 +1,29 @@
+unformatted: File would be reformatted
+   --> src/axe/services/compliance_escalation.py:322:14
+    |
+321 |                 func.count(ComplianceEscalation.id).label("open_count"),
+    -             ).where(ComplianceEscalation.fund_entity_id == fund_entity_id)
+322 +             )
+323 +             .where(ComplianceEscalation.fund_entity_id == fund_entity_id)
+324 |             .where(
+    |
+
+unformatted: File would be reformatted
+  --> tests/test_step03_isolation.py:39:49
+   |
+38 | )
+   - async def test_repository_queries_require_scope(
+   -     repository: Any, method: str, column: str
+   - ) -> None:
+39 + async def test_repository_queries_require_scope(repository: Any, method: str, column: str) -> None:
+40 |     session = MagicMock(spec=AsyncSession)
+--------------------------------------------------------------------------------
+50 |     assert f"{column} =" in str(statement.whereclause)
+   -     assert ("caller-fund" if "fund_entity_id" in column else "caller-pm") in compiled.params.values()
+51 +     assert (
+52 +         "caller-fund" if "fund_entity_id" in column else "caller-pm"
+53 +     ) in compiled.params.values()
+54 |
+   |
+
+2 files would be reformatted, 117 files already formatted

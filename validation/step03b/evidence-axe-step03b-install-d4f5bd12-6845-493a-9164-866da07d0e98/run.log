@@ -1,0 +1,600 @@
+{"after": 2, "before": 1, "gate": "additional_filter", "passed": true}
+{"command": ["/usr/local/bin/uv", "pip", "install", "--verbose", "--offline", "--no-config", "--no-index", "--no-build", "--require-hashes", "--no-deps", "--find-links", "/wheels", "--target", "/scratch/dependencies", "--python", "/usr/local/bin/python", "--requirements", "/scratch/selected-requirements.txt"]}
+DEBUG uv 0.12.15 (aarch64-unknown-linux-musl)
+DEBUG Checking for Python interpreter at path `/usr/local/bin/python`
+Using CPython 3.12.14 interpreter at: /usr/local/bin/python
+DEBUG Using `--target` directory at dependencies
+DEBUG At least one requirement is not satisfied: yarl==1.24.5
+DEBUG Using request connect timeout of 10s and read timeout of 30s
+DEBUG Ignoring `--find-links` entry (expected a wheel or source distribution filename): /wheels/verified.tsv
+DEBUG Found 141 packages in `--find-links` entry: file:///wheels
+DEBUG Solving with installed Python version: 3.12.14
+DEBUG Solving with target Python version: >=3.12.14
+DEBUG Adding direct dependency: aiofiles>=25.1.0, <25.1.0+
+DEBUG Adding direct dependency: aiohappyeyeballs>=2.7.1, <2.7.1+
+DEBUG Adding direct dependency: aiohttp>=3.14.3, <3.14.3+
+DEBUG Adding direct dependency: aiosignal>=1.4.0, <1.4.0+
+DEBUG Adding direct dependency: aiosqlite>=0.22.1, <0.22.1+
+DEBUG Adding direct dependency: alembic>=1.19.0, <1.19.0+
+DEBUG Adding direct dependency: annotated-doc>=0.0.5, <0.0.5+
+DEBUG Adding direct dependency: annotated-types>=0.8.0, <0.8.0+
+DEBUG Adding direct dependency: anyio>=4.14.2, <4.14.2+
+DEBUG Adding direct dependency: apscheduler>=3.11.3, <3.11.3+
+DEBUG Adding direct dependency: asgiref>=3.12.1, <3.12.1+
+DEBUG Adding direct dependency: ast-serialize>=0.6.0, <0.6.0+
+DEBUG Adding direct dependency: attrs>=26.1.0, <26.1.0+
+DEBUG Adding direct dependency: bcrypt>=5.0.0, <5.0.0+
+DEBUG Adding direct dependency: black>=26.5.1, <26.5.1+
+DEBUG Adding direct dependency: boto3>=1.43.65, <1.43.65+
+DEBUG Adding direct dependency: botocore>=1.43.65, <1.43.65+
+DEBUG Adding direct dependency: build>=1.5.0, <1.5.0+
+DEBUG Adding direct dependency: certifi>=2026.7.22, <2026.7.22+
+DEBUG Adding direct dependency: cffi>=2.1.1, <2.1.1+
+DEBUG Adding direct dependency: charset-normalizer>=3.4.9, <3.4.9+
+DEBUG Adding direct dependency: chromadb>=1.5.9, <1.5.9+
+DEBUG Adding direct dependency: click>=8.4.2, <8.4.2+
+DEBUG Adding direct dependency: coverage>=7.15.3, <7.15.3+
+DEBUG Adding direct dependency: cryptography>=50.0.0, <50.0.0+
+DEBUG Adding direct dependency: distro>=1.9.0, <1.9.0+
+DEBUG Adding direct dependency: durationpy>=0.10, <0.10+
+DEBUG Adding direct dependency: ecdsa>=0.19.2, <0.19.2+
+DEBUG Adding direct dependency: fastapi>=0.141.1, <0.141.1+
+DEBUG Adding direct dependency: filelock>=3.32.2, <3.32.2+
+DEBUG Adding direct dependency: flatbuffers>=25.12.19, <25.12.19+
+DEBUG Adding direct dependency: frozenlist>=1.8.0, <1.8.0+
+DEBUG Adding direct dependency: fsspec>=2026.7.0, <2026.7.0+
+DEBUG Adding direct dependency: googleapis-common-protos>=1.75.1, <1.75.1+
+DEBUG Adding direct dependency: greenlet>=3.5.4, <3.5.4+
+DEBUG Adding direct dependency: grpcio>=1.83.0, <1.83.0+
+DEBUG Adding direct dependency: h11>=0.16.0, <0.16.0+
+DEBUG Adding direct dependency: hf-xet>=1.6.0, <1.6.0+
+DEBUG Adding direct dependency: httpcore>=1.0.9, <1.0.9+
+DEBUG Adding direct dependency: httptools>=0.8.0, <0.8.0+
+DEBUG Adding direct dependency: httpx>=0.28.1, <0.28.1+
+DEBUG Adding direct dependency: huggingface-hub>=1.26.0, <1.26.0+
+DEBUG Adding direct dependency: idna>=3.18, <3.18+
+DEBUG Adding direct dependency: importlib-resources>=7.1.0, <7.1.0+
+DEBUG Adding direct dependency: iniconfig>=2.3.0, <2.3.0+
+DEBUG Adding direct dependency: jiter>=0.16.0, <0.16.0+
+DEBUG Adding direct dependency: jmespath>=1.1.0, <1.1.0+
+DEBUG Adding direct dependency: jsonschema>=4.26.0, <4.26.0+
+DEBUG Adding direct dependency: jsonschema-specifications>=2025.9.1, <2025.9.1+
+DEBUG Adding direct dependency: kubernetes>=36.0.3, <36.0.3+
+DEBUG Adding direct dependency: librt>=0.13.0, <0.13.0+
+DEBUG Adding direct dependency: mako>=1.4.1, <1.4.1+
+DEBUG Adding direct dependency: markdown-it-py>=4.2.0, <4.2.0+
+DEBUG Adding direct dependency: markupsafe>=3.0.3, <3.0.3+
+DEBUG Adding direct dependency: mdurl>=0.1.2, <0.1.2+
+DEBUG Adding direct dependency: mmh3>=5.2.1, <5.2.1+
+DEBUG Adding direct dependency: multidict>=6.7.1, <6.7.1+
+DEBUG Adding direct dependency: mypy>=2.3.0, <2.3.0+
+DEBUG Adding direct dependency: mypy-extensions>=1.1.0, <1.1.0+
+DEBUG Adding direct dependency: nodeenv>=1.10.0, <1.10.0+
+DEBUG Adding direct dependency: numpy>=2.5.1, <2.5.1+
+DEBUG Adding direct dependency: oauthlib>=3.3.1, <3.3.1+
+DEBUG Adding direct dependency: onnxruntime>=1.28.0, <1.28.0+
+DEBUG Adding direct dependency: openai>=2.53.0, <2.53.0+
+DEBUG Adding direct dependency: opentelemetry-api>=1.44.0, <1.44.0+
+DEBUG Adding direct dependency: opentelemetry-exporter-otlp-proto-common>=1.44.0, <1.44.0+
+DEBUG Adding direct dependency: opentelemetry-exporter-otlp-proto-grpc>=1.44.0, <1.44.0+
+DEBUG Adding direct dependency: opentelemetry-instrumentation>=0.65b0, <0.65b0+
+DEBUG Adding direct dependency: opentelemetry-instrumentation-asgi>=0.65b0, <0.65b0+
+DEBUG Adding direct dependency: opentelemetry-instrumentation-fastapi>=0.65b0, <0.65b0+
+DEBUG Adding direct dependency: opentelemetry-proto>=1.44.0, <1.44.0+
+DEBUG Adding direct dependency: opentelemetry-sdk>=1.44.0, <1.44.0+
+DEBUG Adding direct dependency: opentelemetry-semantic-conventions>=0.65b0, <0.65b0+
+DEBUG Adding direct dependency: opentelemetry-util-http>=0.65b0, <0.65b0+
+DEBUG Adding direct dependency: orjson>=3.11.9, <3.11.9+
+DEBUG Adding direct dependency: overrides>=7.7.0, <7.7.0+
+DEBUG Adding direct dependency: packaging>=26.3, <26.3+
+DEBUG Adding direct dependency: pathspec>=1.1.1, <1.1.1+
+DEBUG Adding direct dependency: pdfminer-six>=20260107, <20260107+
+DEBUG Adding direct dependency: pdfplumber>=0.11.10, <0.11.10+
+DEBUG Adding direct dependency: pillow>=12.3.0, <12.3.0+
+DEBUG Adding direct dependency: platformdirs>=4.11.0, <4.11.0+
+DEBUG Adding direct dependency: pluggy>=1.6.0, <1.6.0+
+DEBUG Adding direct dependency: prometheus-client>=0.26.0, <0.26.0+
+DEBUG Adding direct dependency: propcache>=0.5.2, <0.5.2+
+DEBUG Adding direct dependency: protobuf>=7.35.1, <7.35.1+
+DEBUG Adding direct dependency: pyasn1>=0.6.4, <0.6.4+
+DEBUG Adding direct dependency: pybase64>=1.4.3, <1.4.3+
+DEBUG Adding direct dependency: pycparser>=3.0, <3.0+
+DEBUG Adding direct dependency: pydantic>=2.13.4, <2.13.4+
+DEBUG Adding direct dependency: pydantic-core>=2.46.4, <2.46.4+
+DEBUG Adding direct dependency: pydantic-settings>=2.14.2, <2.14.2+
+DEBUG Adding direct dependency: pygments>=2.20.0, <2.20.0+
+DEBUG Adding direct dependency: pymupdf>=1.28.0, <1.28.0+
+DEBUG Adding direct dependency: pypdfium2>=5.13.0, <5.13.0+
+DEBUG Adding direct dependency: pypika>=0.51.1, <0.51.1+
+DEBUG Adding direct dependency: pyproject-hooks>=1.2.0, <1.2.0+
+DEBUG Adding direct dependency: pyright>=1.1.411, <1.1.411+
+DEBUG Adding direct dependency: pytesseract>=0.3.13, <0.3.13+
+DEBUG Adding direct dependency: pytest>=9.1.1, <9.1.1+
+DEBUG Adding direct dependency: pytest-asyncio>=1.4.0, <1.4.0+
+DEBUG Adding direct dependency: pytest-cov>=7.1.0, <7.1.0+
+DEBUG Adding direct dependency: python-dateutil>=2.9.0.post0, <2.9.0.post0+
+DEBUG Adding direct dependency: python-dotenv>=1.2.2, <1.2.2+
+DEBUG Adding direct dependency: python-jose>=3.5.0, <3.5.0+
+DEBUG Adding direct dependency: python-json-logger>=4.1.0, <4.1.0+
+DEBUG Adding direct dependency: python-multipart>=0.0.32, <0.0.32+
+DEBUG Adding direct dependency: pytokens>=0.4.1, <0.4.1+
+DEBUG Adding direct dependency: pytz>=2026.3.post1, <2026.3.post1+
+DEBUG Adding direct dependency: pyyaml>=6.0.3, <6.0.3+
+DEBUG Adding direct dependency: referencing>=0.37.0, <0.37.0+
+DEBUG Adding direct dependency: requests>=2.34.2, <2.34.2+
+DEBUG Adding direct dependency: requests-oauthlib>=2.0.0, <2.0.0+
+DEBUG Adding direct dependency: respx>=0.23.1, <0.23.1+
+DEBUG Adding direct dependency: rich>=15.0.0, <15.0.0+
+DEBUG Adding direct dependency: rpds-py>=2026.6.3, <2026.6.3+
+DEBUG Adding direct dependency: rsa>=4.9.1, <4.9.1+
+DEBUG Adding direct dependency: ruff>=0.16.1, <0.16.1+
+DEBUG Adding direct dependency: s3transfer>=0.19.2, <0.19.2+
+DEBUG Adding direct dependency: sentry-sdk>=2.66.1, <2.66.1+
+DEBUG Adding direct dependency: shellingham>=1.5.4, <1.5.4+
+DEBUG Adding direct dependency: six>=1.17.0, <1.17.0+
+DEBUG Adding direct dependency: sniffio>=1.3.1, <1.3.1+
+DEBUG Adding direct dependency: sqlalchemy>=2.0.51, <2.0.51+
+DEBUG Adding direct dependency: starlette>=1.4.1, <1.4.1+
+DEBUG Adding direct dependency: tenacity>=9.1.4, <9.1.4+
+DEBUG Adding direct dependency: tokenizers>=0.23.1, <0.23.1+
+DEBUG Adding direct dependency: tqdm>=4.70.0, <4.70.0+
+DEBUG Adding direct dependency: typer>=0.27.1, <0.27.1+
+DEBUG Adding direct dependency: types-pytz>=2026.3.1.20260727, <2026.3.1.20260727+
+DEBUG Adding direct dependency: typing-extensions>=4.16.0, <4.16.0+
+DEBUG Adding direct dependency: typing-inspection>=0.4.2, <0.4.2+
+DEBUG Adding direct dependency: tzlocal>=5.4.4, <5.4.4+
+DEBUG Adding direct dependency: urllib3>=2.7.0, <2.7.0+
+DEBUG Adding direct dependency: uvicorn>=0.52.1, <0.52.1+
+DEBUG Adding direct dependency: uvloop>=0.22.1, <0.22.1+
+DEBUG Adding direct dependency: watchfiles>=1.2.0, <1.2.0+
+DEBUG Adding direct dependency: websocket-client>=1.9.0, <1.9.0+
+DEBUG Adding direct dependency: websockets>=17.0.1, <17.0.1+
+DEBUG Adding direct dependency: wrapt>=2.3.0, <2.3.0+
+DEBUG Adding direct dependency: yarl>=1.24.5, <1.24.5+
+DEBUG Searching for a compatible version of aiofiles (>=25.1.0, <25.1.0+)
+DEBUG Selecting: aiofiles==25.1.0 [compatible] (aiofiles-25.1.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of aiohappyeyeballs (>=2.7.1, <2.7.1+)
+DEBUG Selecting: aiohappyeyeballs==2.7.1 [compatible] (aiohappyeyeballs-2.7.1-py3-none-any.whl)
+DEBUG Searching for a compatible version of aiohttp (>=3.14.3, <3.14.3+)
+DEBUG Selecting: aiohttp==3.14.3 [compatible] (aiohttp-3.14.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl)
+DEBUG Searching for a compatible version of aiosignal (>=1.4.0, <1.4.0+)
+DEBUG Selecting: aiosignal==1.4.0 [compatible] (aiosignal-1.4.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of aiosqlite (>=0.22.1, <0.22.1+)
+DEBUG Selecting: aiosqlite==0.22.1 [compatible] (aiosqlite-0.22.1-py3-none-any.whl)
+DEBUG Searching for a compatible version of alembic (>=1.19.0, <1.19.0+)
+DEBUG Selecting: alembic==1.19.0 [compatible] (alembic-1.19.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of annotated-doc (>=0.0.5, <0.0.5+)
+DEBUG Selecting: annotated-doc==0.0.5 [compatible] (annotated_doc-0.0.5-py3-none-any.whl)
+DEBUG Searching for a compatible version of annotated-types (>=0.8.0, <0.8.0+)
+DEBUG Selecting: annotated-types==0.8.0 [compatible] (annotated_types-0.8.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of anyio (>=4.14.2, <4.14.2+)
+DEBUG Selecting: anyio==4.14.2 [compatible] (anyio-4.14.2-py3-none-any.whl)
+DEBUG Searching for a compatible version of apscheduler (>=3.11.3, <3.11.3+)
+DEBUG Selecting: apscheduler==3.11.3 [compatible] (apscheduler-3.11.3-py3-none-any.whl)
+DEBUG Searching for a compatible version of asgiref (>=3.12.1, <3.12.1+)
+DEBUG Selecting: asgiref==3.12.1 [compatible] (asgiref-3.12.1-py3-none-any.whl)
+DEBUG Searching for a compatible version of ast-serialize (>=0.6.0, <0.6.0+)
+DEBUG Selecting: ast-serialize==0.6.0 [compatible] (ast_serialize-0.6.0-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl)
+DEBUG Searching for a compatible version of attrs (>=26.1.0, <26.1.0+)
+DEBUG Selecting: attrs==26.1.0 [compatible] (attrs-26.1.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of bcrypt (>=5.0.0, <5.0.0+)
+DEBUG Selecting: bcrypt==5.0.0 [compatible] (bcrypt-5.0.0-cp39-abi3-manylinux_2_34_aarch64.whl)
+DEBUG Searching for a compatible version of black (>=26.5.1, <26.5.1+)
+DEBUG Selecting: black==26.5.1 [compatible] (black-26.5.1-py3-none-any.whl)
+DEBUG Searching for a compatible version of boto3 (>=1.43.65, <1.43.65+)
+DEBUG Selecting: boto3==1.43.65 [compatible] (boto3-1.43.65-py3-none-any.whl)
+DEBUG Searching for a compatible version of botocore (>=1.43.65, <1.43.65+)
+DEBUG Selecting: botocore==1.43.65 [compatible] (botocore-1.43.65-py3-none-any.whl)
+DEBUG Searching for a compatible version of build (>=1.5.0, <1.5.0+)
+DEBUG Selecting: build==1.5.0 [compatible] (build-1.5.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of certifi (>=2026.7.22, <2026.7.22+)
+DEBUG Selecting: certifi==2026.7.22 [compatible] (certifi-2026.7.22-py3-none-any.whl)
+DEBUG Searching for a compatible version of cffi (>=2.1.1, <2.1.1+)
+DEBUG Selecting: cffi==2.1.1 [compatible] (cffi-2.1.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl)
+DEBUG Searching for a compatible version of charset-normalizer (>=3.4.9, <3.4.9+)
+DEBUG Selecting: charset-normalizer==3.4.9 [compatible] (charset_normalizer-3.4.9-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl)
+DEBUG Searching for a compatible version of chromadb (>=1.5.9, <1.5.9+)
+DEBUG Selecting: chromadb==1.5.9 [compatible] (chromadb-1.5.9-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl)
+DEBUG Searching for a compatible version of click (>=8.4.2, <8.4.2+)
+DEBUG Selecting: click==8.4.2 [compatible] (click-8.4.2-py3-none-any.whl)
+DEBUG Searching for a compatible version of coverage (>=7.15.3, <7.15.3+)
+DEBUG Selecting: coverage==7.15.3 [compatible] (coverage-7.15.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl)
+DEBUG Searching for a compatible version of cryptography (>=50.0.0, <50.0.0+)
+DEBUG Selecting: cryptography==50.0.0 [compatible] (cryptography-50.0.0-cp311-abi3-manylinux_2_34_aarch64.whl)
+DEBUG Searching for a compatible version of distro (>=1.9.0, <1.9.0+)
+DEBUG Selecting: distro==1.9.0 [compatible] (distro-1.9.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of durationpy (>=0.10, <0.10+)
+DEBUG Selecting: durationpy==0.10 [compatible] (durationpy-0.10-py3-none-any.whl)
+DEBUG Searching for a compatible version of ecdsa (>=0.19.2, <0.19.2+)
+DEBUG Selecting: ecdsa==0.19.2 [compatible] (ecdsa-0.19.2-py2.py3-none-any.whl)
+DEBUG Searching for a compatible version of fastapi (>=0.141.1, <0.141.1+)
+DEBUG Selecting: fastapi==0.141.1 [compatible] (fastapi-0.141.1-py3-none-any.whl)
+DEBUG Searching for a compatible version of filelock (>=3.32.2, <3.32.2+)
+DEBUG Selecting: filelock==3.32.2 [compatible] (filelock-3.32.2-py3-none-any.whl)
+DEBUG Searching for a compatible version of flatbuffers (>=25.12.19, <25.12.19+)
+DEBUG Selecting: flatbuffers==25.12.19 [compatible] (flatbuffers-25.12.19-py2.py3-none-any.whl)
+DEBUG Searching for a compatible version of frozenlist (>=1.8.0, <1.8.0+)
+DEBUG Selecting: frozenlist==1.8.0 [compatible] (frozenlist-1.8.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl)
+DEBUG Searching for a compatible version of fsspec (>=2026.7.0, <2026.7.0+)
+DEBUG Selecting: fsspec==2026.7.0 [compatible] (fsspec-2026.7.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of googleapis-common-protos (>=1.75.1, <1.75.1+)
+DEBUG Selecting: googleapis-common-protos==1.75.1 [compatible] (googleapis_common_protos-1.75.1-py3-none-any.whl)
+DEBUG Searching for a compatible version of greenlet (>=3.5.4, <3.5.4+)
+DEBUG Selecting: greenlet==3.5.4 [compatible] (greenlet-3.5.4-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl)
+DEBUG Searching for a compatible version of grpcio (>=1.83.0, <1.83.0+)
+DEBUG Selecting: grpcio==1.83.0 [compatible] (grpcio-1.83.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl)
+DEBUG Searching for a compatible version of h11 (>=0.16.0, <0.16.0+)
+DEBUG Selecting: h11==0.16.0 [compatible] (h11-0.16.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of hf-xet (>=1.6.0, <1.6.0+)
+DEBUG Selecting: hf-xet==1.6.0 [compatible] (hf_xet-1.6.0-cp38-abi3-manylinux_2_28_aarch64.whl)
+DEBUG Searching for a compatible version of httpcore (>=1.0.9, <1.0.9+)
+DEBUG Selecting: httpcore==1.0.9 [compatible] (httpcore-1.0.9-py3-none-any.whl)
+DEBUG Searching for a compatible version of httptools (>=0.8.0, <0.8.0+)
+DEBUG Selecting: httptools==0.8.0 [compatible] (httptools-0.8.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl)
+DEBUG Searching for a compatible version of httpx (>=0.28.1, <0.28.1+)
+DEBUG Selecting: httpx==0.28.1 [compatible] (httpx-0.28.1-py3-none-any.whl)
+DEBUG Searching for a compatible version of huggingface-hub (>=1.26.0, <1.26.0+)
+DEBUG Selecting: huggingface-hub==1.26.0 [compatible] (huggingface_hub-1.26.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of idna (>=3.18, <3.18+)
+DEBUG Selecting: idna==3.18 [compatible] (idna-3.18-py3-none-any.whl)
+DEBUG Searching for a compatible version of importlib-resources (>=7.1.0, <7.1.0+)
+DEBUG Selecting: importlib-resources==7.1.0 [compatible] (importlib_resources-7.1.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of iniconfig (>=2.3.0, <2.3.0+)
+DEBUG Selecting: iniconfig==2.3.0 [compatible] (iniconfig-2.3.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of jiter (>=0.16.0, <0.16.0+)
+DEBUG Selecting: jiter==0.16.0 [compatible] (jiter-0.16.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl)
+DEBUG Searching for a compatible version of jmespath (>=1.1.0, <1.1.0+)
+DEBUG Selecting: jmespath==1.1.0 [compatible] (jmespath-1.1.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of jsonschema (>=4.26.0, <4.26.0+)
+DEBUG Selecting: jsonschema==4.26.0 [compatible] (jsonschema-4.26.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of jsonschema-specifications (>=2025.9.1, <2025.9.1+)
+DEBUG Selecting: jsonschema-specifications==2025.9.1 [compatible] (jsonschema_specifications-2025.9.1-py3-none-any.whl)
+DEBUG Searching for a compatible version of kubernetes (>=36.0.3, <36.0.3+)
+DEBUG Selecting: kubernetes==36.0.3 [compatible] (kubernetes-36.0.3-py2.py3-none-any.whl)
+DEBUG Searching for a compatible version of librt (>=0.13.0, <0.13.0+)
+DEBUG Selecting: librt==0.13.0 [compatible] (librt-0.13.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl)
+DEBUG Searching for a compatible version of mako (>=1.4.1, <1.4.1+)
+DEBUG Selecting: mako==1.4.1 [compatible] (mako-1.4.1-py3-none-any.whl)
+DEBUG Searching for a compatible version of markdown-it-py (>=4.2.0, <4.2.0+)
+DEBUG Selecting: markdown-it-py==4.2.0 [compatible] (markdown_it_py-4.2.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of markupsafe (>=3.0.3, <3.0.3+)
+DEBUG Selecting: markupsafe==3.0.3 [compatible] (markupsafe-3.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl)
+DEBUG Searching for a compatible version of mdurl (>=0.1.2, <0.1.2+)
+DEBUG Selecting: mdurl==0.1.2 [compatible] (mdurl-0.1.2-py3-none-any.whl)
+DEBUG Searching for a compatible version of mmh3 (>=5.2.1, <5.2.1+)
+DEBUG Selecting: mmh3==5.2.1 [compatible] (mmh3-5.2.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl)
+DEBUG Searching for a compatible version of multidict (>=6.7.1, <6.7.1+)
+DEBUG Selecting: multidict==6.7.1 [compatible] (multidict-6.7.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl)
+DEBUG Searching for a compatible version of mypy (>=2.3.0, <2.3.0+)
+DEBUG Selecting: mypy==2.3.0 [compatible] (mypy-2.3.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl)
+DEBUG Searching for a compatible version of mypy-extensions (>=1.1.0, <1.1.0+)
+DEBUG Selecting: mypy-extensions==1.1.0 [compatible] (mypy_extensions-1.1.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of nodeenv (>=1.10.0, <1.10.0+)
+DEBUG Selecting: nodeenv==1.10.0 [compatible] (nodeenv-1.10.0-py2.py3-none-any.whl)
+DEBUG Searching for a compatible version of numpy (>=2.5.1, <2.5.1+)
+DEBUG Selecting: numpy==2.5.1 [compatible] (numpy-2.5.1-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl)
+DEBUG Searching for a compatible version of oauthlib (>=3.3.1, <3.3.1+)
+DEBUG Selecting: oauthlib==3.3.1 [compatible] (oauthlib-3.3.1-py3-none-any.whl)
+DEBUG Searching for a compatible version of onnxruntime (>=1.28.0, <1.28.0+)
+DEBUG Selecting: onnxruntime==1.28.0 [compatible] (onnxruntime-1.28.0-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl)
+DEBUG Searching for a compatible version of openai (>=2.53.0, <2.53.0+)
+DEBUG Selecting: openai==2.53.0 [compatible] (openai-2.53.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of opentelemetry-api (>=1.44.0, <1.44.0+)
+DEBUG Selecting: opentelemetry-api==1.44.0 [compatible] (opentelemetry_api-1.44.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of opentelemetry-exporter-otlp-proto-common (>=1.44.0, <1.44.0+)
+DEBUG Selecting: opentelemetry-exporter-otlp-proto-common==1.44.0 [compatible] (opentelemetry_exporter_otlp_proto_common-1.44.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of opentelemetry-exporter-otlp-proto-grpc (>=1.44.0, <1.44.0+)
+DEBUG Selecting: opentelemetry-exporter-otlp-proto-grpc==1.44.0 [compatible] (opentelemetry_exporter_otlp_proto_grpc-1.44.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of opentelemetry-instrumentation (>=0.65b0, <0.65b0+)
+DEBUG Selecting: opentelemetry-instrumentation==0.65b0 [compatible] (opentelemetry_instrumentation-0.65b0-py3-none-any.whl)
+DEBUG Searching for a compatible version of opentelemetry-instrumentation-asgi (>=0.65b0, <0.65b0+)
+DEBUG Selecting: opentelemetry-instrumentation-asgi==0.65b0 [compatible] (opentelemetry_instrumentation_asgi-0.65b0-py3-none-any.whl)
+DEBUG Searching for a compatible version of opentelemetry-instrumentation-fastapi (>=0.65b0, <0.65b0+)
+DEBUG Selecting: opentelemetry-instrumentation-fastapi==0.65b0 [compatible] (opentelemetry_instrumentation_fastapi-0.65b0-py3-none-any.whl)
+DEBUG Searching for a compatible version of opentelemetry-proto (>=1.44.0, <1.44.0+)
+DEBUG Selecting: opentelemetry-proto==1.44.0 [compatible] (opentelemetry_proto-1.44.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of opentelemetry-sdk (>=1.44.0, <1.44.0+)
+DEBUG Selecting: opentelemetry-sdk==1.44.0 [compatible] (opentelemetry_sdk-1.44.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of opentelemetry-semantic-conventions (>=0.65b0, <0.65b0+)
+DEBUG Selecting: opentelemetry-semantic-conventions==0.65b0 [compatible] (opentelemetry_semantic_conventions-0.65b0-py3-none-any.whl)
+DEBUG Searching for a compatible version of opentelemetry-util-http (>=0.65b0, <0.65b0+)
+DEBUG Selecting: opentelemetry-util-http==0.65b0 [compatible] (opentelemetry_util_http-0.65b0-py3-none-any.whl)
+DEBUG Searching for a compatible version of orjson (>=3.11.9, <3.11.9+)
+DEBUG Selecting: orjson==3.11.9 [compatible] (orjson-3.11.9-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl)
+DEBUG Searching for a compatible version of overrides (>=7.7.0, <7.7.0+)
+DEBUG Selecting: overrides==7.7.0 [compatible] (overrides-7.7.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of packaging (>=26.3, <26.3+)
+DEBUG Selecting: packaging==26.3 [compatible] (packaging-26.3-py3-none-any.whl)
+DEBUG Searching for a compatible version of pathspec (>=1.1.1, <1.1.1+)
+DEBUG Selecting: pathspec==1.1.1 [compatible] (pathspec-1.1.1-py3-none-any.whl)
+DEBUG Searching for a compatible version of pdfminer-six (>=20260107, <20260107+)
+DEBUG Selecting: pdfminer-six==20260107 [compatible] (pdfminer_six-20260107-py3-none-any.whl)
+DEBUG Searching for a compatible version of pdfplumber (>=0.11.10, <0.11.10+)
+DEBUG Selecting: pdfplumber==0.11.10 [compatible] (pdfplumber-0.11.10-py3-none-any.whl)
+DEBUG Searching for a compatible version of pillow (>=12.3.0, <12.3.0+)
+DEBUG Selecting: pillow==12.3.0 [compatible] (pillow-12.3.0-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl)
+DEBUG Searching for a compatible version of platformdirs (>=4.11.0, <4.11.0+)
+DEBUG Selecting: platformdirs==4.11.0 [compatible] (platformdirs-4.11.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of pluggy (>=1.6.0, <1.6.0+)
+DEBUG Selecting: pluggy==1.6.0 [compatible] (pluggy-1.6.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of prometheus-client (>=0.26.0, <0.26.0+)
+DEBUG Selecting: prometheus-client==0.26.0 [compatible] (prometheus_client-0.26.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of propcache (>=0.5.2, <0.5.2+)
+DEBUG Selecting: propcache==0.5.2 [compatible] (propcache-0.5.2-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl)
+DEBUG Searching for a compatible version of protobuf (>=7.35.1, <7.35.1+)
+DEBUG Selecting: protobuf==7.35.1 [compatible] (protobuf-7.35.1-cp310-abi3-manylinux2014_aarch64.whl)
+DEBUG Searching for a compatible version of pyasn1 (>=0.6.4, <0.6.4+)
+DEBUG Selecting: pyasn1==0.6.4 [compatible] (pyasn1-0.6.4-py3-none-any.whl)
+DEBUG Searching for a compatible version of pybase64 (>=1.4.3, <1.4.3+)
+DEBUG Selecting: pybase64==1.4.3 [compatible] (pybase64-1.4.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl)
+DEBUG Searching for a compatible version of pycparser (>=3.0, <3.0+)
+DEBUG Selecting: pycparser==3.0 [compatible] (pycparser-3.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of pydantic (>=2.13.4, <2.13.4+)
+DEBUG Selecting: pydantic==2.13.4 [compatible] (pydantic-2.13.4-py3-none-any.whl)
+DEBUG Searching for a compatible version of pydantic-core (>=2.46.4, <2.46.4+)
+DEBUG Selecting: pydantic-core==2.46.4 [compatible] (pydantic_core-2.46.4-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl)
+DEBUG Searching for a compatible version of pydantic-settings (>=2.14.2, <2.14.2+)
+DEBUG Selecting: pydantic-settings==2.14.2 [compatible] (pydantic_settings-2.14.2-py3-none-any.whl)
+DEBUG Searching for a compatible version of pygments (>=2.20.0, <2.20.0+)
+DEBUG Selecting: pygments==2.20.0 [compatible] (pygments-2.20.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of pymupdf (>=1.28.0, <1.28.0+)
+DEBUG Selecting: pymupdf==1.28.0 [compatible] (pymupdf-1.28.0-cp310-abi3-manylinux_2_28_aarch64.whl)
+DEBUG Searching for a compatible version of pypdfium2 (>=5.13.0, <5.13.0+)
+DEBUG Selecting: pypdfium2==5.13.0 [compatible] (pypdfium2-5.13.0-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl)
+DEBUG Searching for a compatible version of pypika (>=0.51.1, <0.51.1+)
+DEBUG Selecting: pypika==0.51.1 [compatible] (pypika-0.51.1-py2.py3-none-any.whl)
+DEBUG Searching for a compatible version of pyproject-hooks (>=1.2.0, <1.2.0+)
+DEBUG Selecting: pyproject-hooks==1.2.0 [compatible] (pyproject_hooks-1.2.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of pyright (>=1.1.411, <1.1.411+)
+DEBUG Selecting: pyright==1.1.411 [compatible] (pyright-1.1.411-py3-none-any.whl)
+DEBUG Searching for a compatible version of pytesseract (>=0.3.13, <0.3.13+)
+DEBUG Selecting: pytesseract==0.3.13 [compatible] (pytesseract-0.3.13-py3-none-any.whl)
+DEBUG Searching for a compatible version of pytest (>=9.1.1, <9.1.1+)
+DEBUG Selecting: pytest==9.1.1 [compatible] (pytest-9.1.1-py3-none-any.whl)
+DEBUG Searching for a compatible version of pytest-asyncio (>=1.4.0, <1.4.0+)
+DEBUG Selecting: pytest-asyncio==1.4.0 [compatible] (pytest_asyncio-1.4.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of pytest-cov (>=7.1.0, <7.1.0+)
+DEBUG Selecting: pytest-cov==7.1.0 [compatible] (pytest_cov-7.1.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of python-dateutil (>=2.9.0.post0, <2.9.0.post0+)
+DEBUG Selecting: python-dateutil==2.9.0.post0 [compatible] (python_dateutil-2.9.0.post0-py2.py3-none-any.whl)
+DEBUG Searching for a compatible version of python-dotenv (>=1.2.2, <1.2.2+)
+DEBUG Selecting: python-dotenv==1.2.2 [compatible] (python_dotenv-1.2.2-py3-none-any.whl)
+DEBUG Searching for a compatible version of python-jose (>=3.5.0, <3.5.0+)
+DEBUG Selecting: python-jose==3.5.0 [compatible] (python_jose-3.5.0-py2.py3-none-any.whl)
+DEBUG Searching for a compatible version of python-json-logger (>=4.1.0, <4.1.0+)
+DEBUG Selecting: python-json-logger==4.1.0 [compatible] (python_json_logger-4.1.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of python-multipart (>=0.0.32, <0.0.32+)
+DEBUG Selecting: python-multipart==0.0.32 [compatible] (python_multipart-0.0.32-py3-none-any.whl)
+DEBUG Searching for a compatible version of pytokens (>=0.4.1, <0.4.1+)
+DEBUG Selecting: pytokens==0.4.1 [compatible] (pytokens-0.4.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl)
+DEBUG Searching for a compatible version of pytz (>=2026.3.post1, <2026.3.post1+)
+DEBUG Selecting: pytz==2026.3.post1 [compatible] (pytz-2026.3.post1-py2.py3-none-any.whl)
+DEBUG Searching for a compatible version of pyyaml (>=6.0.3, <6.0.3+)
+DEBUG Selecting: pyyaml==6.0.3 [compatible] (pyyaml-6.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl)
+DEBUG Searching for a compatible version of referencing (>=0.37.0, <0.37.0+)
+DEBUG Selecting: referencing==0.37.0 [compatible] (referencing-0.37.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of requests (>=2.34.2, <2.34.2+)
+DEBUG Selecting: requests==2.34.2 [compatible] (requests-2.34.2-py3-none-any.whl)
+DEBUG Searching for a compatible version of requests-oauthlib (>=2.0.0, <2.0.0+)
+DEBUG Selecting: requests-oauthlib==2.0.0 [compatible] (requests_oauthlib-2.0.0-py2.py3-none-any.whl)
+DEBUG Searching for a compatible version of respx (>=0.23.1, <0.23.1+)
+DEBUG Selecting: respx==0.23.1 [compatible] (respx-0.23.1-py2.py3-none-any.whl)
+DEBUG Searching for a compatible version of rich (>=15.0.0, <15.0.0+)
+DEBUG Selecting: rich==15.0.0 [compatible] (rich-15.0.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of rpds-py (>=2026.6.3, <2026.6.3+)
+DEBUG Selecting: rpds-py==2026.6.3 [compatible] (rpds_py-2026.6.3-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl)
+DEBUG Searching for a compatible version of rsa (>=4.9.1, <4.9.1+)
+DEBUG Selecting: rsa==4.9.1 [compatible] (rsa-4.9.1-py3-none-any.whl)
+DEBUG Searching for a compatible version of ruff (>=0.16.1, <0.16.1+)
+DEBUG Selecting: ruff==0.16.1 [compatible] (ruff-0.16.1-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl)
+DEBUG Searching for a compatible version of s3transfer (>=0.19.2, <0.19.2+)
+DEBUG Selecting: s3transfer==0.19.2 [compatible] (s3transfer-0.19.2-py3-none-any.whl)
+DEBUG Searching for a compatible version of sentry-sdk (>=2.66.1, <2.66.1+)
+DEBUG Selecting: sentry-sdk==2.66.1 [compatible] (sentry_sdk-2.66.1-py3-none-any.whl)
+DEBUG Searching for a compatible version of shellingham (>=1.5.4, <1.5.4+)
+DEBUG Selecting: shellingham==1.5.4 [compatible] (shellingham-1.5.4-py2.py3-none-any.whl)
+DEBUG Searching for a compatible version of six (>=1.17.0, <1.17.0+)
+DEBUG Selecting: six==1.17.0 [compatible] (six-1.17.0-py2.py3-none-any.whl)
+DEBUG Searching for a compatible version of sniffio (>=1.3.1, <1.3.1+)
+DEBUG Selecting: sniffio==1.3.1 [compatible] (sniffio-1.3.1-py3-none-any.whl)
+DEBUG Searching for a compatible version of sqlalchemy (>=2.0.51, <2.0.51+)
+DEBUG Selecting: sqlalchemy==2.0.51 [compatible] (sqlalchemy-2.0.51-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl)
+DEBUG Searching for a compatible version of starlette (>=1.4.1, <1.4.1+)
+DEBUG Selecting: starlette==1.4.1 [compatible] (starlette-1.4.1-py3-none-any.whl)
+DEBUG Searching for a compatible version of tenacity (>=9.1.4, <9.1.4+)
+DEBUG Selecting: tenacity==9.1.4 [compatible] (tenacity-9.1.4-py3-none-any.whl)
+DEBUG Searching for a compatible version of tokenizers (>=0.23.1, <0.23.1+)
+DEBUG Selecting: tokenizers==0.23.1 [compatible] (tokenizers-0.23.1-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl)
+DEBUG Searching for a compatible version of tqdm (>=4.70.0, <4.70.0+)
+DEBUG Selecting: tqdm==4.70.0 [compatible] (tqdm-4.70.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of typer (>=0.27.1, <0.27.1+)
+DEBUG Selecting: typer==0.27.1 [compatible] (typer-0.27.1-py3-none-any.whl)
+DEBUG Searching for a compatible version of types-pytz (>=2026.3.1.20260727, <2026.3.1.20260727+)
+DEBUG Selecting: types-pytz==2026.3.1.20260727 [compatible] (types_pytz-2026.3.1.20260727-py3-none-any.whl)
+DEBUG Searching for a compatible version of typing-extensions (>=4.16.0, <4.16.0+)
+DEBUG Selecting: typing-extensions==4.16.0 [compatible] (typing_extensions-4.16.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of typing-inspection (>=0.4.2, <0.4.2+)
+DEBUG Selecting: typing-inspection==0.4.2 [compatible] (typing_inspection-0.4.2-py3-none-any.whl)
+DEBUG Searching for a compatible version of tzlocal (>=5.4.4, <5.4.4+)
+DEBUG Selecting: tzlocal==5.4.4 [compatible] (tzlocal-5.4.4-py3-none-any.whl)
+DEBUG Searching for a compatible version of urllib3 (>=2.7.0, <2.7.0+)
+DEBUG Selecting: urllib3==2.7.0 [compatible] (urllib3-2.7.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of uvicorn (>=0.52.1, <0.52.1+)
+DEBUG Selecting: uvicorn==0.52.1 [compatible] (uvicorn-0.52.1-py3-none-any.whl)
+DEBUG Searching for a compatible version of uvloop (>=0.22.1, <0.22.1+)
+DEBUG Selecting: uvloop==0.22.1 [compatible] (uvloop-0.22.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl)
+DEBUG Searching for a compatible version of watchfiles (>=1.2.0, <1.2.0+)
+DEBUG Selecting: watchfiles==1.2.0 [compatible] (watchfiles-1.2.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl)
+DEBUG Searching for a compatible version of websocket-client (>=1.9.0, <1.9.0+)
+DEBUG Selecting: websocket-client==1.9.0 [compatible] (websocket_client-1.9.0-py3-none-any.whl)
+DEBUG Searching for a compatible version of websockets (>=17.0.1, <17.0.1+)
+DEBUG Selecting: websockets==17.0.1 [compatible] (websockets-17.0.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl)
+DEBUG Searching for a compatible version of wrapt (>=2.3.0, <2.3.0+)
+DEBUG Selecting: wrapt==2.3.0 [compatible] (wrapt-2.3.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl)
+DEBUG Searching for a compatible version of yarl (>=1.24.5, <1.24.5+)
+DEBUG Selecting: yarl==1.24.5 [compatible] (yarl-1.24.5-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl)
+DEBUG Tried 141 versions: aiofiles 1, aiohappyeyeballs 1, aiohttp 1, aiosignal 1, aiosqlite 1, alembic 1, annotated-doc 1, annotated-types 1, anyio 1, apscheduler 1, asgiref 1, ast-serialize 1, attrs 1, bcrypt 1, black 1, boto3 1, botocore 1, build 1, certifi 1, cffi 1, charset-normalizer 1, chromadb 1, click 1, coverage 1, cryptography 1, distro 1, durationpy 1, ecdsa 1, fastapi 1, filelock 1, flatbuffers 1, frozenlist 1, fsspec 1, googleapis-common-protos 1, greenlet 1, grpcio 1, h11 1, hf-xet 1, httpcore 1, httptools 1, httpx 1, huggingface-hub 1, idna 1, importlib-resources 1, iniconfig 1, jiter 1, jmespath 1, jsonschema 1, jsonschema-specifications 1, kubernetes 1, librt 1, mako 1, markdown-it-py 1, markupsafe 1, mdurl 1, mmh3 1, multidict 1, mypy 1, mypy-extensions 1, nodeenv 1, numpy 1, oauthlib 1, onnxruntime 1, openai 1, opentelemetry-api 1, opentelemetry-exporter-otlp-proto-common 1, opentelemetry-exporter-otlp-proto-grpc 1, opentelemetry-instrumentation 1, opentelemetry-instrumentation-asgi 1, opentelemetry-instrumentation-fastapi 1, opentelemetry-proto 1, opentelemetry-sdk 1, opentelemetry-semantic-conventions 1, opentelemetry-util-http 1, orjson 1, overrides 1, packaging 1, pathspec 1, pdfminer-six 1, pdfplumber 1, pillow 1, platformdirs 1, pluggy 1, prometheus-client 1, propcache 1, protobuf 1, pyasn1 1, pybase64 1, pycparser 1, pydantic 1, pydantic-core 1, pydantic-settings 1, pygments 1, pymupdf 1, pypdfium2 1, pypika 1, pyproject-hooks 1, pyright 1, pytesseract 1, pytest 1, pytest-asyncio 1, pytest-cov 1, python-dateutil 1, python-dotenv 1, python-jose 1, python-json-logger 1, python-multipart 1, pytokens 1, pytz 1, pyyaml 1, referencing 1, requests 1, requests-oauthlib 1, respx 1, rich 1, rpds-py 1, rsa 1, ruff 1, s3transfer 1, sentry-sdk 1, shellingham 1, six 1, sniffio 1, sqlalchemy 1, starlette 1, tenacity 1, tokenizers 1, tqdm 1, typer 1, types-pytz 1, typing-extensions 1, typing-inspection 1, tzlocal 1, urllib3 1, uvicorn 1, uvloop 1, watchfiles 1, websocket-client 1, websockets 1, wrapt 1, yarl 1
+DEBUG marker environment resolution took 0.010s
+Resolved 141 packages in 13ms
+DEBUG Identified uncached distribution: apscheduler==3.11.3
+DEBUG Identified uncached distribution: python-multipart==0.0.32
+DEBUG Identified uncached distribution: oauthlib==3.3.1
+DEBUG Identified uncached distribution: ast-serialize==0.6.0
+DEBUG Identified uncached distribution: platformdirs==4.11.0
+DEBUG Identified uncached distribution: opentelemetry-instrumentation==0.65b0
+DEBUG Identified uncached distribution: annotated-doc==0.0.5
+DEBUG Identified uncached distribution: opentelemetry-exporter-otlp-proto-grpc==1.44.0
+DEBUG Identified uncached distribution: kubernetes==36.0.3
+DEBUG Identified uncached distribution: propcache==0.5.2
+DEBUG Identified uncached distribution: jmespath==1.1.0
+DEBUG Identified uncached distribution: frozenlist==1.8.0
+DEBUG Identified uncached distribution: fastapi==0.141.1
+DEBUG Identified uncached distribution: pydantic-core==2.46.4
+DEBUG Identified uncached distribution: pycparser==3.0
+DEBUG Identified uncached distribution: typer==0.27.1
+DEBUG Identified uncached distribution: pdfminer-six==20260107
+DEBUG Identified uncached distribution: annotated-types==0.8.0
+DEBUG Identified uncached distribution: sqlalchemy==2.0.51
+DEBUG Identified uncached distribution: onnxruntime==1.28.0
+DEBUG Identified uncached distribution: s3transfer==0.19.2
+DEBUG Identified uncached distribution: opentelemetry-proto==1.44.0
+DEBUG Identified uncached distribution: mypy==2.3.0
+DEBUG Identified uncached distribution: botocore==1.43.65
+DEBUG Identified uncached distribution: rsa==4.9.1
+DEBUG Identified uncached distribution: ecdsa==0.19.2
+DEBUG Identified uncached distribution: respx==0.23.1
+DEBUG Identified uncached distribution: watchfiles==1.2.0
+DEBUG Identified uncached distribution: pytest==9.1.1
+DEBUG Identified uncached distribution: opentelemetry-instrumentation-fastapi==0.65b0
+DEBUG Identified uncached distribution: starlette==1.4.1
+DEBUG Identified uncached distribution: opentelemetry-api==1.44.0
+DEBUG Identified uncached distribution: httpcore==1.0.9
+DEBUG Identified uncached distribution: requests-oauthlib==2.0.0
+DEBUG Identified uncached distribution: flatbuffers==25.12.19
+DEBUG Identified uncached distribution: tenacity==9.1.4
+DEBUG Identified uncached distribution: aiohappyeyeballs==2.7.1
+DEBUG Identified uncached distribution: openai==2.53.0
+DEBUG Identified uncached distribution: charset-normalizer==3.4.9
+DEBUG Identified uncached distribution: boto3==1.43.65
+DEBUG Identified uncached distribution: referencing==0.37.0
+DEBUG Identified uncached distribution: librt==0.13.0
+DEBUG Identified uncached distribution: uvicorn==0.52.1
+DEBUG Identified uncached distribution: pdfplumber==0.11.10
+DEBUG Identified uncached distribution: overrides==7.7.0
+DEBUG Identified uncached distribution: hf-xet==1.6.0
+DEBUG Identified uncached distribution: pybase64==1.4.3
+DEBUG Identified uncached distribution: pymupdf==1.28.0
+DEBUG Identified uncached distribution: aiosignal==1.4.0
+DEBUG Identified uncached distribution: aiohttp==3.14.3
+DEBUG Identified uncached distribution: aiofiles==25.1.0
+DEBUG Identified uncached distribution: click==8.4.2
+DEBUG Identified uncached distribution: pyproject-hooks==1.2.0
+DEBUG Identified uncached distribution: sentry-sdk==2.66.1
+DEBUG Identified uncached distribution: distro==1.9.0
+DEBUG Identified uncached distribution: pyasn1==0.6.4
+DEBUG Identified uncached distribution: typing-inspection==0.4.2
+DEBUG Identified uncached distribution: requests==2.34.2
+DEBUG Identified uncached distribution: packaging==26.3
+DEBUG Identified uncached distribution: certifi==2026.7.22
+DEBUG Identified uncached distribution: cryptography==50.0.0
+DEBUG Identified uncached distribution: yarl==1.24.5
+DEBUG Identified uncached distribution: durationpy==0.10
+DEBUG Identified uncached distribution: urllib3==2.7.0
+DEBUG Identified uncached distribution: tokenizers==0.23.1
+DEBUG Identified uncached distribution: tqdm==4.70.0
+DEBUG Identified uncached distribution: pytz==2026.3.post1
+DEBUG Identified uncached distribution: h11==0.16.0
+DEBUG Identified uncached distribution: googleapis-common-protos==1.75.1
+DEBUG Identified uncached distribution: shellingham==1.5.4
+DEBUG Identified uncached distribution: build==1.5.0
+DEBUG Identified uncached distribution: pytest-cov==7.1.0
+DEBUG Identified uncached distribution: greenlet==3.5.4
+DEBUG Identified uncached distribution: opentelemetry-semantic-conventions==0.65b0
+DEBUG Identified uncached distribution: opentelemetry-exporter-otlp-proto-common==1.44.0
+DEBUG Identified uncached distribution: pypika==0.51.1
+DEBUG Identified uncached distribution: pygments==2.20.0
+DEBUG Identified uncached distribution: anyio==4.14.2
+DEBUG Identified uncached distribution: pytokens==0.4.1
+DEBUG Identified uncached distribution: protobuf==7.35.1
+DEBUG Identified uncached distribution: markupsafe==3.0.3
+DEBUG Identified uncached distribution: pyyaml==6.0.3
+DEBUG Identified uncached distribution: mdurl==0.1.2
+DEBUG Identified uncached distribution: grpcio==1.83.0
+DEBUG Identified uncached distribution: importlib-resources==7.1.0
+DEBUG Identified uncached distribution: rpds-py==2026.6.3
+DEBUG Identified uncached distribution: markdown-it-py==4.2.0
+DEBUG Identified uncached distribution: pluggy==1.6.0
+DEBUG Identified uncached distribution: multidict==6.7.1
+DEBUG Identified uncached distribution: python-dotenv==1.2.2
+DEBUG Identified uncached distribution: sniffio==1.3.1
+DEBUG Identified uncached distribution: wrapt==2.3.0
+DEBUG Identified uncached distribution: websockets==17.0.1
+DEBUG Identified uncached distribution: httptools==0.8.0
+DEBUG Identified uncached distribution: prometheus-client==0.26.0
+DEBUG Identified uncached distribution: opentelemetry-instrumentation-asgi==0.65b0
+DEBUG Identified uncached distribution: black==26.5.1
+DEBUG Identified uncached distribution: pypdfium2==5.13.0
+DEBUG Identified uncached distribution: python-json-logger==4.1.0
+DEBUG Identified uncached distribution: orjson==3.11.9
+DEBUG Identified uncached distribution: pydantic==2.13.4
+DEBUG Identified uncached distribution: python-jose==3.5.0
+DEBUG Identified uncached distribution: opentelemetry-util-http==0.65b0
+DEBUG Identified uncached distribution: mako==1.4.1
+DEBUG Identified uncached distribution: httpx==0.28.1
+DEBUG Identified uncached distribution: rich==15.0.0
+DEBUG Identified uncached distribution: types-pytz==2026.3.1.20260727
+DEBUG Identified uncached distribution: cffi==2.1.1
+DEBUG Identified uncached distribution: mmh3==5.2.1
+DEBUG Identified uncached distribution: alembic==1.19.0
+DEBUG Identified uncached distribution: jiter==0.16.0
+DEBUG Identified uncached distribution: pydantic-settings==2.14.2
+DEBUG Identified uncached distribution: pillow==12.3.0
+DEBUG Identified uncached distribution: uvloop==0.22.1
+DEBUG Identified uncached distribution: pathspec==1.1.1
+DEBUG Identified uncached distribution: pyright==1.1.411
+DEBUG Identified uncached distribution: chromadb==1.5.9
+DEBUG Identified uncached distribution: typing-extensions==4.16.0
+DEBUG Identified uncached distribution: fsspec==2026.7.0
+DEBUG Identified uncached distribution: mypy-extensions==1.1.0
+DEBUG Identified uncached distribution: idna==3.18
+DEBUG Identified uncached distribution: jsonschema-specifications==2025.9.1
+DEBUG Identified uncached distribution: pytesseract==0.3.13
+DEBUG Identified uncached distribution: coverage==7.15.3
+DEBUG Identified uncached distribution: pytest-asyncio==1.4.0
+DEBUG Identified uncached distribution: opentelemetry-sdk==1.44.0
+DEBUG Identified uncached distribution: bcrypt==5.0.0
+DEBUG Identified uncached distribution: jsonschema==4.26.0
+DEBUG Identified uncached distribution: huggingface-hub==1.26.0
+DEBUG Identified uncached distribution: numpy==2.5.1
+DEBUG Identified uncached distribution: tzlocal==5.4.4
+DEBUG Identified uncached distribution: nodeenv==1.10.0
+DEBUG Identified uncached distribution: iniconfig==2.3.0
+DEBUG Identified uncached distribution: filelock==3.32.2
+DEBUG Identified uncached distribution: websocket-client==1.9.0
+DEBUG Identified uncached distribution: six==1.17.0
+DEBUG Identified uncached distribution: aiosqlite==0.22.1
+DEBUG Identified uncached distribution: ruff==0.16.1
+DEBUG Identified uncached distribution: attrs==26.1.0
+DEBUG Identified uncached distribution: asgiref==3.12.1
+DEBUG Identified uncached distribution: python-dateutil==2.9.0.post0
+Traceback (most recent call last):
+  File "/workspace/install_dependencies.py", line 60, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/workspace/install_dependencies.py", line 38, in main
+    result = subprocess.run(command, env=environment, check=False, timeout=180)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/subprocess.py", line 550, in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/subprocess.py", line 1209, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/subprocess.py", line 2141, in _communicate
+    self.wait(timeout=self._remaining_time(endtime))
+  File "/usr/local/lib/python3.12/subprocess.py", line 1264, in wait
+    return self._wait(timeout=timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/subprocess.py", line 2045, in _wait
+    raise TimeoutExpired(self.args, timeout)
+subprocess.TimeoutExpired: Command '['/usr/local/bin/uv', 'pip', 'install', '--verbose', '--offline', '--no-config', '--no-index', '--no-build', '--require-hashes', '--no-deps', '--find-links', '/wheels', '--target', '/scratch/dependencies', '--python', '/usr/local/bin/python', '--requirements', '/scratch/selected-requirements.txt']' timed out after 179.99994620899997 seconds

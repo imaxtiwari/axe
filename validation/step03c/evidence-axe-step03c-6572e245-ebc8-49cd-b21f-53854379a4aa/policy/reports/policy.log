@@ -1,0 +1,4 @@
+Isolation policy violations found (unscoped select(...) usage):
+  src/axe/services/compliance_escalation.py: select(
+
+Fix by routing the query through IsolationService.select_for(model), IsolationService.scope(stmt, model, pm_id), adding an explicit pm_id/fund_entity_id filter, or marking the model as isolation_scope='global' if it is intentionally unscoped.

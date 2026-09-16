@@ -1,0 +1,7 @@
+FROM docker.io/library/node@sha256:8d342e46d3b2883df69f797cb60fc71d8a0b65de65ddfbf4bf63fdc02049615f AS node
+FROM sha256:1500cdd65e0e9af595b39e0849b7e52f995ba57d396caa20794ab09043a869ea
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+COPY validation/step03b/wheels-9f40a34c-0d6a-463c-95fe-8dc0a9ec2b2a/ /wheels/
+COPY validation/step03b/evidence-axe-step03b-5c3b9969-06d6-4960-afeb-c2e6db8d9f97/wheel-manifest.json /inputs/wheel-manifest.json
+COPY validation/step03b/install_dependencies.py /workspace/install_dependencies.py
+ENTRYPOINT ["/usr/bin/env", "-i", "PATH=/usr/local/bin:/usr/bin:/bin", "HOME=/scratch", "TMPDIR=/scratch", "LANG=C.UTF-8", "LC_ALL=C.UTF-8", "UV_CACHE_DIR=/scratch/uv-cache", "UV_PYTHON_DOWNLOADS=never", "UV_OFFLINE=1", "/usr/local/bin/python", "-I", "-S", "-B", "-u", "/workspace/install_dependencies.py"]

@@ -1,0 +1,10 @@
+{
+  "focused": 0,
+  "full": 1,
+  "compliance": 0,
+  "lint": 0,
+  "format": 0,
+  "mypy": -9,
+  "pyright": 250,
+  "policy": 1
+}

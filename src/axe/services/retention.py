@@ -22,11 +22,14 @@ from axe.db.models import (
     SignalLog,
     SparringSession,
     ThesisPostMortem,
+    ThesisTest,
     ThesisTestResult,
     ThesisVersion,
     utc_now,
 )
 from axe.security.audit import AuditService
+from axe.security.context import RequestContext
+from axe.security.isolation import IsolationService
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +96,8 @@ class RetentionService:
                 logger.warning("Unknown retention entity type: %s", name)
                 continue
 
+            # isolation: system-wide — context-free maintenance processes all tenants.
+            # Calls within a request remain restricted to that request's PM.
             stmt: Any = select(model).where(
                 and_(
                     model.created_at < self._cutoff,
@@ -100,6 +105,17 @@ class RetentionService:
                     model.deleted_at.is_(None),
                 )
             )
+            if RequestContext.current_or_none() is not None:
+                if model is ThesisTestResult:
+                    stmt = IsolationService.scope_for_context(
+                        stmt.join(ThesisTest).join(ThesisVersion), ThesisVersion
+                    )
+                elif model is ThesisPostMortem:
+                    stmt = IsolationService.scope_for_context(
+                        stmt.join(ThesisVersion), ThesisVersion
+                    )
+                else:
+                    stmt = IsolationService.scope_for_context(stmt, model)
             result = await self.session.execute(stmt)
             rows = result.scalars().all()
             row_ids = [row.id for row in rows]

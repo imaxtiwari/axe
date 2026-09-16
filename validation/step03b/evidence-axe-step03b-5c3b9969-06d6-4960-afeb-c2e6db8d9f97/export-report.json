@@ -1,0 +1,8 @@
+{
+  "python": "3.12.14 (main, Aug 31 2026, 23:48:05) [GCC 12.2.0]",
+  "input_sha256": {
+    "/inputs/pyproject.toml": "fd7b84c309dbf949fff24ee0856fc6bf3a52478767e75f50f3eea18cc9802b6f",
+    "/inputs/uv.lock": "c979f5340395926bb699fab93cf8bf76bb3c4f5464f1b0bc7b9b087576e36e88"
+  },
+  "export_exit": 0
+}

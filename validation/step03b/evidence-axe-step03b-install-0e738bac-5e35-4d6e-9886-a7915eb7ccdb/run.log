@@ -1,0 +1,9 @@
+{"after": 2, "before": 1, "gate": "additional_filter", "passed": true}
+Traceback (most recent call last):
+  File "/workspace/install_dependencies.py", line 57, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/workspace/install_dependencies.py", line 22, in main
+    assert path.parent == Path("/wheels") and path.is_file() and not path.is_symlink()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError

@@ -1,0 +1,11 @@
+Isolation policy violations found (unscoped select(...) usage):
+  src/axe/services/brief_scheduler.py: result = await session.execute(select(PMUser).where(PMUser.active.is_(True)))
+  src/axe/services/compliance_escalation.py: stmt = select(ComplianceEscalation).where(ComplianceEscalation.status.in_(_OPEN_STATUSES))
+  src/axe/services/compliance_escalation.py: select(
+  src/axe/services/export.py: select(AuditLog).where(*where_filters).order_by(AuditLog.created_at.asc())
+  src/axe/services/ic_memo.py: select(DealThesisVersion)
+  src/axe/services/lp_comms.py: select(LPUpdate)
+  src/axe/services/lp_comms.py: select(LPRelationship.contact_email).where(
+  src/axe/services/retention.py: stmt: Any = select(model).where(
+
+Fix by routing the query through IsolationService.select_for(model), IsolationService.scope(stmt, model, pm_id), adding an explicit pm_id/fund_entity_id filter, or marking the model as isolation_scope='global' if it is intentionally unscoped.

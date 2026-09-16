@@ -163,11 +163,12 @@ class RetryWorker:
         self._task = asyncio.create_task(self._run_loop())
 
     async def stop(self) -> None:
-        """Stop the background worker loop and wait for it to finish."""
+        """Stop polling and let the in-flight transaction finish before returning."""
         if self._task is None:
             return
         self._stop_event.set()
-        self._task.cancel()
+        # Cancelling database I/O can invalidate the connection mid-commit.
+        # The event also wakes an idle loop without waiting for the poll interval.
         try:
             await self._task
         except asyncio.CancelledError:

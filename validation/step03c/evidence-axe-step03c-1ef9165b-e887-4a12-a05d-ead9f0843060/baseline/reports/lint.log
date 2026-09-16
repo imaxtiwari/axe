@@ -1,0 +1,14 @@
+SIM117 Use a single `with` statement with multiple contexts instead of nested `with` statements
+  --> tests/test_step03_isolation.py:63:5
+   |
+61 |       with pytest.raises(IsolationError, match="fund_id"):
+62 |           await service.list_open()
+63 | /     with RequestContext.bind(fund_id="fund-a", role="pm"):
+64 | |         with pytest.raises(IsolationError, match="pm_id"):
+   | |__________________________________________________________^
+65 |               await service.list_open()
+66 |       session.execute.assert_not_called()
+   |
+help: Combine `with` statements
+
+Found 1 error.

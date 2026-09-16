@@ -1,0 +1,124 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0 -- /usr/local/bin/python
+cachedir: /scratch/cache/compliance
+rootdir: /app
+configfile: pyproject.toml
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 88 items
+
+tests/test_compliance.py::test_isolation_scope_property[TickerRegistry-pm-pm_id-pm_a] PASSED [  1%]
+tests/test_compliance.py::test_isolation_scope_property[ThesisVersion-pm-pm_id-pm_a] PASSED [  2%]
+tests/test_compliance.py::test_isolation_scope_property[FundEntity-global-None-None] PASSED [  3%]
+tests/test_compliance.py::test_isolation_scope_property[PMUser-pm-fund_entity_id-fund_a] PASSED [  4%]
+tests/test_compliance.py::test_isolation_scope_rejects_missing_pm_id[] PASSED [  5%]
+tests/test_compliance.py::test_isolation_scope_rejects_missing_pm_id[None] PASSED [  6%]
+tests/test_compliance.py::test_select_for_never_returns_foreign_rows[TickerRegistry] PASSED [  7%]
+tests/test_compliance.py::test_select_for_never_returns_foreign_rows[ThesisVersion] PASSED [  9%]
+tests/test_compliance.py::test_select_for_never_returns_foreign_rows[SignalLog] PASSED [ 10%]
+tests/test_compliance.py::test_require_isolated_property[pm_a-pm_a-True] PASSED [ 11%]
+tests/test_compliance.py::test_require_isolated_property[pm_a-pm_b-False] PASSED [ 12%]
+tests/test_compliance.py::test_require_isolated_property[pm_a-None-False] PASSED [ 13%]
+tests/test_compliance.py::test_ensure_memory_context_isolated_property[memory_items0-allowed0-False] PASSED [ 14%]
+tests/test_compliance.py::test_ensure_memory_context_isolated_property[memory_items1-allowed1-False] PASSED [ 15%]
+tests/test_compliance.py::test_ensure_memory_context_isolated_property[memory_items2-allowed2-True] PASSED [ 17%]
+tests/test_compliance.py::test_ensure_memory_context_isolated_property[memory_items3-allowed3-False] PASSED [ 18%]
+tests/test_compliance.py::test_isolation_service_get_refuses_cross_pm PASSED [ 19%]
+tests/test_compliance.py::test_isolation_service_list_for_pm_is_bound PASSED [ 20%]
+tests/test_compliance.py::test_global_models_remain_unfiltered_without_context[FundEntity] PASSED [ 21%]
+tests/test_compliance.py::test_isolation_fund_entity_id_model PASSED     [ 22%]
+tests/test_compliance.py::test_audit_service_logs_compliance_actions[signal_ingest-signal_log-f0dd6292-e068-4d88-a868-b3b99c1f015d] PASSED [ 23%]
+tests/test_compliance.py::test_audit_service_logs_compliance_actions[thesis_create-thesis_version-ad54564c-e6a1-433c-b277-8faa06e22b3f] PASSED [ 25%]
+tests/test_compliance.py::test_audit_service_logs_compliance_actions[mnpi_decision-mnpi_review_queue-a8733b16-e6cb-495c-8181-163d4398c34b] PASSED [ 26%]
+tests/test_compliance.py::test_audit_service_logs_compliance_actions[retention_soft_delete-retention_job-05cc4b15-77ea-4418-b9bb-81397155c48f] PASSED [ 27%]
+tests/test_compliance.py::test_audit_log_cannot_be_mutated PASSED        [ 28%]
+tests/test_compliance.py::test_audit_action_decorator_emits_identities PASSED [ 29%]
+tests/test_compliance.py::test_mnpi_heuristic_property[confidential non-public board discussion-0.0-True] PASSED [ 30%]
+tests/test_compliance.py::test_mnpi_heuristic_property[pre-release earnings guidance-0.0-True] PASSED [ 31%]
+tests/test_compliance.py::test_mnpi_heuristic_property[The weather is sunny today.-0.99-False] PASSED [ 32%]
+tests/test_compliance.py::test_mnpi_heuristic_property[AAPL announced a new product color.-0.99-False] PASSED [ 34%]
+tests/test_compliance.py::test_mnpi_review_queues_and_audits PASSED      [ 35%]
+tests/test_compliance.py::test_mnpi_rejected_signal_stays_blocked PASSED [ 36%]
+tests/test_compliance.py::test_require_role_property[allowed_roles0-pm-200] PASSED [ 37%]
+tests/test_compliance.py::test_require_role_property[allowed_roles1-pm-200] PASSED [ 38%]
+tests/test_compliance.py::test_require_role_property[allowed_roles2-admin-200] PASSED [ 39%]
+tests/test_compliance.py::test_require_role_property[allowed_roles3-pm-403] PASSED [ 40%]
+tests/test_compliance.py::test_require_role_property[allowed_roles4-admin-403] PASSED [ 42%]
+tests/test_compliance.py::test_require_role_property[allowed_roles5-pm-403] PASSED [ 43%]
+tests/test_compliance.py::test_rbac_forbidden_detail_does_not_leak PASSED [ 44%]
+tests/test_compliance.py::test_retention_combinations_property[True-True-True] PASSED [ 45%]
+tests/test_compliance.py::test_retention_combinations_property[True-True-False] PASSED [ 46%]
+tests/test_compliance.py::test_retention_combinations_property[True-False-True] PASSED [ 47%]
+tests/test_compliance.py::test_retention_combinations_property[True-False-False] PASSED [ 48%]
+tests/test_compliance.py::test_retention_combinations_property[False-True-True] PASSED [ 50%]
+tests/test_compliance.py::test_retention_combinations_property[False-True-False] PASSED [ 51%]
+tests/test_compliance.py::test_retention_combinations_property[False-False-True] PASSED [ 52%]
+tests/test_compliance.py::test_retention_combinations_property[False-False-False] PASSED [ 53%]
+tests/test_compliance.py::test_retention_ignores_unknown_entity_types PASSED [ 54%]
+tests/test_compliance.py::test_retention_audit_log_written_on_real_run PASSED [ 55%]
+tests/test_compliance.py::test_generate_fernet_key_is_valid PASSED       [ 56%]
+tests/test_compliance.py::test_encrypt_decrypt_plaintext_roundtrip PASSED [ 57%]
+tests/test_compliance.py::test_decrypt_ciphertext_invalid_token_fails PASSED [ 59%]
+tests/test_compliance.py::test_get_fernet_rejects_invalid_key PASSED     [ 60%]
+tests/test_compliance.py::test_encrypted_json_type_roundtrip PASSED      [ 61%]
+tests/test_compliance.py::test_encrypted_json_noop_for_none PASSED       [ 62%]
+tests/test_compliance.py::test_export_includes_audit_trail PASSED        [ 63%]
+tests/test_compliance.py::test_no_raw_select_in_isolation_public_api PASSED [ 64%]
+tests/test_compliance.py::test_get_fernet_uses_env_encryption_key_when_unconfigured PASSED [ 65%]
+tests/test_compliance.py::test_derive_key_raises_when_no_key_available PASSED [ 67%]
+tests/test_compliance.py::test_encrypted_json_uses_env_key_when_not_configured PASSED [ 68%]
+tests/test_compliance.py::test_request_context_current_raises_outside_context PASSED [ 69%]
+tests/test_compliance.py::test_request_context_from_headers_builds_bypass_in_dev PASSED [ 70%]
+tests/test_compliance.py::test_request_context_from_headers_extracts_identity_headers PASSED [ 71%]
+tests/test_compliance.py::test_request_context_dependency_yields_ctx PASSED [ 72%]
+tests/test_compliance.py::test_require_identity_returns_identity PASSED  [ 73%]
+tests/test_compliance.py::test_request_context_middleware_adds_request_id_header PASSED [ 75%]
+tests/test_compliance.py::test_get_request_context_dependency_uses_headers PASSED [ 76%]
+tests/test_compliance.py::test_install_middleware_rejects_non_fastapi_app PASSED [ 77%]
+tests/test_compliance.py::test_audit_log_non_blocking_creates_task PASSED [ 78%]
+tests/test_compliance.py::test_audit_log_uses_session_in_signature PASSED [ 79%]
+tests/test_compliance.py::test_mnpi_service_not_blocked_when_below_threshold PASSED [ 80%]
+tests/test_compliance.py::test_mnpi_service_decide_already_processed_rejected PASSED [ 81%]
+tests/test_compliance.py::test_mnpi_service_release_alerts_without_user PASSED [ 82%]
+tests/test_compliance.py::test_retention_count_pending_returns_counts PASSED [ 84%]
+tests/test_compliance.py::test_retention_decides_behavior_with_no_candidates PASSED [ 85%]
+tests/test_compliance.py::test_retention_unknown_entity_type_is_skipped PASSED [ 86%]
+tests/test_compliance.py::test_isolation_scope_for_context_fund_only_model PASSED [ 87%]
+tests/test_compliance.py::test_isolation_ensure_model_isolated_property PASSED [ 88%]
+tests/test_compliance.py::test_audit_action_without_repository_get PASSED [ 89%]
+tests/test_compliance.py::test_isolation_ensure_memory_context_isolated_allows_none_items PASSED [ 90%]
+tests/test_compliance.py::test_isolation_require_isolated_global_model PASSED [ 92%]
+tests/test_compliance.py::test_isolation_require_isolated_fund_mismatch PASSED [ 93%]
+tests/test_compliance.py::test_export_service_missing_key_raises PASSED  [ 94%]
+tests/test_compliance.py::test_export_decrypt_handles_bad_base64 PASSED  [ 95%]
+tests/test_compliance.py::test_export_decrypt_handles_bad_token PASSED   [ 96%]
+tests/test_compliance.py::test_mnpi_review_uses_llm_when_parsed_response_valid PASSED [ 97%]
+tests/test_compliance.py::test_mnpi_review_uses_llm_then_heuristic_on_parsing_error PASSED [ 98%]
+tests/test_compliance.py::test_mnpi_review_llm_provider_raises_then_heuristic PASSED [100%]
+
+=============================== warnings summary ===============================
+tests/test_compliance.py::test_require_role_property[allowed_roles0-pm-200]
+  /usr/local/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+------------- generated xml file: /scratch/reports/compliance.xml --------------
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.14-final-0 _______________
+
+Name                             Stmts   Miss Branch BrPart  Cover   Missing
+----------------------------------------------------------------------------
+src/axe/agents/mnpi_review.py       47      0      4      0   100%
+src/axe/security/__init__.py         2      0      0      0   100%
+src/axe/security/audit.py           76      9     18      6    82%   127-132, 137->140, 142, 145->159, 169, 181
+src/axe/security/authz.py           18      1      2      0    95%   49
+src/axe/security/context.py         98      1     14      4    96%   99->102, 109->112, 136, 201->211
+src/axe/security/encryption.py      55      2     14      0    97%   91-92
+src/axe/security/isolation.py      108     10     42     12    85%   71, 77, 101, 106, 114, 127, 150-152, 178, 198, 236->exit, 238->236
+src/axe/services/export.py          67      3     14      4    91%   57, 83->86, 89, 92
+src/axe/services/mnpi.py            92      4     24      6    91%   82-86, 91->96, 130->138, 167, 178->180, 197
+src/axe/services/retention.py       59      6     18      2    84%   109-118, 160
+----------------------------------------------------------------------------
+TOTAL                              622     36    150     34    90%
+Coverage XML written to file /scratch/reports/coverage-compliance.xml
+Required test coverage of 90% reached. Total coverage: 90.16%
+======================== 88 passed, 1 warning in 3.27s =========================

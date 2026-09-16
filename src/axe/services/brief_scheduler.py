@@ -108,6 +108,7 @@ def schedule_persona_refresh_jobs(
 
     async def _job() -> None:
         async with session_maker() as session:
+            # isolation: system-wide — scheduler enumerates tenants; refresh binds each PM/fund.
             result = await session.execute(select(PMUser).where(PMUser.active.is_(True)))
             pms = result.scalars().all()
             for pm in pms:

@@ -1,0 +1,30 @@
+{"after": 2, "before": 1, "gate": "additional_filter", "passed": true}
+{"gate": "parent:process", "passed": true}
+{"errno": 30, "gate": "parent:outside_write", "passed": true}
+{"errno": 30, "gate": "parent:source_write", "passed": true}
+{"errno": 13, "gate": "parent:secret_read", "passed": true}
+{"gate": "parent:scratch_sqlite", "passed": true}
+{"gate": "parent:unix_sockets", "passed": true}
+{"errno": 1, "gate": "parent:socket:AF_INET:SOCK_STREAM", "passed": true}
+{"errno": 1, "gate": "parent:socket:AF_INET:SOCK_DGRAM", "passed": true}
+{"errno": 1, "gate": "parent:socket:AF_INET6:SOCK_STREAM", "passed": true}
+{"errno": 1, "gate": "parent:socket:AF_INET6:SOCK_DGRAM", "passed": true}
+{"gate": "child:process", "passed": true}
+{"errno": 30, "gate": "child:outside_write", "passed": true}
+{"errno": 30, "gate": "child:source_write", "passed": true}
+{"errno": 13, "gate": "child:secret_read", "passed": true}
+{"gate": "child:scratch_sqlite", "passed": true}
+{"gate": "child:unix_sockets", "passed": true}
+{"errno": 1, "gate": "child:socket:AF_INET:SOCK_STREAM", "passed": true}
+{"errno": 1, "gate": "child:socket:AF_INET:SOCK_DGRAM", "passed": true}
+{"errno": 1, "gate": "child:socket:AF_INET6:SOCK_STREAM", "passed": true}
+{"errno": 1, "gate": "child:socket:AF_INET6:SOCK_DGRAM", "passed": true}
+{"gate": "complete", "passed": true, "phase": "child"}
+{"gate": "child_inheritance", "passed": true}
+{"gate": "complete", "passed": true, "phase": "parent"}
+{"after": 2, "before": 1, "gate": "additional_filter", "passed": true}
+{"stage": "focused", "command": ["/usr/local/bin/python", "-I", "-S", "-B", "-u", "/harness/runner.py", "--stage", "focused"], "exit_code": 0}
+{"stage": "full", "command": ["/usr/local/bin/python", "-I", "-S", "-B", "-u", "/harness/runner.py", "--stage", "full"], "exit_code": 0}
+{"stage": "compliance", "command": ["/usr/local/bin/python", "-I", "-S", "-B", "-u", "/harness/runner.py", "--stage", "compliance"], "exit_code": 0}
+{"stage": "lint", "command": ["/usr/local/bin/python", "-I", "-S", "-B", "-u", "/harness/runner.py", "--stage", "lint"], "exit_code": 0}
+{"stage": "format", "command": ["/usr/local/bin/python", "-I", "-S", "-B", "-u", "/harness/runner.py", "--stage", "format"], "exit_code": 1}

@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="21" time="3.897" timestamp="2026-09-16T13:05:45.456489+00:00" hostname="be62e9f07ad2"><testcase classname="tests.test_ingestion" name="test_duplicate_signal_rejected" time="0.443" /><testcase classname="tests.test_ingestion" name="test_retry_backoff_timing" time="0.019" /><testcase classname="tests.test_ingestion" name="test_dead_letter_after_max_attempts" time="0.016" /><testcase classname="tests.test_ingestion" name="test_worker_processes_task" time="0.016" /><testcase classname="tests.test_ingestion" name="test_hashing_normalization_and_source_keys" time="0.002" /><testcase classname="tests.test_ingestion" name="test_retry_dequeue_respects_backoff_and_status" time="0.013" /><testcase classname="tests.test_ingestion" name="test_retry_dead_letter_after_explicit" time="0.006" /><testcase classname="tests.test_ingestion" name="test_worker_unknown_task_type" time="0.010" /><testcase classname="tests.test_ingestion" name="test_worker_handler_exception_marks_failed" time="0.013" /><testcase classname="tests.test_ingestion" name="test_worker_handler_false_marks_failed" time="0.014" /><testcase classname="tests.test_ingestion" name="test_default_no_op_handlers_run_to_completion" time="0.028" /><testcase classname="tests.test_ingestion" name="test_worker_marks_seen_after_success" time="0.020" /><testcase classname="tests.test_ingestion" name="test_worker_stop_finishes_inflight_transaction[handler]" time="0.032"><failure message="AssertionError: stop returned before the transaction finished&#10;assert not True&#10; +  where True = &lt;built-in method done of _asyncio.Task object at 0xffffb491ed40&gt;()&#10; +    where &lt;built-in method done of _asyncio.Task object at 0xffffb491ed40&gt; = &lt;Task finished name='Task-105' coro=&lt;RetryWorker.stop() done, defined at /app/src/axe/ingestion/worker.py:165&gt; result=None&gt;.done">db_session_factory = async_sessionmaker(class_='AsyncSession', autocommit=False, bind=&lt;sqlalchemy.ext.asyncio.engine.AsyncConnection object at 0xffffb3ed4a50&gt;, autoflush=False, expire_on_commit=False)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0xffffb3ecd430&gt;
+pause_at = 'handler'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("pause_at", ["handler", "commit"])
+    async def test_worker_stop_finishes_inflight_transaction(
+        db_session_factory: async_sessionmaker[AsyncSession],
+        monkeypatch: pytest.MonkeyPatch,
+        pause_at: str,
+    ) -&gt; None:
+        """Shutdown must not cancel a handler or its pending database commit."""
+        entered = asyncio.Event()
+        release = asyncio.Event()
+        cancelled = asyncio.Event()
+        original_commit = AsyncSession.commit
+    
+        async def pause() -&gt; None:
+            entered.set()
+            try:
+                await release.wait()
+            except asyncio.CancelledError:
+                cancelled.set()
+                raise
+    
+        async def handler(session: AsyncSession, payload: dict) -&gt; bool:
+            if pause_at == "handler":
+                await pause()
+            return True
+    
+        async def paused_commit(session: AsyncSession) -&gt; None:
+            await session.flush()
+            await pause()
+            await original_commit(session)
+    
+        async with db_session_factory() as session:
+            task = await RetryQueue(session).enqueue("shutdown_probe", {})
+            await session.commit()
+            task_id = task.id
+    
+        if pause_at == "commit":
+            monkeypatch.setattr(AsyncSession, "commit", paused_commit)
+        registry = TaskRegistry()
+        registry.register("shutdown_probe", handler)
+        worker = RetryWorker(db_session_factory, registry=registry, poll_interval=60)
+        worker.start()
+        stopping = None
+        try:
+            await asyncio.wait_for(entered.wait(), timeout=2)
+            stopping = asyncio.create_task(worker.stop())
+            await asyncio.sleep(0.02)
+&gt;           assert not stopping.done(), "stop returned before the transaction finished"
+E           AssertionError: stop returned before the transaction finished
+E           assert not True
+E            +  where True = &lt;built-in method done of _asyncio.Task object at 0xffffb491ed40&gt;()
+E            +    where &lt;built-in method done of _asyncio.Task object at 0xffffb491ed40&gt; = &lt;Task finished name='Task-105' coro=&lt;RetryWorker.stop() done, defined at /app/src/axe/ingestion/worker.py:165&gt; result=None&gt;.done
+
+tests/test_ingestion.py:324: AssertionError</failure></testcase><testcase classname="tests.test_ingestion" name="test_worker_stop_finishes_inflight_transaction[commit]" time="0.032"><failure message="AssertionError: stop returned before the transaction finished&#10;assert not True&#10; +  where True = &lt;built-in method done of _asyncio.Task object at 0xffffb491f940&gt;()&#10; +    where &lt;built-in method done of _asyncio.Task object at 0xffffb491f940&gt; = &lt;Task finished name='Task-116' coro=&lt;RetryWorker.stop() done, defined at /app/src/axe/ingestion/worker.py:165&gt; result=None&gt;.done">db_session_factory = async_sessionmaker(class_='AsyncSession', autocommit=False, bind=&lt;sqlalchemy.ext.asyncio.engine.AsyncConnection object at 0xffffb3ed5310&gt;, autoflush=False, expire_on_commit=False)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0xffffb3ecd4c0&gt;
+pause_at = 'commit'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("pause_at", ["handler", "commit"])
+    async def test_worker_stop_finishes_inflight_transaction(
+        db_session_factory: async_sessionmaker[AsyncSession],
+        monkeypatch: pytest.MonkeyPatch,
+        pause_at: str,
+    ) -&gt; None:
+        """Shutdown must not cancel a handler or its pending database commit."""
+        entered = asyncio.Event()
+        release = asyncio.Event()
+        cancelled = asyncio.Event()
+        original_commit = AsyncSession.commit
+    
+        async def pause() -&gt; None:
+            entered.set()
+            try:
+                await release.wait()
+            except asyncio.CancelledError:
+                cancelled.set()
+                raise
+    
+        async def handler(session: AsyncSession, payload: dict) -&gt; bool:
+            if pause_at == "handler":
+                await pause()
+            return True
+    
+        async def paused_commit(session: AsyncSession) -&gt; None:
+            await session.flush()
+            await pause()
+            await original_commit(session)
+    
+        async with db_session_factory() as session:
+            task = await RetryQueue(session).enqueue("shutdown_probe", {})
+            await session.commit()
+            task_id = task.id
+    
+        if pause_at == "commit":
+            monkeypatch.setattr(AsyncSession, "commit", paused_commit)
+        registry = TaskRegistry()
+        registry.register("shutdown_probe", handler)
+        worker = RetryWorker(db_session_factory, registry=registry, poll_interval=60)
+        worker.start()
+        stopping = None
+        try:
+            await asyncio.wait_for(entered.wait(), timeout=2)
+            stopping = asyncio.create_task(worker.stop())
+            await asyncio.sleep(0.02)
+&gt;           assert not stopping.done(), "stop returned before the transaction finished"
+E           AssertionError: stop returned before the transaction finished
+E           assert not True
+E            +  where True = &lt;built-in method done of _asyncio.Task object at 0xffffb491f940&gt;()
+E            +    where &lt;built-in method done of _asyncio.Task object at 0xffffb491f940&gt; = &lt;Task finished name='Task-116' coro=&lt;RetryWorker.stop() done, defined at /app/src/axe/ingestion/worker.py:165&gt; result=None&gt;.done
+
+tests/test_ingestion.py:324: AssertionError</failure></testcase><testcase classname="tests.test_ingestion" name="test_worker_start_stop_background_loop" time="0.019" /><testcase classname="tests.test_ingestion" name="test_default_registry_contains_supported_task_types" time="0.001" /><testcase classname="tests.test_ingestion" name="test_worker_duplicate_is_skipped" time="0.012" /><testcase classname="tests.test_ingestion" name="test_worker_empty_queue_returns_false" time="0.005" /><testcase classname="tests.test_ingestion" name="test_worker_tick_rollback_on_exception" time="0.011" /><testcase classname="tests.test_ingestion" name="test_retry_mark_success_missing_id_returns_none" time="0.006" /><testcase classname="tests.test_ingestion" name="test_cli_main_initialises_and_stops_worker" time="0.004" /></testsuite></testsuites>

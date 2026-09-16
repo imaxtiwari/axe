@@ -89,3 +89,12 @@ vector_store/
 tmp/
 temp/
 *.tmp
+
+# Retained local validation artifacts (never delete during Git preparation)
+/validation/**/*.tar
+/validation/**/*.whl
+/validation/step03b/installed-*/
+/validation/**/.coverage-*
+
+# Keep synthetic validation logs as reviewable evidence.
+!/validation/**/*.log

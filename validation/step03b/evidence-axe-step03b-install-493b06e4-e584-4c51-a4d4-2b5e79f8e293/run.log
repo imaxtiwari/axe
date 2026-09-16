@@ -1,0 +1,25 @@
+{"after": 2, "before": 1, "gate": "additional_filter", "passed": true}
+{"command": ["/usr/local/bin/uv", "pip", "install", "--offline", "--no-config", "--no-index", "--no-build", "--require-hashes", "--no-deps", "--find-links", "/wheels", "--target", "/scratch/dependencies", "--python", "/usr/local/bin/python", "--requirements", "/scratch/selected-requirements.txt"]}
+Using CPython 3.12.14 interpreter at: /usr/local/bin/python
+Resolved 141 packages in 13ms
+Traceback (most recent call last):
+  File "/workspace/install_dependencies.py", line 57, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/workspace/install_dependencies.py", line 35, in main
+    result = subprocess.run(command, check=False, timeout=180)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/subprocess.py", line 550, in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/subprocess.py", line 1209, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/subprocess.py", line 2141, in _communicate
+    self.wait(timeout=self._remaining_time(endtime))
+  File "/usr/local/lib/python3.12/subprocess.py", line 1264, in wait
+    return self._wait(timeout=timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/subprocess.py", line 2045, in _wait
+    raise TimeoutExpired(self.args, timeout)
+subprocess.TimeoutExpired: Command '['/usr/local/bin/uv', 'pip', 'install', '--offline', '--no-config', '--no-index', '--no-build', '--require-hashes', '--no-deps', '--find-links', '/wheels', '--target', '/scratch/dependencies', '--python', '/usr/local/bin/python', '--requirements', '/scratch/selected-requirements.txt']' timed out after 179.999822666 seconds

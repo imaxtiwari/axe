@@ -1,0 +1,401 @@
+diff --git a/src/axe/config.py b/src/axe/config.py
+index 9d5a120..7bad6b3 100644
+--- a/src/axe/config.py
++++ b/src/axe/config.py
+@@ -1,7 +1,9 @@
+ """Pydantic Settings for AXE configuration."""
+ 
++import os
+ from functools import lru_cache
+ from pathlib import Path
++from typing import Any
+ 
+ from pydantic import Field, field_validator
+ from pydantic_settings import BaseSettings, SettingsConfigDict
+@@ -16,6 +18,15 @@ class Settings(BaseSettings):
+         extra="ignore",
+     )
+ 
++    def __init__(self, **values: Any) -> None:
++        # Disable file-backed sources before Pydantic constructs (and reads) them.
++        # This is a validation hook, not a substitute for process isolation.
++        if os.environ.get("AXE_VALIDATION") == "1":
++            values["_env_file"] = None
++            values["_secrets_dir"] = ()
++        super().__init__(**values)
++
++    readiness_dir: Path = Field(default=Path("./data"), description="Readiness probe directory")
+     app_env: str = Field(default="development", description="Application environment")
+     log_level: str = Field(default="INFO", description="Logging level")
+ 
+diff --git a/src/axe/db/uow.py b/src/axe/db/uow.py
+index bb3a1a5..913d6f7 100644
+--- a/src/axe/db/uow.py
++++ b/src/axe/db/uow.py
+@@ -73,7 +73,7 @@ class DealThesisRepository(_BaseRepo):
+ 
+     async def get_latest_for_deal(self, deal_id: str) -> DealThesisVersion | None:
+         result = await self.session.execute(
+-            select(DealThesisVersion)
++            IsolationService.select_for(DealThesisVersion)
+             .where(DealThesisVersion.deal_id == deal_id)
+             .order_by(desc(DealThesisVersion.version))
+             .limit(1)
+@@ -82,7 +82,7 @@ class DealThesisRepository(_BaseRepo):
+ 
+     async def list_for_deal(self, deal_id: str) -> list[DealThesisVersion]:
+         result = await self.session.execute(
+-            select(DealThesisVersion)
++            IsolationService.select_for(DealThesisVersion)
+             .where(DealThesisVersion.deal_id == deal_id)
+             .order_by(desc(DealThesisVersion.version))
+         )
+@@ -180,7 +180,10 @@ class ICMemoRepository(_BaseRepo):
+ 
+     async def get_latest_for_deal(self, deal_id: str) -> ICMemo | None:
+         result = await self.session.execute(
+-            select(ICMemo).where(ICMemo.deal_id == deal_id).order_by(desc(ICMemo.version)).limit(1)
++            IsolationService.select_for(ICMemo)
++            .where(ICMemo.deal_id == deal_id)
++            .order_by(desc(ICMemo.version))
++            .limit(1)
+         )
+         return result.scalar_one_or_none()
+ 
+@@ -191,7 +194,9 @@ class ICMemoRepository(_BaseRepo):
+ 
+     async def list_for_deal(self, deal_id: str) -> list[ICMemo]:
+         result = await self.session.execute(
+-            select(ICMemo).where(ICMemo.deal_id == deal_id).order_by(desc(ICMemo.version))
++            IsolationService.select_for(ICMemo)
++            .where(ICMemo.deal_id == deal_id)
++            .order_by(desc(ICMemo.version))
+         )
+         return list(result.scalars().all())
+ 
+@@ -205,7 +210,9 @@ class ICSignOffRepository(_BaseRepo):
+ 
+     async def list_for_memo(self, memo_id: str) -> list[ICSignOff]:
+         result = await self.session.execute(
+-            select(ICSignOff).where(ICSignOff.memo_id == memo_id).order_by(ICSignOff.created_at)
++            select(ICSignOff)
++            .where(ICSignOff.fund_entity_id == _require_fund_id(), ICSignOff.memo_id == memo_id)
++            .order_by(ICSignOff.created_at)
+         )
+         return list(result.scalars().all())
+ 
+@@ -322,7 +329,9 @@ class UnderwritingChecklistRepository(_BaseRepo):
+         include_scoped: bool = True,
+     ) -> list[UnderwritingChecklist]:
+         stmt = (
+-            select(UnderwritingChecklist)
++            IsolationService.scope_for_context(
++                select(UnderwritingChecklist).join(DealRoom), DealRoom
++            )
+             .where(UnderwritingChecklist.deal_id == deal_id)
+             .order_by(UnderwritingChecklist.sort_order, UnderwritingChecklist.updated_at)
+         )
+@@ -340,7 +349,9 @@ class UnderwritingScenarioRepository(_BaseRepo):
+ 
+     async def list_for_deal(self, deal_id: str) -> list[UnderwritingScenario]:
+         result = await self.session.execute(
+-            select(UnderwritingScenario)
++            IsolationService.scope_for_context(
++                select(UnderwritingScenario).join(DealRoom), DealRoom
++            )
+             .where(UnderwritingScenario.deal_id == deal_id)
+             .order_by(UnderwritingScenario.created_at.desc())
+         )
+diff --git a/src/axe/ingestion/worker.py b/src/axe/ingestion/worker.py
+index 6195736..2f3dc88 100644
+--- a/src/axe/ingestion/worker.py
++++ b/src/axe/ingestion/worker.py
+@@ -163,11 +163,12 @@ class RetryWorker:
+         self._task = asyncio.create_task(self._run_loop())
+ 
+     async def stop(self) -> None:
+-        """Stop the background worker loop and wait for it to finish."""
++        """Stop polling and let the in-flight transaction finish before returning."""
+         if self._task is None:
+             return
+         self._stop_event.set()
+-        self._task.cancel()
++        # Cancelling database I/O can invalidate the connection mid-commit.
++        # The event also wakes an idle loop without waiting for the poll interval.
+         try:
+             await self._task
+         except asyncio.CancelledError:
+diff --git a/src/axe/main.py b/src/axe/main.py
+index a770cd0..0d51f60 100644
+--- a/src/axe/main.py
++++ b/src/axe/main.py
+@@ -33,7 +33,7 @@ from axe.security.context import install_middleware
+ @asynccontextmanager
+ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+     """Application lifespan events."""
+-    Path("./data").mkdir(parents=True, exist_ok=True)
++    Path(app.state.readiness_dir).mkdir(parents=True, exist_ok=True)
+     yield
+ 
+ 
+@@ -52,6 +52,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
+         version="0.1.0",
+         lifespan=lifespan,
+     )
++    app.state.readiness_dir = settings.readiness_dir
+     install_global_error_middleware(app)
+     install_middleware(app)
+     instrument_fastapi(app)
+@@ -66,8 +67,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
+     async def readiness_check() -> JSONResponse:
+         """Readiness probe; verifies required dirs are present and writable."""
+         try:
+-            Path("./data").mkdir(parents=True, exist_ok=True)
+-            probe = Path("./data") / ".ready"
++            settings.readiness_dir.mkdir(parents=True, exist_ok=True)
++            probe = settings.readiness_dir / ".ready"
+             probe.write_text("ok")
+             return JSONResponse({"status": "ready"})
+         except OSError as exc:
+diff --git a/src/axe/services/brief_scheduler.py b/src/axe/services/brief_scheduler.py
+index 3723ab6..e3be1ce 100644
+--- a/src/axe/services/brief_scheduler.py
++++ b/src/axe/services/brief_scheduler.py
+@@ -108,6 +108,7 @@ def schedule_persona_refresh_jobs(
+ 
+     async def _job() -> None:
+         async with session_maker() as session:
++            # isolation: system-wide — scheduler enumerates tenants; refresh binds each PM/fund.
+             result = await session.execute(select(PMUser).where(PMUser.active.is_(True)))
+             pms = result.scalars().all()
+             for pm in pms:
+diff --git a/src/axe/services/compliance_escalation.py b/src/axe/services/compliance_escalation.py
+index 9a93e62..1ab7f61 100644
+--- a/src/axe/services/compliance_escalation.py
++++ b/src/axe/services/compliance_escalation.py
+@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
+ from axe.config import Settings, get_settings
+ from axe.db.models import ComplianceEscalation, PMUser
+ from axe.db.uow import UnitOfWork
++from axe.exceptions import IsolationError
+ from axe.security.audit import AuditService
+ from axe.security.context import RequestContext
+ 
+@@ -248,23 +249,26 @@ class ComplianceEscalationService:
+         escalations for that PM within the fund. Compliance officers and admins
+         see all open escalations in the fund.
+         """
+-        stmt = select(ComplianceEscalation).where(ComplianceEscalation.status.in_(_OPEN_STATUSES))
+-
+         effective_fund_id = fund_id
+         if effective_fund_id is None:
+             ctx = RequestContext.current_or_none()
+             if ctx is not None:
+                 effective_fund_id = ctx.fund_id
+ 
+-        if effective_fund_id is not None:
+-            stmt = stmt.where(ComplianceEscalation.fund_entity_id == effective_fund_id)
++        if not effective_fund_id:
++            raise IsolationError("fund_id is required to list escalations")
++        stmt = select(ComplianceEscalation).where(
++            ComplianceEscalation.fund_entity_id == effective_fund_id,
++            ComplianceEscalation.status.in_(_OPEN_STATUSES),
++        )
+ 
+-        if pm_id is not None and role == "pm":
+-            stmt = stmt.where(ComplianceEscalation.pm_id == pm_id)
+-        elif role == "pm":
+-            ctx = RequestContext.current_or_none()
+-            if ctx is not None and ctx.pm_id is not None:
+-                stmt = stmt.where(ComplianceEscalation.pm_id == ctx.pm_id)
++        ctx = RequestContext.current_or_none()
++        effective_role = role or (ctx.role if ctx is not None else None)
++        if effective_role == "pm":
++            effective_pm_id = pm_id or (ctx.pm_id if ctx is not None else None)
++            if not effective_pm_id:
++                raise IsolationError("pm_id is required to list PM escalations")
++            stmt = stmt.where(ComplianceEscalation.pm_id == effective_pm_id)
+ 
+         stmt = stmt.order_by(
+             ComplianceEscalation.severity.desc(),
+@@ -315,7 +319,7 @@ class ComplianceEscalationService:
+             select(
+                 ComplianceEscalation.reviewer_id,
+                 func.count(ComplianceEscalation.id).label("open_count"),
+-            )
++            ).where(ComplianceEscalation.fund_entity_id == fund_entity_id)
+             .where(
+                 ComplianceEscalation.reviewer_id.in_(candidate_ids),
+                 ComplianceEscalation.status.in_(_OPEN_STATUSES),
+diff --git a/src/axe/services/export.py b/src/axe/services/export.py
+index 633be7e..cd7fc96 100644
+--- a/src/axe/services/export.py
++++ b/src/axe/services/export.py
+@@ -20,6 +20,7 @@ from sqlalchemy.orm import DeclarativeBase
+ 
+ from axe.config import Settings, get_settings
+ from axe.db.models import AuditLog
++from axe.exceptions import IsolationError
+ from axe.security.encryption import EncryptionError, encrypt_plaintext, get_fernet
+ 
+ logger = logging.getLogger(__name__)
+@@ -82,8 +83,15 @@ class ExportService:
+         if object_id is not None:
+             where_filters.append(AuditLog.object_id == str(object_id))
+ 
++        pm_id = getattr(entity, "pm_id", None)
++        fund_id = getattr(entity, "fund_entity_id", None)
++        if not pm_id and not fund_id:
++            raise IsolationError("Export entity must have a PM or fund scope")
++        stmt = select(AuditLog).where(AuditLog.pm_id == pm_id)
++        if fund_id:
++            stmt = stmt.where(AuditLog.fund_entity_id == fund_id)
+         audit_result = await self.session.execute(
+-            select(AuditLog).where(*where_filters).order_by(AuditLog.created_at.asc())
++            stmt.where(*where_filters).order_by(AuditLog.created_at.asc())
+         )
+         audit_rows = audit_result.scalars().all()
+ 
+diff --git a/src/axe/services/ic_memo.py b/src/axe/services/ic_memo.py
+index 8de545b..ac3ad7c 100644
+--- a/src/axe/services/ic_memo.py
++++ b/src/axe/services/ic_memo.py
+@@ -209,7 +209,7 @@ class ICMemoService:
+ 
+         result = await self.session.execute(
+             select(DealThesisVersion)
+-            .where(DealThesisVersion.deal_id == deal_id)
++            .where(DealThesisVersion.pm_id == self.pm_id, DealThesisVersion.deal_id == deal_id)
+             .order_by(desc(DealThesisVersion.version))
+             .limit(1)
+         )
+diff --git a/src/axe/services/lp_comms.py b/src/axe/services/lp_comms.py
+index 3cee2e6..4d2ae40 100644
+--- a/src/axe/services/lp_comms.py
++++ b/src/axe/services/lp_comms.py
+@@ -155,6 +155,8 @@ class LPCommsService:
+ 
+         result = await self.session.execute(
+             select(LPUpdate)
++            .join(InvestmentVehicle)
++            .where(InvestmentVehicle.fund_entity_id == self.fund_entity_id)
+             .where(LPUpdate.vehicle_id == vehicle_id)
+             .order_by(desc(LPUpdate.created_at))
+         )
+@@ -168,7 +170,10 @@ class LPCommsService:
+         content_hash = hashlib.sha256(raw_content.encode("utf-8")).hexdigest()
+ 
+         result = await self.session.execute(
+-            select(LPRelationship.contact_email).where(
++            select(LPRelationship.contact_email)
++            .join(InvestmentVehicle)
++            .where(InvestmentVehicle.fund_entity_id == self.fund_entity_id)
++            .where(
+                 LPRelationship.vehicle_id == update.vehicle_id,
+                 LPRelationship.contact_email.is_not(None),
+             )
+diff --git a/src/axe/services/retention.py b/src/axe/services/retention.py
+index 8fe16b8..f5fbae5 100644
+--- a/src/axe/services/retention.py
++++ b/src/axe/services/retention.py
+@@ -27,6 +27,8 @@ from axe.db.models import (
+     utc_now,
+ )
+ from axe.security.audit import AuditService
++from axe.security.context import RequestContext
++from axe.security.isolation import IsolationService
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -93,6 +95,8 @@ class RetentionService:
+                 logger.warning("Unknown retention entity type: %s", name)
+                 continue
+ 
++            # isolation: system-wide — context-free maintenance processes all tenants.
++            # Calls within a request remain restricted to that request's PM.
+             stmt: Any = select(model).where(
+                 and_(
+                     model.created_at < self._cutoff,
+@@ -100,6 +104,8 @@ class RetentionService:
+                     model.deleted_at.is_(None),
+                 )
+             )
++            if RequestContext.current_or_none() is not None:
++                stmt = IsolationService.scope_for_context(stmt, model)
+             result = await self.session.execute(stmt)
+             rows = result.scalars().all()
+             row_ids = [row.id for row in rows]
+diff --git a/tests/test_ingestion.py b/tests/test_ingestion.py
+index b60b08d..0390638 100644
+--- a/tests/test_ingestion.py
++++ b/tests/test_ingestion.py
+@@ -274,6 +274,69 @@ async def test_worker_marks_seen_after_success(
+         assert await dedup.is_duplicate(ch, source_id=key) is True
+ 
+ 
++@pytest.mark.asyncio
++@pytest.mark.parametrize("pause_at", ["handler", "commit"])
++async def test_worker_stop_finishes_inflight_transaction(
++    db_session_factory: async_sessionmaker[AsyncSession],
++    monkeypatch: pytest.MonkeyPatch,
++    pause_at: str,
++) -> None:
++    """Shutdown must not cancel a handler or its pending database commit."""
++    entered = asyncio.Event()
++    release = asyncio.Event()
++    cancelled = asyncio.Event()
++    original_commit = AsyncSession.commit
++
++    async def pause() -> None:
++        entered.set()
++        try:
++            await release.wait()
++        except asyncio.CancelledError:
++            cancelled.set()
++            raise
++
++    async def handler(session: AsyncSession, payload: dict) -> bool:
++        if pause_at == "handler":
++            await pause()
++        return True
++
++    async def paused_commit(session: AsyncSession) -> None:
++        await session.flush()
++        await pause()
++        await original_commit(session)
++
++    async with db_session_factory() as session:
++        task = await RetryQueue(session).enqueue("shutdown_probe", {})
++        await session.commit()
++        task_id = task.id
++
++    if pause_at == "commit":
++        monkeypatch.setattr(AsyncSession, "commit", paused_commit)
++    registry = TaskRegistry()
++    registry.register("shutdown_probe", handler)
++    worker = RetryWorker(db_session_factory, registry=registry, poll_interval=60)
++    worker.start()
++    stopping = None
++    try:
++        await asyncio.wait_for(entered.wait(), timeout=2)
++        stopping = asyncio.create_task(worker.stop())
++        await asyncio.sleep(0.02)
++        assert not stopping.done(), "stop returned before the transaction finished"
++        assert not cancelled.is_set(), "stop cancelled in-flight work"
++    finally:
++        release.set()
++        if stopping is not None:
++            await asyncio.wait_for(stopping, timeout=2)
++        else:
++            await worker.stop()
++
++    async with db_session_factory() as session:
++        row = await session.get(RetryQueueModel, task_id)
++        assert row is not None
++        assert row.status == "succeeded"
++    assert worker._task is None
++
++
+ @pytest.mark.asyncio
+ async def test_worker_start_stop_background_loop(
+     db_session_factory: async_sessionmaker[AsyncSession],

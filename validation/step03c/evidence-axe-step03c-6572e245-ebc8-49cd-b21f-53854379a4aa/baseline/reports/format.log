@@ -1,0 +1,12 @@
+unformatted: File would be reformatted
+   --> src/axe/services/retention.py:114:63
+    |
+113 |                 elif model is ThesisPostMortem:
+    -                     stmt = IsolationService.scope_for_context(stmt.join(ThesisVersion), ThesisVersion)
+114 +                     stmt = IsolationService.scope_for_context(
+115 +                         stmt.join(ThesisVersion), ThesisVersion
+116 +                     )
+117 |                 else:
+    |
+
+1 file would be reformatted, 118 files already formatted

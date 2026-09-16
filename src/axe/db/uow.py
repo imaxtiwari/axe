@@ -73,7 +73,7 @@ class DealThesisRepository(_BaseRepo):
 
     async def get_latest_for_deal(self, deal_id: str) -> DealThesisVersion | None:
         result = await self.session.execute(
-            select(DealThesisVersion)
+            IsolationService.select_for(DealThesisVersion)
             .where(DealThesisVersion.deal_id == deal_id)
             .order_by(desc(DealThesisVersion.version))
             .limit(1)
@@ -82,7 +82,7 @@ class DealThesisRepository(_BaseRepo):
 
     async def list_for_deal(self, deal_id: str) -> list[DealThesisVersion]:
         result = await self.session.execute(
-            select(DealThesisVersion)
+            IsolationService.select_for(DealThesisVersion)
             .where(DealThesisVersion.deal_id == deal_id)
             .order_by(desc(DealThesisVersion.version))
         )
@@ -180,7 +180,10 @@ class ICMemoRepository(_BaseRepo):
 
     async def get_latest_for_deal(self, deal_id: str) -> ICMemo | None:
         result = await self.session.execute(
-            select(ICMemo).where(ICMemo.deal_id == deal_id).order_by(desc(ICMemo.version)).limit(1)
+            IsolationService.select_for(ICMemo)
+            .where(ICMemo.deal_id == deal_id)
+            .order_by(desc(ICMemo.version))
+            .limit(1)
         )
         return result.scalar_one_or_none()
 
@@ -191,7 +194,9 @@ class ICMemoRepository(_BaseRepo):
 
     async def list_for_deal(self, deal_id: str) -> list[ICMemo]:
         result = await self.session.execute(
-            select(ICMemo).where(ICMemo.deal_id == deal_id).order_by(desc(ICMemo.version))
+            IsolationService.select_for(ICMemo)
+            .where(ICMemo.deal_id == deal_id)
+            .order_by(desc(ICMemo.version))
         )
         return list(result.scalars().all())
 
@@ -205,7 +210,9 @@ class ICSignOffRepository(_BaseRepo):
 
     async def list_for_memo(self, memo_id: str) -> list[ICSignOff]:
         result = await self.session.execute(
-            select(ICSignOff).where(ICSignOff.memo_id == memo_id).order_by(ICSignOff.created_at)
+            select(ICSignOff)
+            .where(ICSignOff.fund_entity_id == _require_fund_id(), ICSignOff.memo_id == memo_id)
+            .order_by(ICSignOff.created_at)
         )
         return list(result.scalars().all())
 
@@ -322,7 +329,9 @@ class UnderwritingChecklistRepository(_BaseRepo):
         include_scoped: bool = True,
     ) -> list[UnderwritingChecklist]:
         stmt = (
-            select(UnderwritingChecklist)
+            IsolationService.scope_for_context(
+                select(UnderwritingChecklist).join(DealRoom), DealRoom
+            )
             .where(UnderwritingChecklist.deal_id == deal_id)
             .order_by(UnderwritingChecklist.sort_order, UnderwritingChecklist.updated_at)
         )
@@ -340,7 +349,9 @@ class UnderwritingScenarioRepository(_BaseRepo):
 
     async def list_for_deal(self, deal_id: str) -> list[UnderwritingScenario]:
         result = await self.session.execute(
-            select(UnderwritingScenario)
+            IsolationService.scope_for_context(
+                select(UnderwritingScenario).join(DealRoom), DealRoom
+            )
             .where(UnderwritingScenario.deal_id == deal_id)
             .order_by(UnderwritingScenario.created_at.desc())
         )

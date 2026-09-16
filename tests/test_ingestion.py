@@ -275,6 +275,69 @@ async def test_worker_marks_seen_after_success(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("pause_at", ["handler", "commit"])
+async def test_worker_stop_finishes_inflight_transaction(
+    db_session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+    pause_at: str,
+) -> None:
+    """Shutdown must not cancel a handler or its pending database commit."""
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    cancelled = asyncio.Event()
+    original_commit = AsyncSession.commit
+
+    async def pause() -> None:
+        entered.set()
+        try:
+            await release.wait()
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+
+    async def handler(session: AsyncSession, payload: dict) -> bool:
+        if pause_at == "handler":
+            await pause()
+        return True
+
+    async def paused_commit(session: AsyncSession) -> None:
+        await session.flush()
+        await pause()
+        await original_commit(session)
+
+    async with db_session_factory() as session:
+        task = await RetryQueue(session).enqueue("shutdown_probe", {})
+        await session.commit()
+        task_id = task.id
+
+    if pause_at == "commit":
+        monkeypatch.setattr(AsyncSession, "commit", paused_commit)
+    registry = TaskRegistry()
+    registry.register("shutdown_probe", handler)
+    worker = RetryWorker(db_session_factory, registry=registry, poll_interval=60)
+    worker.start()
+    stopping = None
+    try:
+        await asyncio.wait_for(entered.wait(), timeout=2)
+        stopping = asyncio.create_task(worker.stop())
+        await asyncio.sleep(0.02)
+        assert not stopping.done(), "stop returned before the transaction finished"
+        assert not cancelled.is_set(), "stop cancelled in-flight work"
+    finally:
+        release.set()
+        if stopping is not None:
+            await asyncio.wait_for(stopping, timeout=2)
+        else:
+            await worker.stop()
+
+    async with db_session_factory() as session:
+        row = await session.get(RetryQueueModel, task_id)
+        assert row is not None
+        assert row.status == "succeeded"
+    assert worker._task is None
+
+
+@pytest.mark.asyncio
 async def test_worker_start_stop_background_loop(
     db_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
